@@ -44,6 +44,9 @@ class KeyPair:
         self._public_key = SecureBytes(encoded_public_key)
         return self
 
+    def both(self) -> tuple[SecureBytes, SecureBytes]:
+        return self.secret_key, self.public_key
+
 
 class KEMKeyPair:
     _encapsulated_key: SecureBytes
