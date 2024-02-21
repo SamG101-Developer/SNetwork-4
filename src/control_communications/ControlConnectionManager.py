@@ -23,13 +23,15 @@ class ControlConnectionState(Enum):
 
 
 class ControlConnectionProtocol(Enum):
-    CONN_REQ = 0b000  # Request a connection
-    CONN_ACC = 0b001  # Accept a connection request
-    CONN_REJ = 0b011  # Reject a connection request
-    CONN_CLS = 0b011  # Close a connection
-    CONN_ERR = 0b100  # Error in connection
-    CONN_FWD = 0b101  # Forward a connection command
-    CONN_EXT = 0b110  # Extend a connection
+    CONN_REQ     = 0b000  # Request a connection
+    CONN_ACC     = 0b001  # Accept a connection request
+    CONN_REJ     = 0b011  # Reject a connection request
+    CONN_CLS     = 0b011  # Close a connection
+    CONN_ERR     = 0b100  # Error in connection
+    CONN_FWD     = 0b101  # Forward a connection command
+    CONN_EXT     = 0b110  # Extend a connection
+    CONN_EXT_ACC = 0b111  # Acknowledge an extended connection
+    CONN_EXT_REJ = 0b1000  # Reject an extended connection
 
 
 @dataclass
@@ -77,8 +79,7 @@ class ControlConnectionManager:
         # Get the data and address from the udp socket, and parse the message into a command and data. Split the data
         # into the connection token and the rest of the data.
         data, addr = self._udp_server.recvfrom(1024)
-        command, data = self._parse_message(data)
-        connection_token, data = data[:32], data[32:]
+        command, connection_token, data = self._parse_message(data)
 
         # Decrypt the data if a shared secret exists (only won't when initiating a connection).
         conversation_id = (connection_token, addr)
@@ -92,16 +93,39 @@ class ControlConnectionManager:
         msg_thread.start()
         self._msg_threads.append(msg_thread)
 
-    def _parse_message(self, data: Bytes) -> Tuple[ControlConnectionProtocol, Bytes]:
-        # Parse the message into a command and data
+    def _parse_message(self, data: Bytes) -> Tuple[ControlConnectionProtocol, Bytes, Bytes]:
+        """
+        Parse the message into a command, connection token and data. The command is the first byte, the connection token
+        is the next 32 bytes, and the rest of the data is the accompanying data.
+        :param data:
+        :return:
+        """
+
+        # Split the data into the command, connection token and the rest of the data.
         command = ControlConnectionProtocol(data[0])
-        data = data[1:]
-        return command, data
+        connection_token = data[1:33]
+        data = data[33:]
+
+        # Return the command, connection token and data.
+        return command, connection_token, data
 
     def _handle_message(self, addr: Address, command: ControlConnectionProtocol, connection_token: Bytes, data: Bytes) -> None:
+        """
+        Handle a message from a node. The message will have already been split into the command, connection token and
+        the accompanying data. The message will be handled based on the command. After the function for the command has
+        executed, the current thread is joined and removed from the list of message threads.
+        :param addr:
+        :param command:
+        :param connection_token:
+        :param data:
+        :return:
+        """
+
         waiting_for_ack = self._waiting_for_ack_from(addr, connection_token)
         connected = self._is_connected_to(addr, connection_token)
 
+        # Decide on the function to call based on the command, and call it. The mutex is used to lock the conversation
+        # list, so that only one thread can access it at a time. This is to prevent
         match command:
             case ControlConnectionProtocol.CONN_REQ:
                 self._mutex.acquire()
@@ -126,6 +150,16 @@ class ControlConnectionManager:
             case ControlConnectionProtocol.CONN_EXT if connected:
                 self._mutex.acquire()
                 self._handle_extend_connection(addr, connection_token, data)
+                self._mutex.release()
+
+            case ControlConnectionProtocol.CONN_EXT_ACC if connected:
+                self._mutex.acquire()
+                self._handle_accept_extended_connection(addr, connection_token, data)
+                self._mutex.release()
+
+            case ControlConnectionProtocol.CONN_EXT_REJ if connected:
+                self._mutex.acquire()
+                self._handle_reject_extended_connection(addr, connection_token, data)
                 self._mutex.release()
 
             case ControlConnectionProtocol.CONN_FWD:
@@ -210,6 +244,17 @@ class ControlConnectionManager:
             shared_secret=KEM.kem_unwrap(my_ephemeral_secret_key, signed_kem_wrapped_shared_secret.message).decapsulated_key,
             my_ephemeral_secret_key=my_ephemeral_secret_key)
 
+        # Pass the ephemeral public key to the previous node in the route, so the first node can collect all the keys
+        # for key exchanges between the client and the route nodes, to establish layered packet encryption keys. Get the
+        # address of the other node in the conversation list who has the same connection token.
+        candidates = [c[1] for c in self._conversations.keys() if c[0] == connection_token and c[1] != addr]
+        assert len(candidates) == 1
+        target_node = candidates[0]
+
+        # Use the EXT_ACK command to send the ephemeral public key to the previous node in the route.
+        sending_data = pickle.dumps(my_ephemeral_secret_key)
+        self._send_message(target_node, connection_token, ControlConnectionProtocol.CONN_EXT_ACC, sending_data)
+
     @ReplayErrorBackToUser
     def _handle_reject_connection(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
         """
@@ -218,6 +263,13 @@ class ControlConnectionManager:
         :param addr:
         :return:
         """
+
+        # Tell the previous node that the extension was rejected (if this node isn't the client node)
+        candidates = [c[1] for c in self._conversations.keys() if c[0] == connection_token and c[1] != addr]
+        assert len(candidates) in (0, 1)
+        if candidates:
+            target_node = candidates[0]
+            self._send_message(target_node, connection_token, ControlConnectionProtocol.CONN_EXT_REJ, data)
 
         # Remove the connection information for the rejecting node.
         conversation_id = (connection_token, addr)
@@ -256,9 +308,23 @@ class ControlConnectionManager:
             shared_secret=None,
             my_ephemeral_secret_key=my_ephemeral_private_key)
 
-        # Send the signed ephemeral public key to the next node, maintaining the connection token.
+        # Send the signed ephemeral public key to the next node, maintaining the connection token. The next node will
+        # ultimately send an EXT_ACK command to acknowledge the extension.
         sending_data = pickle.dumps(signed_ephemeral_public_key)
         self._send_message(target_addr, connection_token, ControlConnectionProtocol.CONN_REQ, sending_data)
+
+    @ReplayErrorBackToUser
+    def _handle_acknowledge_extended_connection(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
+        """
+        Handle an acknowledgement from a node that it has been successful in extending the connection to the next node
+        in
+        :param addr:
+        :return:
+        """
+
+        # Get the ephemeral public key of the next node in the route, and save it to the conversation list.
+        conversation_id = (connection_token, addr)
+        self._conversations[conversation_id].my_ephemeral_secret_key = pickle.loads(data)
 
     @ReplayErrorBackToUser
     def _forward_message(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
