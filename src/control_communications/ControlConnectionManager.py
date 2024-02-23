@@ -53,10 +53,18 @@ def ReplayErrorBackToUser(function):
     return outer
 
 
+@dataclass
+class ControlConnectionRoute:
+    route: List[[Address, SecureBytes]]  # Address and ephemeral public key
+    connection_token: ConnectionToken
+
+
 class ControlConnectionManager:
     _udp_server: Socket
     _msg_threads: List[Thread]
     _conversations: Dict[ConnectionToken, ControlConnectionConversationInfo]
+    _my_route: Optional[ControlConnectionRoute]
+    _pending_node_to_add_to_route: Optional[Address]
     _mutex: Lock
 
     def __init__(self):
@@ -64,6 +72,7 @@ class ControlConnectionManager:
         self._udp_server = Socket(AF_INET, SOCK_DGRAM)
         self._msg_threads = []
         self._conversations = {}
+        self._my_route = None
         self._mutex = Lock()
         self._setup_socket()
 
@@ -314,17 +323,88 @@ class ControlConnectionManager:
         self._send_message(target_addr, connection_token, ControlConnectionProtocol.CONN_REQ, sending_data)
 
     @ReplayErrorBackToUser
-    def _handle_acknowledge_extended_connection(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
+    def _handle_accept_extended_connection(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
         """
-        Handle an acknowledgement from a node that it has been successful in extending the connection to the next node
-        in
+        A connection extension has been accepted. This means Node X has told Node Y to extend the connection to Node Z,
+        and Node Z has accepted Node Y's connection, so Node Y is telling this to Node X.
         :param addr:
+        :param connection_token:
+        :param data:
         :return:
         """
 
-        # Get the ephemeral public key of the next node in the route, and save it to the conversation list.
-        conversation_id = (connection_token, addr)
-        self._conversations[conversation_id].my_ephemeral_secret_key = pickle.loads(data)
+        # If this is the client node accepting the extension to the route, add the node to the route list.
+        if self._my_route and self._my_route.connection_token == connection_token:
+            # Get the signed ephemeral public key from the data, and verify the signature. The key from Node Z was
+            # originally sent to Node Y, so the identifier of Node Y is used to verify the signature.
+            original_node_static_public_key = DHT.get_static_public_key(self._my_route.route[-1])
+            their_static_public_key = DHT.get_static_public_key(self._pending_node_to_add_to_route)
+            cmd_and_signed_ephemeral_public_key: SignedMessage = pickle.loads(data)
+
+            # Verify the signature of the ephemeral public key being sent from the accepting node.
+            DigitalSigning.verify(
+                their_static_public_key=their_static_public_key,
+                signed_message=cmd_and_signed_ephemeral_public_key,
+                my_id=original_node_static_public_key)
+
+            # Check that the command (signed by the target node being extended to), is indeed what the next node
+            # reported. This is to prevent the next node lying about the state of the connection. If the next node is
+            # lying, this node needs changing. TODO: Remove lying node
+            target_cmd, target_connection_token, signed_ephemeral_public_key = self._parse_message(cmd_and_signed_ephemeral_public_key.message.raw)
+            assert target_cmd == ControlConnectionProtocol.CONN_EXT_ACC
+            assert target_connection_token == connection_token
+
+            # Save the connection information to the route list.
+            self._my_route.route.append((self._pending_node_to_add_to_route, signed_ephemeral_public_key))
+            self._pending_node_to_add_to_route = None
+
+        # Otherwise, send this message to the previous node in the route.
+        else:
+            candidates = [c[1] for c in self._conversations.keys() if c[0] == connection_token and c[1] != addr]
+            assert len(candidates) == 1
+            target_node = candidates[0]
+            self._send_message(target_node, connection_token, ControlConnectionProtocol.CONN_EXT_ACC, data)
+
+    @ReplayErrorBackToUser
+    def _handle_reject_extended_connection(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
+        """
+        A connection extension has been rejected. This means Node X has told Node Y to extend the connection to Node Z,
+        and Node Z has rejected Node Y's connection, so Node Y is telling this to Node X.
+        :param addr:
+        :param connection_token:
+        :param data:
+        :return:
+        """
+
+        # If this is the client node accepting the extension to the route, then a new node needs to be requested to be
+        # added to the route list.
+        if self._my_route and self._my_route.connection_token == connection_token:
+            their_static_public_key = DHT.get_static_public_key(self._pending_node_to_add_to_route)
+            original_node_static_public_key = DHT.get_static_public_key(self._my_route.route[-1])
+            rejection_message: SignedMessage = pickle.loads(data)
+
+            # Verify the signature of the rejection message being sent from the rejecting node.
+            DigitalSigning.verify(
+                their_static_public_key=their_static_public_key,
+                signed_message=rejection_message,
+                my_id=original_node_static_public_key)
+
+            # Check that the command (signed by the target node being extended to), is indeed what the next node
+            # reported. This is to prevent the next node lying about the state of the connection. If the next node is
+            # lying, this node needs changing. TODO: Remove lying node
+            target_cmd, target_connection_token, rejection_data = self._parse_message(rejection_message.message.raw)
+            assert target_cmd == ControlConnectionProtocol.CONN_EXT_REJ
+            assert target_connection_token == connection_token
+
+            # TODO: Request a new node to be added to the route list
+            self._pending_node_to_add_to_route = None
+
+        # Otherwise, send this message to the previous node in the route.
+        else:
+            candidates = [c[1] for c in self._conversations.keys() if c[0] == connection_token and c[1] != addr]
+            assert len(candidates) == 1
+            target_node = candidates[0]
+            self._send_message(target_node, connection_token, ControlConnectionProtocol.CONN_EXT_REJ, data)
 
     @ReplayErrorBackToUser
     def _forward_message(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
