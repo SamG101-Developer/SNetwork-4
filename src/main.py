@@ -1,5 +1,5 @@
 from argparse import ArgumentParser
-from setup.setup import setup
+from src.setup.cmd_handler import CmdHandler
 import sys
 
 
@@ -52,9 +52,9 @@ def create_argument_parser() -> ArgumentParser:
 
 
 def main():
-    setup()
     parser = create_argument_parser()
     args = parser.parse_args(sys.argv[1:])
+    CmdHandler(args.command, args)
 
 
 if __name__ == "__main__":
