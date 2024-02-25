@@ -1,6 +1,8 @@
 from argparse import ArgumentParser
 from src.setup.cmd_handler import CmdHandler
-import sys
+import logging, sys
+
+logging.basicConfig(level=logging.INFO)
 
 
 class ErroredArgumentParser(ArgumentParser):
@@ -56,6 +58,10 @@ def main():
     args = parser.parse_args(sys.argv[1:])
     CmdHandler(args.command, args)
 
+    while True:
+        pass
+
 
 if __name__ == "__main__":
+    sys.argv = ["main.py", "route"]
     main()
