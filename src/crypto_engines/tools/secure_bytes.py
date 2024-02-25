@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import List, Self, Tuple
 from cryptography.hazmat.primitives.constant_time import bytes_eq
-import base58
+import base58, os
 
 
 class SecureBytes:
@@ -45,6 +45,20 @@ class SecureBytes:
     def to_int(self) -> int:
         # Convert the bytes of a SecureBytes object to an integer and return it.
         return int.from_bytes(self._bytes, "big")
+
+    def export(self, file_path: str, file_name: str, extension: str = ".txt") -> SecureBytes:
+        os.makedirs(file_path, exist_ok=True)
+
+        encoded_bytes = base58.b58encode(self._bytes)
+        formatted_bytes = b"\n".join([encoded_bytes[i:i + 64] for i in range(0, len(encoded_bytes), 64)])
+        open(f"{file_path}/{file_name}{extension}", "wb").write(formatted_bytes)
+        return self
+
+    def import_(self, file_path: str, file_name: str, extension: str = ".txt") -> SecureBytes:
+        encoded_bytes = open(f"{file_path}/{file_name}{extension}", "rb").read()
+        formatted_bytes = b"".join(encoded_bytes.split(b"\n"))
+        self._bytes = base58.b58decode(formatted_bytes)
+        return self
 
     def __eq__(self, that: Self) -> bool:
         # Compare the bytes of two SecureBytes objects with a constant time comparison.

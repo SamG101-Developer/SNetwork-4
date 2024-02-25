@@ -25,23 +25,13 @@ class KeyPair:
         return self._public_key
 
     def export(self, file_path: str, file_name: str) -> KeyPair:
-        os.makedirs(file_path, exist_ok=True)
-        encoded_secret_key = base58.b58encode(self.secret_key.raw)
-        encoded_secret_key = b"\n".join([encoded_secret_key[i:i + 64] for i in range(0, len(encoded_secret_key), 64)])
-        
-        encoded_public_key = base58.b58encode(self.public_key.raw)
-        encoded_public_key = b"\n".join([encoded_public_key[i:i + 64] for i in range(0, len(encoded_public_key), 64)])
-
-        with open(f"{file_path}/{file_name}.sk", "wb") as file: file.write(encoded_secret_key)
-        with open(f"{file_path}/{file_name}.pk", "wb") as file: file.write(encoded_public_key)
+        self.secret_key.export(file_path, file_name, ".sk")
+        self.public_key.export(file_path, file_name, ".pk")
         return self
 
     def import_(self, file_path: str, file_name: str) -> KeyPair:
-        with open(f"{file_path}/{file_name}.sk", "rb") as file: encoded_secret_key = base58.b58decode(file.read().replace(b"\n", b""))
-        with open(f"{file_path}/{file_name}.pk", "rb") as file: encoded_public_key = base58.b58decode(file.read().replace(b"\n", b""))
-        
-        self._secret_key = SecureBytes(encoded_secret_key)
-        self._public_key = SecureBytes(encoded_public_key)
+        self._secret_key = SecureBytes().import_(file_path, file_name, ".sk")
+        self._public_key = SecureBytes().import_(file_path, file_name, ".pk")
         return self
 
     def both(self) -> tuple[SecureBytes, SecureBytes]:
