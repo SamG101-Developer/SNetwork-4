@@ -1,5 +1,5 @@
 from src.crypto_engines.tools.secure_bytes import SecureBytes
-from src.my_types import Dict, Str
+from src.my_types import Str
 import json, random
 
 
@@ -10,7 +10,7 @@ class NodeNotInNetworkException(Exception):
 class DHT:
     @staticmethod
     def get_static_public_key(address: Str) -> SecureBytes:
-        cache = json.loads("./_cache/dht_cache")
+        cache = json.load(open("./_cache/dht_cache.json"))
         public_key = [node["pub_key"] for node in cache if node["id"] == address]
         if not public_key:
             raise NodeNotInNetworkException
@@ -19,5 +19,5 @@ class DHT:
 
     @staticmethod
     def get_random_node() -> Str:
-        cache = json.loads("./_cache/dht_cache")
+        cache = json.load(open("./_cache/dht_cache.json"))
         return random.choices(cache, k=1)[0]["id"]
