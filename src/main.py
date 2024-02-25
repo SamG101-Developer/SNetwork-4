@@ -1,69 +1,61 @@
-import os.path
-
-from src.crypto_engines.crypto.symmetric_encryption import SymmetricEncryption
-from src.crypto_engines.crypto.key_encapsulation import KEM
-from src.crypto_engines.crypto.digital_signing import DigitalSigning
-from src.crypto_engines.keys.key_pair import KeyPair
-from src.crypto_engines.tools.secure_bytes import SecureBytes
+from argparse import ArgumentParser
+from setup.setup import setup
+import sys
 
 
-def test_aes():
-    key = SymmetricEncryption.generate_key()
-    plaintext = SecureBytes(b"Hello, World!")
-    ciphertext1 = SymmetricEncryption.encrypt(plaintext, key)
-    ciphertext2 = SymmetricEncryption.encrypt(plaintext, key)
-    print(ciphertext1.raw)
-    print(ciphertext2.raw)
-
-    decrypted_plaintext1 = SymmetricEncryption.decrypt(ciphertext1, key)
-    decrypted_plaintext2 = SymmetricEncryption.decrypt(ciphertext2, key)
-    print(decrypted_plaintext1.raw)
-    print(decrypted_plaintext2.raw)
+class ErroredArgumentParser(ArgumentParser):
+    def error(self, message):
+        print(f"Error: {message}\n")
+        self.print_help()
+        sys.exit(2)
 
 
-def test_kyber():
-    # A and B have key pairs
-    key_pair_a = KEM.generate_key_pair()
-    key_pair_b = KEM.generate_key_pair()
+def create_argument_parser() -> ArgumentParser:
+    parser = ErroredArgumentParser(prog="snetwork", description="A distributed anonymous overlay network")
+    subparsers = parser.add_subparsers(dest="command", required=True, help="Available commands")
 
-    print(key_pair_a.public_key.length, key_pair_a.public_key)
-    print(key_pair_a.secret_key.length, key_pair_a.secret_key)
-    print(key_pair_b.public_key)
-    print(key_pair_b.secret_key)
-    print("-" * 100)
+    # Keygen subparser
+    key_gen_parser = subparsers.add_parser("keygen", help="Generate static public keys for current profile")
 
-    # A creates the key and encapsulated key
-    kem_key_pair_a = KEM.kem_wrap(key_pair_b.public_key)
-    print(kem_key_pair_a.decapsulated_key)
-    print(kem_key_pair_a.encapsulated_key)
-    print("-" * 100)
+    # Route subparser
+    route_parser = subparsers.add_parser("route", help="Initialize a route")
+    route_parser.add_argument("--exit-location", type=str, default=None, help="The exit location of the route")
+    route_parser.add_argument("--streaming", type=bool, default=False, help="Whether the route is for streaming")
+    route_parser.add_argument("--node-count", type=int, default=3, help="The number of nodes in the route")
 
-    # B unwraps the key
-    kem_key_pair_b = KEM.kem_unwrap(key_pair_b.secret_key, kem_key_pair_a.encapsulated_key)
-    print(kem_key_pair_b.decapsulated_key)
-    print(kem_key_pair_b.encapsulated_key)
-    print("-" * 100)
+    # Storage subparser
+    storage_parser = subparsers.add_parser("storage", help="Interact with the storage system")
+
+    # Storage sub-subparsers
+    storage_subparsers = storage_parser.add_subparsers(dest="storage_command", required=True, help="Available storage commands")
+
+    # Storage "put" subparser
+    storage_put_parser = storage_subparsers.add_parser("put", help="Put a file into the storage system")
+    storage_put_parser.add_argument("--path", type=str, required=True, help="The path to the file to put")
+    storage_put_parser.add_argument("--protocol", type=str, required=True, help="The protocol to use")
+    storage_put_parser.add_argument("--r", type=int, default=3, help="The replication factor")
+
+    # Storage "get" subparser
+    storage_get_parser = storage_subparsers.add_parser("get", help="Get a file from the storage system")
+    storage_get_parser.add_argument("--path", type=str, required=True, help="The path to the file to get")
+
+    # Storage "del" subparser
+    storage_del_parser = storage_subparsers.add_parser("del", help="Delete a file from the storage system")
+    storage_del_parser.add_argument("--path", type=str, required=True, help="The path to the file to delete")
+
+    # Storage "rename" subparser
+    storage_rename_parser = storage_subparsers.add_parser("rename", help="Rename a file in the storage system")
+    storage_rename_parser.add_argument("--old-path", type=str, required=True, help="The old path to the file")
+
+    # Return the parser
+    return parser
 
 
-def test_signature():
-    key_pair = DigitalSigning.generate_key_pair()
-    message = SecureBytes(b"Hello, World!")
-    their_id = SecureBytes(b"Recipient")
-    signed_message = DigitalSigning.sign(key_pair.secret_key, message, their_id)
-    is_verified = DigitalSigning.verify(key_pair.public_key, signed_message, their_id)
-    print(is_verified)
-
-
-def test_key_export():
-    path = os.path.abspath("./_keys/tmp")
-
-    key_pair = DigitalSigning.generate_key_pair()
-    key_pair.export(path, "test1")
-
-    imported = KeyPair().import_(path, "test1")
-    assert key_pair.secret_key == imported.secret_key
-    assert key_pair.public_key == imported.public_key
+def main():
+    setup()
+    parser = create_argument_parser()
+    args = parser.parse_args(sys.argv[1:])
 
 
 if __name__ == "__main__":
-    test_key_export()
+    main()
