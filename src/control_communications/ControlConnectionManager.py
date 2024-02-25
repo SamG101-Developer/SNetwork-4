@@ -5,7 +5,7 @@ from threading import Thread, Lock
 from enum import Enum
 from dataclasses import dataclass
 from argparse import Namespace
-import os, pickle, socket, threading
+import os, pickle, socket, threading, logging
 
 from src.crypto_engines.crypto.digital_signing import DigitalSigning, SignedMessage
 from src.crypto_engines.crypto.key_encapsulation import KEM
@@ -87,7 +87,9 @@ class ControlConnectionManager:
     _server_socket_thread: Thread
 
     def __init__(self):
-        # Setup the socket of the control connection manager
+        logging.info("ControlConnectionManager created")
+
+        # Setup the attributes of the control connection manager
         self._udp_server = Socket(AF_INET, SOCK_DGRAM)
         self._msg_threads = []
         self._conversations = {}
@@ -99,6 +101,8 @@ class ControlConnectionManager:
         self._server_socket_thread.start()
 
     def _setup_socket(self) -> None:
+        logging.info("ControlConnectionManager setup socket")
+
         # Bind a UDP socket for incoming commands to this node
         self._udp_server.bind(("", 12345))
 
