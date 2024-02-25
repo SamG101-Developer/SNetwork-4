@@ -1,17 +1,25 @@
+from src.crypto_engines.tools.secure_bytes import SecureBytes
 from src.crypto_engines.crypto.digital_signing import DigitalSigning
 from src.crypto_engines.crypto.hashing import Hashing
-from src.my_types import Str, Dict
-
 from src.control_communications.ControlConnectionManager import ControlConnectionManager
+from src.my_types import Str, List
 
 from argparse import Namespace
-import os
+from threading import Thread
+import os, socket
 
 
 class CmdHandler:
-    CONTROLLER: ControlConnectionManager = ControlConnectionManager()
+    CONTROLLER: ControlConnectionManager = None
+    THREADS: List[Thread] = []
 
     def __init__(self, command: Str, arguments: Namespace) -> None:
+        thread = Thread(target=CmdHandler._handle, args=(command, arguments))
+        thread.start()
+        CmdHandler.THREADS.append(thread)
+
+    @staticmethod
+    def _handle(command: Str, arguments: Namespace) -> None:
         getattr(CmdHandler, f"_handle_{command}")(arguments)
 
     @staticmethod
@@ -23,7 +31,7 @@ class CmdHandler:
 
             # Generate the static key pair for digital signing, and the hash of the public key (identifier)
             my_static_key_pair = DigitalSigning.generate_key_pair()
-            my_identifier = Hashing.hash(my_static_key_pair.public_key)
+            my_identifier = SecureBytes(socket.gethostbyname(socket.gethostname()).encode())  # Hashing.hash(my_static_key_pair.public_key)
 
             # Write the keys to disk
             my_static_key_pair.export("./_keys/me", "static")
@@ -31,4 +39,5 @@ class CmdHandler:
 
     @staticmethod
     def _handle_route(arguments: Namespace) -> None:
+        CmdHandler.CONTROLLER = ControlConnectionManager()
         CmdHandler.CONTROLLER.create_route(arguments)
