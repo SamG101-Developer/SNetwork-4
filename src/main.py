@@ -1,5 +1,5 @@
 from argparse import ArgumentParser
-from src.setup.cmd_handler import CmdHandler
+from setup.cmd_handler import CmdHandler
 import logging, sys
 
 logging.basicConfig(level=logging.INFO)

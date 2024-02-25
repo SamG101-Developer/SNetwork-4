@@ -1,8 +1,8 @@
-from src.crypto_engines.tools.secure_bytes import SecureBytes
-from src.crypto_engines.crypto.digital_signing import DigitalSigning
-from src.crypto_engines.crypto.hashing import Hashing
-from src.control_communications.ControlConnectionManager import ControlConnectionManager
-from src.my_types import Str, List
+from crypto_engines.tools.secure_bytes import SecureBytes
+from crypto_engines.crypto.digital_signing import DigitalSigning
+from crypto_engines.crypto.hashing import Hashing
+from control_communications.ControlConnectionManager import ControlConnectionManager
+from my_types import Str, List
 
 from argparse import Namespace
 from threading import Thread
