@@ -1,6 +1,6 @@
 from src.crypto_engines.tools.secure_bytes import SecureBytes
 from src.my_types import Dict, Str
-import json
+import json, random
 
 
 class NodeNotInNetworkException(Exception):
@@ -16,3 +16,8 @@ class DHT:
             raise NodeNotInNetworkException
 
         return SecureBytes(public_key[0])
+
+    @staticmethod
+    def get_random_node() -> Str:
+        cache = json.loads("./_cache/dht_cache")
+        return random.choices(cache, k=1)[0]["id"]
