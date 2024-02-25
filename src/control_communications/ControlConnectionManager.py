@@ -10,7 +10,7 @@ from src.crypto_engines.crypto.key_encapsulation import KEM
 from src.crypto_engines.crypto.symmetric_encryption import SymmetricEncryption
 from src.crypto_engines.keys.key_pair import KeyPair
 from src.crypto_engines.tools.secure_bytes import SecureBytes
-from src.types import Bytes, Tuple, Str, Int, List, Dict, Optional
+from src.my_types import Bytes, Tuple, Str, Int, List, Dict, Optional
 
 
 type Address = Tuple[Str, Int]
@@ -426,7 +426,8 @@ class ControlConnectionManager:
         # Get the next command and data from the message, and send it to the target node. The "next_data" may still be
         # ciphertext if the intended target isn't the next node (could be the node after that), with multiple nested
         # messages of "CONN_FWD" commands.
-        next_command, next_data = self._parse_message(data)
+        next_command, next_connection_token, next_data = self._parse_message(data)
+        assert next_connection_token == connection_token
 
         # Send the message to the target node. It will be automatically encrypted.
         self._send_message(target_node, connection_token, next_command, next_data)
@@ -453,6 +454,19 @@ class ControlConnectionManager:
 
         # Send the data to the node.
         self._udp_server.sendto(data, addr)
+
+    def _cleanup_connection(self, addr: Address, connection_token: Bytes) -> None:
+        """
+        Cleanup a connection, and remove the connection information from the conversation list. This will be called when
+        a connection is closed, or when a connection is rejected.
+        :param addr:
+        :param connection_token:
+        :return:
+        """
+
+        # Remove the connection information from the conversation list.
+        conversation_id = (connection_token, addr)
+        self._conversations.pop(conversation_id)
 
     def _waiting_for_ack_from(self, addr: Address, connection_token: Bytes) -> bool:
         conversation_id = (connection_token, addr)
