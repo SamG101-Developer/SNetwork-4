@@ -1,20 +1,38 @@
+from __future__ import annotations
+
 from socket import socket as Socket, AF_INET, SOCK_DGRAM
 from threading import Thread, Lock
 from enum import Enum
 from dataclasses import dataclass
-import pickle
-import threading
+from argparse import Namespace
+import os, pickle, socket, threading
 
 from src.crypto_engines.crypto.digital_signing import DigitalSigning, SignedMessage
 from src.crypto_engines.crypto.key_encapsulation import KEM
 from src.crypto_engines.crypto.symmetric_encryption import SymmetricEncryption
 from src.crypto_engines.keys.key_pair import KeyPair
 from src.crypto_engines.tools.secure_bytes import SecureBytes
+from src.distributed_hash_table.DHT import DHT
 from src.my_types import Bytes, Tuple, Str, Int, List, Dict, Optional
 
 
-type Address = Tuple[Str, Int]
-type ConnectionToken = Tuple[Bytes, Address]
+@dataclass(kw_only=True)
+class Address:
+    ip: Str
+    port: Int
+
+    def socket_format(self) -> Tuple[Str, Int]:
+        return self.ip, self.port
+
+    @staticmethod
+    def me() -> Address:
+        return Address(ip=socket.gethostbyname(socket.gethostname()), port=12345)
+
+
+@dataclass(kw_only=True)
+class ConnectionToken:
+    token: Bytes
+    address: Address
 
 
 class ControlConnectionState(Enum):
@@ -34,7 +52,7 @@ class ControlConnectionProtocol(Enum):
     CONN_EXT_REJ = 0b1000  # Reject an extended connection
 
 
-@dataclass
+@dataclass(kw_only=True)
 class ControlConnectionConversationInfo:
     state: ControlConnectionState
     their_static_public_key: SecureBytes
@@ -53,9 +71,9 @@ def ReplayErrorBackToUser(function):
     return outer
 
 
-@dataclass
+@dataclass(kw_only=True)
 class ControlConnectionRoute:
-    route: List[[Address, SecureBytes]]  # Address and ephemeral public key
+    route: List[ConnectionToken]
     connection_token: ConnectionToken
 
 
@@ -84,14 +102,51 @@ class ControlConnectionManager:
         while True:
             self._recv_message()
 
+    def create_route(self, _arguments: Namespace) -> None:
+        if self._my_route:
+            return
+
+        # To create the route, the client will tell itself to extend the connection to the first node in the route. Each
+        # time a new node is added, the communication flows via every node in the existing network, so only the first
+        # node in the route knows the client node.
+        connection_token = ConnectionToken(token=os.urandom(32), address=Address.me())
+        self._my_route = ControlConnectionRoute(route=[], connection_token=connection_token)
+
+        # Extend the connection (use a while loop so failed connections don't affect the node counter for route length).
+        while len(self._my_route.route) < 4:
+
+            # Extend the connection to the next node in the route.
+            self._pending_node_to_add_to_route = Address(ip=DHT.get_random_node(), port=12345)
+            data = (self._pending_node_to_add_to_route.ip, DHT.get_static_public_key(self._pending_node_to_add_to_route.ip))
+            self._send_layered_message(connection_token.token, ControlConnectionProtocol.CONN_EXT, pickle.dumps(data))
+
+            # Wait for the next node to be added to the route.
+            while self._pending_node_to_add_to_route:
+                pass
+
+    def _layer_encrypt(self, data: Bytes) -> Bytes:
+        for node_token in reversed(self._my_route.route):
+            shared_secret = self._conversations[node_token].shared_secret
+            data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + node_token.address.ip.encode() + data
+            data = SymmetricEncryption.encrypt(SecureBytes(data), shared_secret).raw
+        return data
+
+    def _layer_decrypt(self, data: Bytes) -> Bytes:
+        for node_token in self._my_route.route:
+            shared_secret = self._conversations[node_token].shared_secret
+            data = SymmetricEncryption.decrypt(SecureBytes(data), shared_secret).raw
+            data = data[1:]
+        return data
+
     def _recv_message(self) -> None:
         # Get the data and address from the udp socket, and parse the message into a command and data. Split the data
         # into the connection token and the rest of the data.
         data, addr = self._udp_server.recvfrom(1024)
+        addr = Address(ip=addr[0], port=addr[1])
         command, connection_token, data = self._parse_message(data)
 
         # Decrypt the data if a shared secret exists (only won't when initiating a connection).
-        conversation_id = (connection_token, addr)
+        conversation_id = ConnectionToken(token=connection_token, address=addr)
         if self._conversations[conversation_id].shared_secret:
             symmetric_key = self._conversations[conversation_id].shared_secret
             data = SecureBytes(data)
@@ -153,7 +208,7 @@ class ControlConnectionManager:
 
             case ControlConnectionProtocol.CONN_CLS if waiting_for_ack or connected:
                 self._mutex.acquire()
-                self._cleanup_connection(addr)
+                self._cleanup_connection(addr, connection_token)
                 self._mutex.release()
 
             case ControlConnectionProtocol.CONN_EXT if connected:
@@ -195,7 +250,7 @@ class ControlConnectionManager:
 
         # Get their static public key from the DHT, and the parse the signed message.
         my_static_public_key, my_static_private_key = KeyPair().import_("./_keys/me", "static").both()
-        their_static_public_key = DHT.get_static_public_key(addr)
+        their_static_public_key = DHT.get_static_public_key(addr.ip)
         their_signed_ephemeral_public_key: SignedMessage = pickle.loads(data)
 
         # Verify the signature of the ephemeral public key being sent from the requesting node.
@@ -217,7 +272,7 @@ class ControlConnectionManager:
         self._send_message(addr, connection_token, ControlConnectionProtocol.CONN_ACC, sending_data)
 
         # Save the connection information for the requesting node.
-        conversation_id = (connection_token, addr)
+        conversation_id = ConnectionToken(token=connection_token, address=addr)
         self._conversations[conversation_id] = ControlConnectionConversationInfo(
             state=ControlConnectionState.CONNECTED,
             their_static_public_key=their_static_public_key,
@@ -235,7 +290,7 @@ class ControlConnectionManager:
 
         # Get the signed KEM wrapped shared secret from the data, and verify the signature.
         my_static_public_key = KeyPair().import_("./_keys/me", "static").public_key
-        their_static_public_key = DHT.get_static_public_key(addr)
+        their_static_public_key = DHT.get_static_public_key(addr.ip)
         signed_kem_wrapped_shared_secret: SignedMessage = pickle.loads(data)
 
         # Verify the signature of the KEM wrapped shared secret being sent from the accepting node.
@@ -245,7 +300,7 @@ class ControlConnectionManager:
             my_id=my_static_public_key)
 
         # Save the connection information for the accepting node.
-        conversation_id = (connection_token, addr)
+        conversation_id = ConnectionToken(token=connection_token, address=addr)
         my_ephemeral_secret_key = self._conversations[conversation_id].my_ephemeral_secret_key
         self._conversations[conversation_id] = ControlConnectionConversationInfo(
             state=ControlConnectionState.CONNECTED,
@@ -256,7 +311,7 @@ class ControlConnectionManager:
         # Pass the ephemeral public key to the previous node in the route, so the first node can collect all the keys
         # for key exchanges between the client and the route nodes, to establish layered packet encryption keys. Get the
         # address of the other node in the conversation list who has the same connection token.
-        candidates = [c[1] for c in self._conversations.keys() if c[0] == connection_token and c[1] != addr]
+        candidates = [c.address for c in self._conversations.keys() if c.token == connection_token and c.address != addr]
         assert len(candidates) == 1
         target_node = candidates[0]
 
@@ -274,14 +329,14 @@ class ControlConnectionManager:
         """
 
         # Tell the previous node that the extension was rejected (if this node isn't the client node)
-        candidates = [c[1] for c in self._conversations.keys() if c[0] == connection_token and c[1] != addr]
+        candidates = [c.address for c in self._conversations.keys() if c.token == connection_token and c.address != addr]
         assert len(candidates) in (0, 1)
         if candidates:
             target_node = candidates[0]
             self._send_message(target_node, connection_token, ControlConnectionProtocol.CONN_EXT_REJ, data)
 
         # Remove the connection information for the rejecting node.
-        conversation_id = (connection_token, addr)
+        conversation_id = ConnectionToken(token=connection_token, address=addr)
         self._cleanup_connection(addr, connection_token)
         self._conversations.pop(conversation_id)
 
@@ -310,7 +365,7 @@ class ControlConnectionManager:
             their_id=their_static_public_key)
 
         # Register the connection in the conversation list.
-        conversation_id = (connection_token, addr)
+        conversation_id = ConnectionToken(token=connection_token, address=addr)
         self._conversations[conversation_id] = ControlConnectionConversationInfo(
             state=ControlConnectionState.WAITING_FOR_ACK,
             their_static_public_key=their_static_public_key,
@@ -337,8 +392,8 @@ class ControlConnectionManager:
         if self._my_route and self._my_route.connection_token == connection_token:
             # Get the signed ephemeral public key from the data, and verify the signature. The key from Node Z was
             # originally sent to Node Y, so the identifier of Node Y is used to verify the signature.
-            original_node_static_public_key = DHT.get_static_public_key(self._my_route.route[-1])
-            their_static_public_key = DHT.get_static_public_key(self._pending_node_to_add_to_route)
+            original_node_static_public_key = DHT.get_static_public_key(self._my_route.route[-1].address.ip)
+            their_static_public_key = DHT.get_static_public_key(self._pending_node_to_add_to_route.ip)
             cmd_and_signed_ephemeral_public_key: SignedMessage = pickle.loads(data)
 
             # Verify the signature of the ephemeral public key being sent from the accepting node.
@@ -355,12 +410,12 @@ class ControlConnectionManager:
             assert target_connection_token == connection_token
 
             # Save the connection information to the route list.
-            self._my_route.route.append((self._pending_node_to_add_to_route, signed_ephemeral_public_key))
+            self._my_route.route.append(ConnectionToken(token=connection_token, address=self._pending_node_to_add_to_route))
             self._pending_node_to_add_to_route = None
 
         # Otherwise, send this message to the previous node in the route.
         else:
-            candidates = [c[1] for c in self._conversations.keys() if c[0] == connection_token and c[1] != addr]
+            candidates = [c.address for c in self._conversations.keys() if c.token == connection_token and c.address != addr]
             assert len(candidates) == 1
             target_node = candidates[0]
             self._send_message(target_node, connection_token, ControlConnectionProtocol.CONN_EXT_ACC, data)
@@ -379,8 +434,8 @@ class ControlConnectionManager:
         # If this is the client node accepting the extension to the route, then a new node needs to be requested to be
         # added to the route list.
         if self._my_route and self._my_route.connection_token == connection_token:
-            their_static_public_key = DHT.get_static_public_key(self._pending_node_to_add_to_route)
-            original_node_static_public_key = DHT.get_static_public_key(self._my_route.route[-1])
+            their_static_public_key = DHT.get_static_public_key(self._pending_node_to_add_to_route.ip)
+            original_node_static_public_key = DHT.get_static_public_key(self._my_route.route[-1].address.ip)
             rejection_message: SignedMessage = pickle.loads(data)
 
             # Verify the signature of the rejection message being sent from the rejecting node.
@@ -401,7 +456,7 @@ class ControlConnectionManager:
 
         # Otherwise, send this message to the previous node in the route.
         else:
-            candidates = [c[1] for c in self._conversations.keys() if c[0] == connection_token and c[1] != addr]
+            candidates = [c.address for c in self._conversations.keys() if c.token == connection_token and c.address != addr]
             assert len(candidates) == 1
             target_node = candidates[0]
             self._send_message(target_node, connection_token, ControlConnectionProtocol.CONN_EXT_REJ, data)
@@ -419,7 +474,7 @@ class ControlConnectionManager:
         """
 
         # Get the address of the other node in the conversation list who has the same connection token.
-        candidates = [c[1] for c in self._conversations.keys() if c[0] == connection_token and c[1] != addr]
+        candidates = [c.address for c in self._conversations.keys() if c.token == connection_token and c.address != addr]
         assert len(candidates) == 1
         target_node = candidates[0]
 
@@ -436,24 +491,29 @@ class ControlConnectionManager:
         """
         Send a message to a node, with a command and accompanying data. If a shared secret exists for the node, the data
         will be encrypted before being sent. This always happens after the initial key exchange with an authenticated
-        KEM.
+        KEM. This DOES NOT use layered encryption to nodes. Use the self._send_layered_message method for that.
         :param addr:
         :param command:
         :param data:
         """
 
         # Add the command to the data.
-        data = command.value.to_bytes(1, "big") + data
+        data = command.value.to_bytes(1, "big") + connection_token + data
 
         # Encrypt the data if a shared secret exists (only won't when initiating a connection).
-        conversation_id = (connection_token, addr)
+        conversation_id = ConnectionToken(token=connection_token, address=addr)
         if self._conversations[conversation_id].shared_secret:
             symmetric_key = self._conversations[conversation_id].shared_secret
             data = SecureBytes(data)
             data = SymmetricEncryption.encrypt(data, symmetric_key).raw
 
         # Send the data to the node.
-        self._udp_server.sendto(data, addr)
+        self._udp_server.sendto(data, addr.socket_format())
+
+    def _send_layered_message(self, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
+        data = self._layer_encrypt(pickle.dumps(data))
+        data = command.value.to_bytes(1, "big") + connection_token + data
+        self._udp_server.sendto(data, self._my_route.route[0].address.socket_format())
 
     def _cleanup_connection(self, addr: Address, connection_token: Bytes) -> None:
         """
@@ -465,13 +525,13 @@ class ControlConnectionManager:
         """
 
         # Remove the connection information from the conversation list.
-        conversation_id = (connection_token, addr)
+        conversation_id = ConnectionToken(token=connection_token, address=addr)
         self._conversations.pop(conversation_id)
 
     def _waiting_for_ack_from(self, addr: Address, connection_token: Bytes) -> bool:
-        conversation_id = (connection_token, addr)
+        conversation_id = ConnectionToken(token=connection_token, address=addr)
         return addr in self._conversations and self._conversations[conversation_id] == ControlConnectionState.WAITING_FOR_ACK
 
     def _is_connected_to(self, addr: Address, connection_token: Bytes) -> bool:
-        conversation_id = (connection_token, addr)
+        conversation_id = ConnectionToken(token=connection_token, address=addr)
         return addr in self._conversations and self._conversations[conversation_id] == ControlConnectionState.CONNECTED
