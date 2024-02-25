@@ -84,6 +84,7 @@ class ControlConnectionManager:
     _my_route: Optional[ControlConnectionRoute]
     _pending_node_to_add_to_route: Optional[Address]
     _mutex: Lock
+    _server_socket_thread: Thread
 
     def __init__(self):
         # Setup the socket of the control connection manager
@@ -92,7 +93,10 @@ class ControlConnectionManager:
         self._conversations = {}
         self._my_route = None
         self._mutex = Lock()
-        self._setup_socket()
+
+        # Setup the socket of the control connection manager
+        self._server_socket_thread = Thread(target=self._setup_socket)
+        self._server_socket_thread.start()
 
     def _setup_socket(self) -> None:
         # Bind a UDP socket for incoming commands to this node
@@ -117,6 +121,8 @@ class ControlConnectionManager:
 
             # Extend the connection to the next node in the route.
             self._pending_node_to_add_to_route = Address(ip=DHT.get_random_node(), port=12345)
+            print(self._pending_node_to_add_to_route)
+
             data = (self._pending_node_to_add_to_route.ip, DHT.get_static_public_key(self._pending_node_to_add_to_route.ip))
             self._send_layered_message(connection_token.token, ControlConnectionProtocol.CONN_EXT, pickle.dumps(data))
 
