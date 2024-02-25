@@ -1,5 +1,5 @@
-from src.crypto_engines.tools.secure_bytes import SecureBytes
-from src.my_types import Str
+from crypto_engines.tools.secure_bytes import SecureBytes
+from my_types import Str
 import json, random
 
 

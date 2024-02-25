@@ -7,13 +7,13 @@ from dataclasses import dataclass
 from argparse import Namespace
 import os, pickle, socket, threading, logging
 
-from src.crypto_engines.crypto.digital_signing import DigitalSigning, SignedMessage
-from src.crypto_engines.crypto.key_encapsulation import KEM
-from src.crypto_engines.crypto.symmetric_encryption import SymmetricEncryption
-from src.crypto_engines.keys.key_pair import KeyPair
-from src.crypto_engines.tools.secure_bytes import SecureBytes
-from src.distributed_hash_table.DHT import DHT
-from src.my_types import Bytes, Tuple, Str, Int, List, Dict, Optional
+from crypto_engines.crypto.digital_signing import DigitalSigning, SignedMessage
+from crypto_engines.crypto.key_encapsulation import KEM
+from crypto_engines.crypto.symmetric_encryption import SymmetricEncryption
+from crypto_engines.keys.key_pair import KeyPair
+from crypto_engines.tools.secure_bytes import SecureBytes
+from distributed_hash_table.DHT import DHT
+from my_types import Bytes, Tuple, Str, Int, List, Dict, Optional
 
 
 @dataclass(kw_only=True)

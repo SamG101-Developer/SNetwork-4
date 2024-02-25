@@ -1,5 +1,5 @@
 from cryptography.hazmat.primitives.hashes import Hash, SHA3_512
-from src.crypto_engines.tools.secure_bytes import SecureBytes
+from crypto_engines.tools.secure_bytes import SecureBytes
 
 
 class Hashing:

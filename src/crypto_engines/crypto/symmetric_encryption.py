@@ -1,7 +1,7 @@
 from cryptography.hazmat.primitives.ciphers.aead import AESOCB3
 from cryptography.hazmat.primitives.keywrap import aes_key_unwrap, aes_key_wrap
-from src.crypto_engines.tools.secure_bytes import SecureBytes
-from src.crypto_engines.tools.random import Random
+from crypto_engines.tools.secure_bytes import SecureBytes
+from crypto_engines.tools.random import Random
 
 
 class SymmetricEncryption:

@@ -1,4 +1,4 @@
-from src.crypto_engines.tools.secure_bytes import SecureBytes
+from crypto_engines.tools.secure_bytes import SecureBytes
 from argon2 import PasswordHasher as Argon2
 
 

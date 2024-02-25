@@ -1,5 +1,5 @@
-from src.crypto_engines.tools.secure_bytes import SecureBytes
-from src.crypto_engines.keys.key_pair import KeyPair, KEMKeyPair
+from crypto_engines.tools.secure_bytes import SecureBytes
+from crypto_engines.keys.key_pair import KeyPair, KEMKeyPair
 from pqcrypto.kem import kyber1024 as Kyber1024
 
 

@@ -1,7 +1,7 @@
-from src.crypto_engines.crypto.hashing import Hashing
-from src.crypto_engines.tools.secure_bytes import SecureBytes
-from src.crypto_engines.tools.timestamp import Timestamp
-from src.crypto_engines.keys.key_pair import KeyPair
+from crypto_engines.crypto.hashing import Hashing
+from crypto_engines.tools.secure_bytes import SecureBytes
+from crypto_engines.tools.timestamp import Timestamp
+from crypto_engines.keys.key_pair import KeyPair
 from pqcrypto.sign import dilithium4 as Dilithium4
 
 

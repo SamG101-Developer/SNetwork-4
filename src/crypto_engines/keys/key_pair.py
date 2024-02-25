@@ -3,7 +3,7 @@ from __future__ import annotations
 import os, base58
 from typing import Optional
 
-from src.crypto_engines.tools.secure_bytes import SecureBytes
+from crypto_engines.tools.secure_bytes import SecureBytes
 
 
 class KeyPair:

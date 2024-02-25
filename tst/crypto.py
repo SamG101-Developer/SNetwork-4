@@ -1,10 +1,10 @@
 import os.path
 
-from src.crypto_engines.crypto.symmetric_encryption import SymmetricEncryption
-from src.crypto_engines.crypto.key_encapsulation import KEM
-from src.crypto_engines.crypto.digital_signing import DigitalSigning
-from src.crypto_engines.keys.key_pair import KeyPair
-from src.crypto_engines.tools.secure_bytes import SecureBytes
+from crypto_engines.crypto.symmetric_encryption import SymmetricEncryption
+from crypto_engines.crypto.key_encapsulation import KEM
+from crypto_engines.crypto.digital_signing import DigitalSigning
+from crypto_engines.keys.key_pair import KeyPair
+from crypto_engines.tools.secure_bytes import SecureBytes
 
 
 def test_aes():

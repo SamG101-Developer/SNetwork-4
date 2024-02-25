@@ -22,7 +22,7 @@ class SecureBytes:
     @staticmethod
     def from_random(length: int) -> SecureBytes:
         # Create a SecureBytes object from random bytes.
-        from src.crypto_engines.tools.random import Random
+        from crypto_engines.tools.random import Random
         return Random.random_bytes(length)
 
     @staticmethod
@@ -62,7 +62,7 @@ class SecureBytes:
 
     def __eq__(self, that: Self) -> bool:
         # Compare the bytes of two SecureBytes objects with a constant time comparison.
-        from src.crypto_engines.crypto.hashing import Hashing
+        from crypto_engines.crypto.hashing import Hashing
         hash_lhs = Hashing.hash(self).raw
         hash_rhs = Hashing.hash(that).raw
         return bytes_eq(hash_lhs, hash_rhs)
