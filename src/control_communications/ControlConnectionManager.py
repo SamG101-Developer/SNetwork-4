@@ -164,7 +164,7 @@ class ControlConnectionManager:
 
         logging.debug(f"\t\tMessage from: {addr.ip}")
         logging.debug(f"\t\tCommand: {command}")
-        logging.debug(f"\t\tData: {data}")
+        logging.debug(f"\t\tData: {data[10:]}...")
 
         # Decrypt the data in a conversation, which won't have been initiated if this is the request to connect.
         conversation_id = ConnectionToken(token=connection_token, address=addr)
@@ -276,7 +276,6 @@ class ControlConnectionManager:
 
         # Get their static public key from the DHT, and the parse the signed message.
         my_static_private_key, my_static_public_key = KeyPair().import_("./_keys/me", "static").both()
-        print(my_static_public_key.length)
         their_static_public_key = DHT.get_static_public_key(addr.ip)
         their_signed_ephemeral_public_key: SignedMessage = pickle.loads(data)
 
