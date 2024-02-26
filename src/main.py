@@ -3,7 +3,7 @@ from argparse import ArgumentParser
 from setup.cmd_handler import CmdHandler
 import logging, sys
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 
 
 class ErroredArgumentParser(ArgumentParser):
@@ -55,9 +55,10 @@ def create_argument_parser() -> ArgumentParser:
 
 
 def main():
-    if not os.path.exists("./_cache"): os.mkdir("./_cache")
     if not os.path.exists("./_keys"): os.mkdir("./_keys")
-    open("./_cache/dht_cache.json", "w").write("[]")
+    if not os.path.exists("./_cache"):
+        os.mkdir("./_cache")
+        open("./_cache/dht_cache.json", "w").write("[]")
 
     parser = create_argument_parser()
     args = parser.parse_args(sys.argv[1:])
@@ -68,4 +69,5 @@ def main():
 
 
 if __name__ == "__main__":
+    sys.argv = ["snetwork", "route"]
     main()
