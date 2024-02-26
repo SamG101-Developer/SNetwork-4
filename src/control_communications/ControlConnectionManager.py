@@ -276,6 +276,7 @@ class ControlConnectionManager:
 
         # Get their static public key from the DHT, and the parse the signed message.
         my_static_private_key, my_static_public_key = KeyPair().import_("./_keys/me", "static").both()
+        print(my_static_public_key.length)
         their_static_public_key = DHT.get_static_public_key(addr.ip)
         their_signed_ephemeral_public_key: SignedMessage = pickle.loads(data)
 
