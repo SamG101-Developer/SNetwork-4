@@ -19,7 +19,7 @@ class ControlConnectionServer:
 
     def _setup_socket(self) -> None:
         # Bind a UDP socket for incoming commands to this node
-        self._socket.settimeout(5)
+        # self._socket.settimeout(5)
         self._socket.bind(("", 12345))
 
         # For each message received, handle it in a new thread
