@@ -11,18 +11,30 @@ class SignedMessage:
     rather than a tuple.
     """
 
-    _message: SecureBytes
+    _raw_message: SecureBytes
     _signature: SecureBytes
 
-    def __init__(self, message: SecureBytes, signature: SecureBytes) -> None:
+    _message: SecureBytes
+    _timestamp: SecureBytes
+    _recipient_id: SecureBytes
+
+    def __init__(self, raw_message: SecureBytes, signature: SecureBytes) -> None:
         # Assign the message and signature to the object.
-        self._message = message
+        self._raw_message = raw_message
         self._signature = signature
+
+        # Unmerge the message into its components.
+        self._message, self._timestamp, self._recipient_id = raw_message.unmerge(3)
 
     @property
     def message(self) -> SecureBytes:
         # Return the message.
         return self._message
+
+    @property
+    def raw_message(self) -> SecureBytes:
+        # Return the raw message.
+        return self._raw_message
 
     @property
     def signature(self) -> SecureBytes:
@@ -60,7 +72,7 @@ class DigitalSigning:
     @staticmethod
     def verify(their_static_public_key: SecureBytes, signed_message: SignedMessage, my_id: SecureBytes) -> bool:
         # Extract the message and reproduce the hash.
-        enriched_message = signed_message.message
+        enriched_message = signed_message.raw_message
         hashed_message = Hashing.hash(enriched_message)
         message, time_bytes, recipient_id = enriched_message.unmerge(3)
 
