@@ -100,9 +100,9 @@ class ControlConnectionManager:
     _mutex: Lock
     _server_socket_thread: Thread
 
-    def __init__(self, server: ControlConnectionServer):
+    def __init__(self):
         # Setup the attributes of the control connection manager
-        self._udp_server = server
+        self._udp_server = ControlConnectionServer()
         self._udp_server.on_message_received = self._recv_message
 
         self._msg_threads = []

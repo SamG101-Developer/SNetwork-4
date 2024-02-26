@@ -11,7 +11,6 @@ import os, socket
 
 
 class CmdHandler:
-    HOST_SOCKET: ControlConnectionServer = None
     CONTROLLER: ControlConnectionManager = None
     THREADS: List[Thread] = []
 
@@ -41,13 +40,12 @@ class CmdHandler:
 
     @staticmethod
     def _handle_join(_arguments: Namespace) -> None:
-        if not CmdHandler.HOST_SOCKET:
-            CmdHandler.HOST_SOCKET = ControlConnectionServer()
+        # Setup the control connection server
+        if not CmdHandler.CONTROLLER:
+            CmdHandler.CONTROLLER = ControlConnectionManager()
 
     @staticmethod
     def _handle_route(arguments: Namespace) -> None:
-        if not CmdHandler.HOST_SOCKET:
-            CmdHandler.HOST_SOCKET = ControlConnectionServer()
-
-        CmdHandler.CONTROLLER = ControlConnectionManager(CmdHandler.HOST_SOCKET)
+        if not CmdHandler.CONTROLLER:
+            CmdHandler.CONTROLLER = ControlConnectionManager()
         CmdHandler.CONTROLLER.create_route(arguments)
