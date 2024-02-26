@@ -34,9 +34,9 @@ class SecureBytes:
         # Merge the bytes of two SecureBytes objects and return a new SecureBytes object.
         return SecureBytes(self._bytes + SecureBytes._delimiter + that._bytes)
 
-    def unmerge(self, max_splits: int = 1) -> List[Self]:
+    def unmerge(self, max_parts: int = 1) -> List[Self]:
         # Unmerge the bytes of a SecureBytes object and return a list of new SecureBytes objects.
-        return [SecureBytes(byte_slice) for byte_slice in self._bytes.split(SecureBytes._delimiter, max_splits)]
+        return [SecureBytes(byte_slice) for byte_slice in self._bytes.split(SecureBytes._delimiter, max_parts - 1)]
 
     def split_at(self, index: int) -> Tuple[Self, Self]:
         # Split the bytes of a SecureBytes object at a specified index and return two new SecureBytes objects.
