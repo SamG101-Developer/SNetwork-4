@@ -72,4 +72,5 @@ def main():
 
 
 if __name__ == "__main__":
+    sys.argv = ["snetwork", "route"]
     main()
