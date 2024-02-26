@@ -163,6 +163,10 @@ class ControlConnectionManager:
         addr = Address(ip=raw_addr[0], port=raw_addr[1])
         command, connection_token, data = self._parse_message(data)
 
+        logging.debug(f"\t\tMessage from: {addr.ip}")
+        logging.debug(f"\t\tCommand: {command}")
+        logging.debug(f"\t\tData: {data}")
+
         # Decrypt the data if a shared secret exists (only won't when initiating a connection).
         conversation_id = ConnectionToken(token=connection_token, address=addr)
         if self._conversations[conversation_id].shared_secret:
@@ -170,9 +174,7 @@ class ControlConnectionManager:
             data = SecureBytes(data)
             data = SymmetricEncryption.decrypt(data, symmetric_key).raw
 
-        logging.debug(f"\t\tMessage from: {addr.ip}")
-        logging.debug(f"\t\tCommand: {command}")
-        logging.debug(f"\t\tData: {data}")
+        logging.debug(f"\t\tDecrypted data: {data}")
 
         # Create a new thread to handle the message, and add it to the list of message threads.
         msg_thread = Thread(target=self._handle_message, args=(addr, command, connection_token, data))
