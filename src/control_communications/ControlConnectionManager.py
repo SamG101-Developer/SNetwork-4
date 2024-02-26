@@ -276,7 +276,7 @@ class ControlConnectionManager:
         """
 
         # Get their static public key from the DHT, and the parse the signed message.
-        my_static_public_key, my_static_private_key = KeyPair().import_("./_keys/me", "static").both()
+        my_static_private_key, my_static_public_key = KeyPair().import_("./_keys/me", "static").both()
         their_static_public_key = DHT.get_static_public_key(addr.ip)
         their_signed_ephemeral_public_key: SignedMessage = pickle.loads(data)
 
@@ -389,7 +389,7 @@ class ControlConnectionManager:
         # Create an ephemeral public key, sign it, and send it to the next node in the route. This establishes e2e
         # encryption over the connection.
         my_static_private_key = KeyPair().import_("./_keys/me", "static").secret_key
-        my_ephemeral_public_key, my_ephemeral_private_key = KEM.generate_key_pair().both()
+        my_ephemeral_private_key, my_ephemeral_public_key = KEM.generate_key_pair().both()
         signed_ephemeral_public_key = DigitalSigning.sign(
             my_static_private_key=my_static_private_key,
             message=my_ephemeral_public_key,
