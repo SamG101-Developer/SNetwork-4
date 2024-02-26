@@ -382,6 +382,7 @@ class ControlConnectionManager:
         # Get the address and static public key of the next node in the route to extend the connection to. The static
         # public key could be obtained from the DHT from the "target_addr", but it can be sent to reduce DHT lookups.
         target_addr, their_static_public_key = pickle.loads(data)
+        logging.debug(f"\t\tExtending to: {target_addr.ip}")
 
         # Create an ephemeral public key, sign it, and send it to the next node in the route. This establishes e2e
         # encryption over the connection.
