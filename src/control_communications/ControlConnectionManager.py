@@ -164,7 +164,7 @@ class ControlConnectionManager:
 
         logging.debug(f"\t\tMessage from: {addr.ip}")
         logging.debug(f"\t\tCommand: {command}")
-        logging.debug(f"\t\tData: {data[10:]}...")
+        logging.debug(f"\t\tData: {data[:10]}...")
 
         # Decrypt the data in a conversation, which won't have been initiated if this is the request to connect.
         conversation_id = ConnectionToken(token=connection_token, address=addr)
