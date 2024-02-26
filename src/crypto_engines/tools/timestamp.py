@@ -17,7 +17,7 @@ class Timestamp:
     replayed.
     """
 
-    TOLERANCE = 50_000_000
+    TOLERANCE = 10_000_000_000  # 10 seconds
 
     @staticmethod
     def current_time_bytes() -> SecureBytes:
