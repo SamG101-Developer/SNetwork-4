@@ -390,7 +390,7 @@ class ControlConnectionManager:
         # encryption over the connection.
         my_static_private_key = KeyPair().import_("./_keys/me", "static").secret_key
         my_ephemeral_private_key, my_ephemeral_public_key = KEM.generate_key_pair().both()
-        signed_ephemeral_public_key = DigitalSigning.sign(
+        signed_my_ephemeral_public_key = DigitalSigning.sign(
             my_static_private_key=my_static_private_key,
             message=my_ephemeral_public_key,
             their_id=their_static_public_key)
@@ -405,7 +405,7 @@ class ControlConnectionManager:
 
         # Send the signed ephemeral public key to the next node, maintaining the connection token. The next node will
         # ultimately send an EXT_ACK command to acknowledge the extension.
-        sending_data = pickle.dumps(signed_ephemeral_public_key)
+        sending_data = pickle.dumps(signed_my_ephemeral_public_key)
         self._send_message(target_addr, connection_token, ControlConnectionProtocol.CONN_REQ, sending_data)
 
     @LogPre
