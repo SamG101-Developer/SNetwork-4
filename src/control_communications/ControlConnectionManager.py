@@ -167,9 +167,9 @@ class ControlConnectionManager:
         logging.debug(f"\t\tCommand: {command}")
         logging.debug(f"\t\tData: {data}")
 
-        # Decrypt the data if a shared secret exists (only won't when initiating a connection).
+        # Decrypt the data in a conversation, which won't have been initiated if this is the request to connect.
         conversation_id = ConnectionToken(token=connection_token, address=addr)
-        if self._conversations[conversation_id].shared_secret:
+        if conversation_id in self._conversations.keys() and self._conversations[conversation_id].shared_secret:
             symmetric_key = self._conversations[conversation_id].shared_secret
             data = SecureBytes(data)
             data = SymmetricEncryption.decrypt(data, symmetric_key).raw
