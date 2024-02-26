@@ -28,11 +28,18 @@ class Address:
     def me() -> Address:
         return Address(ip=socket.gethostbyname(socket.gethostname()), port=12345)
 
+    def __hash__(self):
+        from hashlib import md5
+        return int(md5(self.ip.encode()).hexdigest(), 16) % 2**64
+
 
 @dataclass(kw_only=True)
 class ConnectionToken:
     token: Bytes
     address: Address
+
+    def __hash__(self):
+        return (hash(self.token) * hash(self.address)) % 2**64
 
 
 class ControlConnectionState(Enum):
@@ -60,8 +67,8 @@ class ControlConnectionConversationInfo:
     my_ephemeral_secret_key: Optional[SecureBytes]
 
 
-def ReplayErrorBackToUser(function):
-    def outer(error_command):
+def ReplayErrorBackToUser(error_command):
+    def outer(function):
         def inner(self, addr, conversation_token, data):
             try:
                 function(self, addr, data)
@@ -69,6 +76,13 @@ def ReplayErrorBackToUser(function):
                 self._send_message(addr, conversation_token, error_command, str(e))
         return inner
     return outer
+
+
+def LogPre(function):
+    def inner(self, *args):
+        logging.info(f"ConnectionControlManager::{function.__name__}")
+        return function(self, *args)
+    return inner
 
 
 @dataclass(kw_only=True)
@@ -87,8 +101,6 @@ class ControlConnectionManager:
     _server_socket_thread: Thread
 
     def __init__(self):
-        logging.info("ControlConnectionManager created")
-
         # Setup the attributes of the control connection manager
         self._udp_server = Socket(AF_INET, SOCK_DGRAM)
         self._msg_threads = []
@@ -100,16 +112,17 @@ class ControlConnectionManager:
         self._server_socket_thread = Thread(target=self._setup_socket)
         self._server_socket_thread.start()
 
+    @LogPre
     def _setup_socket(self) -> None:
-        logging.info("ControlConnectionManager setup socket")
-
         # Bind a UDP socket for incoming commands to this node
+        self._udp_server.settimeout(5)
         self._udp_server.bind(("", 12345))
 
         # For each message received, handle it in a new thread
         while True:
             self._recv_message()
 
+    @LogPre
     def create_route(self, _arguments: Namespace) -> None:
         if self._my_route:
             return
@@ -118,29 +131,36 @@ class ControlConnectionManager:
         # time a new node is added, the communication flows via every node in the existing network, so only the first
         # node in the route knows the client node.
         connection_token = ConnectionToken(token=os.urandom(32), address=Address.me())
-        self._my_route = ControlConnectionRoute(route=[], connection_token=connection_token)
+        self._my_route = ControlConnectionRoute(route=[connection_token], connection_token=connection_token)
+
+        # Add the conversation to myself
+        self._conversations[connection_token] = ControlConnectionConversationInfo(
+            state=ControlConnectionState.CONNECTED,
+            their_static_public_key=KeyPair().import_("./_keys/me", "static").public_key,
+            shared_secret=None,
+            my_ephemeral_secret_key=None)
 
         # Extend the connection (use a while loop so failed connections don't affect the node counter for route length).
         while len(self._my_route.route) < 4:
 
             # Extend the connection to the next node in the route.
             self._pending_node_to_add_to_route = Address(ip=DHT.get_random_node(), port=12345)
-            print(self._pending_node_to_add_to_route)
-
-            data = (self._pending_node_to_add_to_route.ip, DHT.get_static_public_key(self._pending_node_to_add_to_route.ip))
+            data = (self._pending_node_to_add_to_route, DHT.get_static_public_key(self._pending_node_to_add_to_route.ip))
             self._send_layered_message(connection_token.token, ControlConnectionProtocol.CONN_EXT, pickle.dumps(data))
 
             # Wait for the next node to be added to the route.
             while self._pending_node_to_add_to_route:
                 pass
 
+    @LogPre
     def _layer_encrypt(self, data: Bytes) -> Bytes:
-        for node_token in reversed(self._my_route.route):
+        for node_token in reversed(self._my_route.route[1:]):  # todo : encrypt to self
             shared_secret = self._conversations[node_token].shared_secret
             data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + node_token.address.ip.encode() + data
             data = SymmetricEncryption.encrypt(SecureBytes(data), shared_secret).raw
         return data
 
+    @LogPre
     def _layer_decrypt(self, data: Bytes) -> Bytes:
         for node_token in self._my_route.route:
             shared_secret = self._conversations[node_token].shared_secret
@@ -148,10 +168,11 @@ class ControlConnectionManager:
             data = data[1:]
         return data
 
+    @LogPre
     def _recv_message(self) -> None:
         # Get the data and address from the udp socket, and parse the message into a command and data. Split the data
         # into the connection token and the rest of the data.
-        data, addr = self._udp_server.recvfrom(1024)
+        data, addr = self._udp_server.recvfrom(4096)
         addr = Address(ip=addr[0], port=addr[1])
         command, connection_token, data = self._parse_message(data)
 
@@ -162,11 +183,16 @@ class ControlConnectionManager:
             data = SecureBytes(data)
             data = SymmetricEncryption.decrypt(data, symmetric_key).raw
 
+        logging.debug(f"\t\tMessage from: {addr.ip}")
+        logging.debug(f"\t\tCommand: {command}")
+        logging.debug(f"\t\tData: {data}")
+
         # Create a new thread to handle the message, and add it to the list of message threads.
         msg_thread = Thread(target=self._handle_message, args=(addr, command, connection_token, data))
-        msg_thread.start()
         self._msg_threads.append(msg_thread)
+        msg_thread.start()
 
+    @LogPre
     def _parse_message(self, data: Bytes) -> Tuple[ControlConnectionProtocol, Bytes, Bytes]:
         """
         Parse the message into a command, connection token and data. The command is the first byte, the connection token
@@ -183,6 +209,7 @@ class ControlConnectionManager:
         # Return the command, connection token and data.
         return command, connection_token, data
 
+    @LogPre
     def _handle_message(self, addr: Address, command: ControlConnectionProtocol, connection_token: Bytes, data: Bytes) -> None:
         """
         Handle a message from a node. The message will have already been split into the command, connection token and
@@ -247,9 +274,10 @@ class ControlConnectionManager:
         # End this handler thread, and remove it from the list of message threads.
         current_thread = threading.current_thread()
         self._msg_threads.remove(current_thread)
-        current_thread.join()
+        # current_thread.join()  # TODO
 
-    @ReplayErrorBackToUser(ControlConnectionProtocol.CONN_REJ)
+    @LogPre
+    # @ReplayErrorBackToUser(ControlConnectionProtocol.CONN_REJ)
     def _handle_request_to_connect(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
         """
         Handle a request from a Node to connect to this Node, and establish an encrypted tunnel for UDP traffic. The
@@ -289,7 +317,8 @@ class ControlConnectionManager:
             shared_secret=kem_wrapped_shared_secret.decapsulated_key,
             my_ephemeral_secret_key=None)
 
-    @ReplayErrorBackToUser
+    @LogPre
+    # @ReplayErrorBackToUser
     def _handle_accept_connection(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
         """
         Handle an acceptance from a Node Y to connect to this Node X. Node X will have already sent a CONN_REQ to NODE
@@ -329,7 +358,8 @@ class ControlConnectionManager:
         sending_data = pickle.dumps(my_ephemeral_secret_key)
         self._send_message(target_node, connection_token, ControlConnectionProtocol.CONN_EXT_ACC, sending_data)
 
-    @ReplayErrorBackToUser
+    @LogPre
+    # @ReplayErrorBackToUser
     def _handle_reject_connection(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
         """
         Handle a rejection from a Node Y to connect to this Node X. Node X will have already sent a CONN_REQ to NODE
@@ -350,7 +380,8 @@ class ControlConnectionManager:
         self._cleanup_connection(addr, connection_token)
         self._conversations.pop(conversation_id)
 
-    @ReplayErrorBackToUser
+    @LogPre
+    # @ReplayErrorBackToUser
     def _handle_extend_connection(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
         """
         This command in received from a node previous to this one in the route, to extend the connection to the next
@@ -368,7 +399,7 @@ class ControlConnectionManager:
         # Create an ephemeral public key, sign it, and send it to the next node in the route. This establishes e2e
         # encryption over the connection.
         my_static_private_key = KeyPair().import_("./_keys/me", "static").secret_key
-        my_ephemeral_public_key, my_ephemeral_private_key = KEM.generate_key_pair()
+        my_ephemeral_public_key, my_ephemeral_private_key = KEM.generate_key_pair().both()
         signed_ephemeral_public_key = DigitalSigning.sign(
             my_static_private_key=my_static_private_key,
             message=my_ephemeral_public_key,
@@ -387,7 +418,8 @@ class ControlConnectionManager:
         sending_data = pickle.dumps(signed_ephemeral_public_key)
         self._send_message(target_addr, connection_token, ControlConnectionProtocol.CONN_REQ, sending_data)
 
-    @ReplayErrorBackToUser
+    @LogPre
+    # @ReplayErrorBackToUser
     def _handle_accept_extended_connection(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
         """
         A connection extension has been accepted. This means Node X has told Node Y to extend the connection to Node Z,
@@ -430,7 +462,8 @@ class ControlConnectionManager:
             target_node = candidates[0]
             self._send_message(target_node, connection_token, ControlConnectionProtocol.CONN_EXT_ACC, data)
 
-    @ReplayErrorBackToUser
+    @LogPre
+    # @ReplayErrorBackToUser
     def _handle_reject_extended_connection(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
         """
         A connection extension has been rejected. This means Node X has told Node Y to extend the connection to Node Z,
@@ -471,7 +504,8 @@ class ControlConnectionManager:
             target_node = candidates[0]
             self._send_message(target_node, connection_token, ControlConnectionProtocol.CONN_EXT_REJ, data)
 
-    @ReplayErrorBackToUser
+    @LogPre
+    # @ReplayErrorBackToUser
     def _forward_message(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
         """
         Forward a message to a node. The message could have come from a node either side of this one. Because every node
@@ -497,6 +531,7 @@ class ControlConnectionManager:
         # Send the message to the target node. It will be automatically encrypted.
         self._send_message(target_node, connection_token, next_command, next_data)
 
+    @LogPre
     def _send_message(self, addr: Address, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
         """
         Send a message to a node, with a command and accompanying data. If a shared secret exists for the node, the data
@@ -512,7 +547,7 @@ class ControlConnectionManager:
 
         # Encrypt the data if a shared secret exists (only won't when initiating a connection).
         conversation_id = ConnectionToken(token=connection_token, address=addr)
-        if self._conversations[conversation_id].shared_secret:
+        if self._is_connected_to(addr, connection_token) and self._conversations[conversation_id].shared_secret:
             symmetric_key = self._conversations[conversation_id].shared_secret
             data = SecureBytes(data)
             data = SymmetricEncryption.encrypt(data, symmetric_key).raw
@@ -520,11 +555,14 @@ class ControlConnectionManager:
         # Send the data to the node.
         self._udp_server.sendto(data, addr.socket_format())
 
+    @LogPre
     def _send_layered_message(self, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
-        data = self._layer_encrypt(pickle.dumps(data))
+        assert isinstance(data, Bytes)
+        data = self._layer_encrypt(data)
         data = command.value.to_bytes(1, "big") + connection_token + data
         self._udp_server.sendto(data, self._my_route.route[0].address.socket_format())
 
+    @LogPre
     def _cleanup_connection(self, addr: Address, connection_token: Bytes) -> None:
         """
         Cleanup a connection, and remove the connection information from the conversation list. This will be called when
@@ -538,10 +576,12 @@ class ControlConnectionManager:
         conversation_id = ConnectionToken(token=connection_token, address=addr)
         self._conversations.pop(conversation_id)
 
+    @LogPre
     def _waiting_for_ack_from(self, addr: Address, connection_token: Bytes) -> bool:
         conversation_id = ConnectionToken(token=connection_token, address=addr)
         return addr in self._conversations and self._conversations[conversation_id] == ControlConnectionState.WAITING_FOR_ACK
 
+    @LogPre
     def _is_connected_to(self, addr: Address, connection_token: Bytes) -> bool:
         conversation_id = ConnectionToken(token=connection_token, address=addr)
-        return addr in self._conversations and self._conversations[conversation_id] == ControlConnectionState.CONNECTED
+        return conversation_id in self._conversations.keys() and self._conversations[conversation_id].state == ControlConnectionState.CONNECTED
