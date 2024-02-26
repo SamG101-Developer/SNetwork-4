@@ -2,6 +2,7 @@ from crypto_engines.tools.secure_bytes import SecureBytes
 from crypto_engines.crypto.digital_signing import DigitalSigning
 from crypto_engines.crypto.hashing import Hashing
 from control_communications.ControlConnectionManager import ControlConnectionManager
+from control_communications.ControlConnectionServer import ControlConnectionServer
 from my_types import Str, List
 
 from argparse import Namespace
@@ -10,6 +11,7 @@ import os, socket
 
 
 class CmdHandler:
+    HOST_SOCKET: ControlConnectionServer = None
     CONTROLLER: ControlConnectionManager = None
     THREADS: List[Thread] = []
 
@@ -38,6 +40,14 @@ class CmdHandler:
             my_identifier.export("./_keys/me", "identifier")
 
     @staticmethod
+    def _handle_join(_arguments: Namespace) -> None:
+        if not CmdHandler.HOST_SOCKET:
+            CmdHandler.HOST_SOCKET = ControlConnectionServer()
+
+    @staticmethod
     def _handle_route(arguments: Namespace) -> None:
-        CmdHandler.CONTROLLER = ControlConnectionManager()
+        if not CmdHandler.HOST_SOCKET:
+            CmdHandler.HOST_SOCKET = ControlConnectionServer()
+
+        CmdHandler.CONTROLLER = ControlConnectionManager(CmdHandler.HOST_SOCKET)
         CmdHandler.CONTROLLER.create_route(arguments)

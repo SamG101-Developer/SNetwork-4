@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from socket import socket as Socket, AF_INET, SOCK_DGRAM
 from threading import Thread, Lock
 from enum import Enum
 from dataclasses import dataclass
 from argparse import Namespace
 import os, pickle, socket, threading, logging
 
+from control_communications.ControlConnectionServer import ControlConnectionServer
 from crypto_engines.crypto.digital_signing import DigitalSigning, SignedMessage
 from crypto_engines.crypto.key_encapsulation import KEM
 from crypto_engines.crypto.symmetric_encryption import SymmetricEncryption
@@ -92,7 +92,7 @@ class ControlConnectionRoute:
 
 
 class ControlConnectionManager:
-    _udp_server: Socket
+    _udp_server: ControlConnectionServer
     _msg_threads: List[Thread]
     _conversations: Dict[ConnectionToken, ControlConnectionConversationInfo]
     _my_route: Optional[ControlConnectionRoute]
@@ -100,27 +100,15 @@ class ControlConnectionManager:
     _mutex: Lock
     _server_socket_thread: Thread
 
-    def __init__(self):
+    def __init__(self, server: ControlConnectionServer):
         # Setup the attributes of the control connection manager
-        self._udp_server = Socket(AF_INET, SOCK_DGRAM)
+        self._udp_server = server
+        self._udp_server.on_message_received = self._recv_message
+
         self._msg_threads = []
         self._conversations = {}
         self._my_route = None
         self._mutex = Lock()
-
-        # Setup the socket of the control connection manager
-        self._server_socket_thread = Thread(target=self._setup_socket)
-        self._server_socket_thread.start()
-
-    @LogPre
-    def _setup_socket(self) -> None:
-        # Bind a UDP socket for incoming commands to this node
-        self._udp_server.settimeout(5)
-        self._udp_server.bind(("", 12345))
-
-        # For each message received, handle it in a new thread
-        while True:
-            self._recv_message()
 
     @LogPre
     def create_route(self, _arguments: Namespace) -> None:
@@ -169,11 +157,10 @@ class ControlConnectionManager:
         return data
 
     @LogPre
-    def _recv_message(self) -> None:
+    def _recv_message(self, data: Bytes, raw_addr: Tuple[Str, Int]) -> None:
         # Get the data and address from the udp socket, and parse the message into a command and data. Split the data
         # into the connection token and the rest of the data.
-        data, addr = self._udp_server.recvfrom(4096)
-        addr = Address(ip=addr[0], port=addr[1])
+        addr = Address(ip=raw_addr[0], port=raw_addr[1])
         command, connection_token, data = self._parse_message(data)
 
         # Decrypt the data if a shared secret exists (only won't when initiating a connection).
@@ -553,14 +540,14 @@ class ControlConnectionManager:
             data = SymmetricEncryption.encrypt(data, symmetric_key).raw
 
         # Send the data to the node.
-        self._udp_server.sendto(data, addr.socket_format())
+        self._udp_server.udp_send(data, addr.socket_format())
 
     @LogPre
     def _send_layered_message(self, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
         assert isinstance(data, Bytes)
         data = self._layer_encrypt(data)
         data = command.value.to_bytes(1, "big") + connection_token + data
-        self._udp_server.sendto(data, self._my_route.route[0].address.socket_format())
+        self._udp_server.udp_send(data, self._my_route.route[0].address.socket_format())
 
     @LogPre
     def _cleanup_connection(self, addr: Address, connection_token: Bytes) -> None:
