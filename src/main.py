@@ -1,3 +1,4 @@
+import os
 from argparse import ArgumentParser
 from setup.cmd_handler import CmdHandler
 import logging, sys
@@ -54,6 +55,9 @@ def create_argument_parser() -> ArgumentParser:
 
 
 def main():
+    os.mkdir("./_cache")
+    os.mkdir("./_keys")
+
     parser = create_argument_parser()
     args = parser.parse_args(sys.argv[1:])
     CmdHandler(args.command, args)
