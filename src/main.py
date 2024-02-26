@@ -68,5 +68,4 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.argv = ["main.py", "route"]
     main()
