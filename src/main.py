@@ -57,6 +57,7 @@ def create_argument_parser() -> ArgumentParser:
 def main():
     os.mkdir("./_cache")
     os.mkdir("./_keys")
+    open("./_cache/dht_cache.json", "w").write("[]")
 
     parser = create_argument_parser()
     args = parser.parse_args(sys.argv[1:])
