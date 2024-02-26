@@ -19,6 +19,7 @@ def create_argument_parser() -> ArgumentParser:
 
     # Keygen subparser
     key_gen_parser = subparsers.add_parser("keygen", help="Generate static public keys for current profile")
+    key_gen_parser.add_argument("--force", action="store_true", help="Force the generation of new keys")
 
     # Route subparser
     route_parser = subparsers.add_parser("route", help="Initialize a route")
@@ -67,7 +68,7 @@ def main():
     args = parser.parse_args(sys.argv[1:])
     CmdHandler(args.command, args)
 
-    while True:
+    while args.command in ["join", "route"]:
         pass
 
 

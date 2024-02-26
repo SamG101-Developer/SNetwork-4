@@ -24,11 +24,11 @@ class CmdHandler:
         getattr(CmdHandler, f"_handle_{command}")(arguments)
 
     @staticmethod
-    def _handle_keygen(_arguments: Namespace) -> None:
+    def _handle_keygen(arguments: Namespace) -> None:
         # Check if the static keys already exist
-        if not os.path.exists("./_keys/me"):
+        if not os.path.exists("./_keys/me") or arguments.force:
             # Create the directory for the keys
-            os.makedirs("./_keys/me")
+            os.makedirs("./_keys/me", exist_ok=True)
 
             # Generate the static key pair for digital signing, and the hash of the public key (identifier)
             my_static_key_pair = DigitalSigning.generate_key_pair()
