@@ -1,5 +1,14 @@
 from crypto_engines.tools.secure_bytes import SecureBytes
+from my_types import Bool, Int
+
+from dataclasses import dataclass
 import time
+
+
+@dataclass(kw_only=True)
+class Tolerance:
+    in_tolerance: Bool
+    out_by: Int
 
 
 class Timestamp:
@@ -21,4 +30,4 @@ class Timestamp:
         # Convert the timestamps to integers and check if the difference is within the tolerance.
         t1 = t1.to_int()
         t2 = t2.to_int()
-        return t1 - t2 < Timestamp.TOLERANCE
+        return Tolerance(in_tolerance=t1 - t2 < Timestamp.TOLERANCE, out_by=t1 - t2)

@@ -64,8 +64,10 @@ class DigitalSigning:
         hashed_message = Hashing.hash(enriched_message)
         message, time_bytes, recipient_id = enriched_message.unmerge(3)
 
+        tolerance = Timestamp.in_tolerance(Timestamp.current_time_bytes(), time_bytes)
+
         # Check that the id matches, that the timestamp is in tolerance and that the signature is valid.
         assert recipient_id == my_id, f"Recipient ID {recipient_id} does not match {my_id}"
-        assert Timestamp.in_tolerance(Timestamp.current_time_bytes(), time_bytes), f"Timestamp {time_bytes} is out of tolerance"
+        assert tolerance.in_tolerance, f"Timestamp {time_bytes} is out of tolerance by {tolerance.out_by}"
         assert DigitalSigning.ALGORITHM.verify(their_static_public_key.raw, hashed_message.raw, signed_message.signature.raw) is True, "Signature is invalid"
         return True
