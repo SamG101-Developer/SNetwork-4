@@ -173,7 +173,7 @@ class ControlConnectionManager:
             data = SecureBytes(data)
             data = SymmetricEncryption.decrypt(data, symmetric_key).raw
 
-        logging.debug(f"\t\tDecrypted data: {data}")
+        logging.debug(f"\t\tDecrypted data: {data[:20]}...")
 
         # Create a new thread to handle the message, and add it to the list of message threads.
         msg_thread = Thread(target=self._handle_message, args=(addr, command, connection_token, data))
