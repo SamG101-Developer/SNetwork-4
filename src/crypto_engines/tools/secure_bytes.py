@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import List, Self, Tuple
 from cryptography.hazmat.primitives.constant_time import bytes_eq
-import base58, os
+import base58, pickle, os
 
 
 class SecureBytes:
@@ -13,11 +13,12 @@ class SecureBytes:
     """
 
     _bytes: bytes
-    _delimiter: bytes = b"-"
+    _pickled: bool
 
-    def __init__(self, input_bytes: bytes = b"") -> None:
+    def __init__(self, input_bytes: bytes = b"", pickled: bool = False) -> None:
         # Assign the input bytes to the object.
         self._bytes = input_bytes
+        self._pickled = pickled
 
     @staticmethod
     def from_random(length: int) -> SecureBytes:
@@ -32,11 +33,18 @@ class SecureBytes:
 
     def merge(self, that: Self) -> Self:
         # Merge the bytes of two SecureBytes objects and return a new SecureBytes object.
-        return SecureBytes(self._bytes + SecureBytes._delimiter + that._bytes)
+        if self._pickled:
+            items = pickle.loads(self._bytes)
+            new_items = (*items, that._bytes)
+            return SecureBytes(pickle.dumps(new_items), pickled=True)
+
+        new_items = (self._bytes, that._bytes)
+        return SecureBytes(pickle.dumps(new_items), pickled=True)
 
     def unmerge(self, max_parts: int = 1) -> List[Self]:
         # Unmerge the bytes of a SecureBytes object and return a list of new SecureBytes objects.
-        return [SecureBytes(byte_slice) for byte_slice in self._bytes.split(SecureBytes._delimiter, max_parts - 1)]
+        cur_items = pickle.loads(self._bytes)
+        return [SecureBytes(item) for item in cur_items[:max_parts]]
 
     def split_at(self, index: int) -> Tuple[Self, Self]:
         # Split the bytes of a SecureBytes object at a specified index and return two new SecureBytes objects.
