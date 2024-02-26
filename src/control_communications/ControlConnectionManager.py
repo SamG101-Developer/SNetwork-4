@@ -133,8 +133,7 @@ class ControlConnectionManager:
 
             # Extend the connection to the next node in the route.
             self._pending_node_to_add_to_route = Address(ip=DHT.get_random_node(), port=12345)
-            data = (self._pending_node_to_add_to_route, DHT.get_static_public_key(self._pending_node_to_add_to_route.ip))
-            self._send_layered_message(connection_token.token, ControlConnectionProtocol.CONN_EXT, pickle.dumps(data))
+            self._send_layered_message(connection_token.token, ControlConnectionProtocol.CONN_EXT, b"")
 
             # Wait for the next node to be added to the route.
             while self._pending_node_to_add_to_route:
@@ -383,7 +382,8 @@ class ControlConnectionManager:
 
         # Get the address and static public key of the next node in the route to extend the connection to. The static
         # public key could be obtained from the DHT from the "target_addr", but it can be sent to reduce DHT lookups.
-        target_addr, their_static_public_key = pickle.loads(data)
+        target_addr = self._pending_node_to_add_to_route
+        their_static_public_key = DHT.get_static_public_key(target_addr.ip)
         logging.debug(f"\t\tExtending to: {target_addr.ip}")
 
         # Create an ephemeral public key, sign it, and send it to the next node in the route. This establishes e2e
