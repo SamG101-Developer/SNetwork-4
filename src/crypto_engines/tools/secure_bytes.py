@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Self, Tuple
+from typing import List, Tuple
 from cryptography.hazmat.primitives.constant_time import bytes_eq
 import base58, pickle, os
 
@@ -31,7 +31,7 @@ class SecureBytes:
         # Create a SecureBytes object from an integer.
         return SecureBytes(input_int.to_bytes(input_int.bit_length() // 8 + 1, "big"))
 
-    def merge(self, that: Self) -> Self:
+    def merge(self, that: SecureBytes) -> SecureBytes:
         # Merge the bytes of two SecureBytes objects and return a new SecureBytes object.
         if self._pickled:
             items = pickle.loads(self._bytes)
@@ -41,12 +41,12 @@ class SecureBytes:
         new_items = (self._bytes, that._bytes)
         return SecureBytes(pickle.dumps(new_items), pickled=True)
 
-    def unmerge(self, max_parts: int = 1) -> List[Self]:
+    def unmerge(self, max_parts: int = 1) -> List[SecureBytes]:
         # Unmerge the bytes of a SecureBytes object and return a list of new SecureBytes objects.
         cur_items = pickle.loads(self._bytes)
         return [SecureBytes(item) for item in cur_items[:max_parts]]
 
-    def split_at(self, index: int) -> Tuple[Self, Self]:
+    def split_at(self, index: int) -> Tuple[SecureBytes, SecureBytes]:
         # Split the bytes of a SecureBytes object at a specified index and return two new SecureBytes objects.
         return SecureBytes(self._bytes[:index]), SecureBytes(self._bytes[index:])
 
@@ -68,22 +68,22 @@ class SecureBytes:
         self._bytes = base58.b58decode(formatted_bytes)
         return self
 
-    def __eq__(self, that: Self) -> bool:
+    def __eq__(self, that: SecureBytes) -> bool:
         # Compare the bytes of two SecureBytes objects with a constant time comparison.
         from crypto_engines.crypto.hashing import Hashing
         hash_lhs = Hashing.hash(self).raw
         hash_rhs = Hashing.hash(that).raw
         return bytes_eq(hash_lhs, hash_rhs)
 
-    def __ne__(self, that: Self) -> bool:
+    def __ne__(self, that: SecureBytes) -> bool:
         # Compare the bytes of two SecureBytes objects with a constant time comparison.
         return not self.__eq__(that)
 
-    def __add__(self, that: Self) -> Self:
+    def __add__(self, that: SecureBytes) -> SecureBytes:
         # Concatenate the bytes of two SecureBytes objects and return a new SecureBytes object.
         return SecureBytes(self._bytes + that._bytes)
 
-    def __radd__(self, that: Self) -> Self:
+    def __radd__(self, that: SecureBytes) -> SecureBytes:
         # Concatenate the bytes of two SecureBytes objects and return a new SecureBytes object.
         return SecureBytes(that._bytes + self._bytes)
 
