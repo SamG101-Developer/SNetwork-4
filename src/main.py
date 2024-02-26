@@ -26,6 +26,9 @@ def create_argument_parser() -> ArgumentParser:
     route_parser.add_argument("--streaming", type=bool, default=False, help="Whether the route is for streaming")
     route_parser.add_argument("--node-count", type=int, default=3, help="The number of nodes in the route")
 
+    # Join subparser
+    join_parser = subparsers.add_parser("join", help="Join the network")
+
     # Storage subparser
     storage_parser = subparsers.add_parser("storage", help="Interact with the storage system")
 
@@ -69,5 +72,4 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.argv = ["snetwork", "route"]
     main()
