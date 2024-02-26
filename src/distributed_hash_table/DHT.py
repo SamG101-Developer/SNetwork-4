@@ -1,6 +1,6 @@
 from crypto_engines.tools.secure_bytes import SecureBytes
 from my_types import Str
-import json, random
+import base58, json, random
 
 
 class NodeNotInNetworkException(Exception):
@@ -11,13 +11,16 @@ class DHT:
     @staticmethod
     def get_static_public_key(address: Str) -> SecureBytes:
         cache = json.load(open("./_cache/dht_cache.json"))
-        public_key = [node["pub_key"] for node in cache if node["id"] == address]
+        public_key = [node["key"] for node in cache if base58.b58decode(node["id"]).decode() == address]
         if not public_key:
             raise NodeNotInNetworkException
 
-        return SecureBytes(public_key[0])
+        public_key = base58.b58decode(public_key[0].replace("\n", ""))
+        return SecureBytes(public_key)
 
     @staticmethod
     def get_random_node() -> Str:
         cache = json.load(open("./_cache/dht_cache.json"))
-        return random.choices(cache, k=1)[0]["id"]
+        random_id = random.choices(cache, k=1)[0]["id"]
+        random_id = base58.b58decode(random_id).decode()
+        return random_id
