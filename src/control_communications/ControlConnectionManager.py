@@ -299,6 +299,11 @@ class ControlConnectionManager:
             message=kem_wrapped_shared_secret.encapsulated_key,
             their_id=their_static_public_key)
 
+        logging.debug(f"\t\tTheir ephemeral public key: {their_ephemeral_public_key.raw[:10]}...")
+        logging.debug(f"\t\tShared secret: {kem_wrapped_shared_secret.decapsulated_key.raw[:10]}...")
+        logging.debug(f"\t\tKEM wrapped shared secret: {kem_wrapped_shared_secret.encapsulated_key.raw[:10]}...")
+        logging.debug(f"\t\tSigned KEM wrapped shared secret: {signed_kem_wrapped_shared_secret.signature.raw[:10]}...")
+
         # Send the signed KEM wrapped shared secret to the requesting node.
         sending_data = pickle.dumps(signed_kem_wrapped_shared_secret)
         self._send_message(addr, connection_token, ControlConnectionProtocol.CONN_ACC, sending_data)
