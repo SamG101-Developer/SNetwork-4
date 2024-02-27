@@ -332,7 +332,7 @@ class ControlConnectionManager:
             their_id=their_static_public_key)
 
         logging.debug(f"\t\tTheir ephemeral public key: {their_ephemeral_public_key.raw[:10]}...")
-        logging.debug(f"\t\tShared secret: {kem_wrapped_shared_secret.decapsulated_key.raw[:10]}...")
+        logging.debug(f"\t\tShared secret (CON): {kem_wrapped_shared_secret.decapsulated_key.raw[:10]}...")
         logging.debug(f"\t\tKEM-wrapped shared secret: {kem_wrapped_shared_secret.encapsulated_key.raw[:10]}...")
         logging.debug(f"\t\tSigned KEM wrapped shared secret: {signed_kem_wrapped_shared_secret.signature.raw[:10]}...")
 
@@ -393,7 +393,7 @@ class ControlConnectionManager:
             my_ephemeral_public_key=my_ephemeral_public_key,
             my_ephemeral_secret_key=my_ephemeral_secret_key)
 
-        logging.debug(f"\t\tShared secret: {self._conversations[conversation_id].shared_secret.raw[:10]}...")
+        logging.debug(f"\t\tShared secret (CON): {self._conversations[conversation_id].shared_secret.raw[:10]}...")
 
     @LogPre
     def _handle_accept_connection_attach_key_to_client(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
@@ -542,6 +542,7 @@ class ControlConnectionManager:
             # Note: vulnerable to MITM, so use unilateral authentication later. TODO
             self._send_layered_message_forward(connection_token, ControlConnectionProtocol.CONN_PKT_KEY, self._my_route.route[-1].shared_secret.encapsulated_key.raw)
             logging.debug(f"\t\tAdded to route: {self._pending_node_to_add_to_route.ip}")
+            logging.debug(f"\t\tShared secret (PKT) {self._my_route.route[-1].shared_secret.decapsulated_key.raw[:10]}...")
             logging.debug(f"\t\tSent packet key to: {self._my_route.route[-1].connection_token.address.ip}")
 
             self._pending_node_to_add_to_route = None
@@ -602,7 +603,7 @@ class ControlConnectionManager:
 
         my_ephemeral_secret_key = self._node_to_client_tunnel_keys[connection_token].ephemeral_key_pair.secret_key
         self._node_to_client_tunnel_keys[connection_token].shared_secret = KEM.kem_unwrap(my_ephemeral_secret_key, SecureBytes(data))
-        logging.debug(f"\t\tShared secret [to client]: {self._node_to_client_tunnel_keys[connection_token].shared_secret.decapsulated_key.raw[:10]}...")
+        logging.debug(f"\t\tShared secret (PKT)): {self._node_to_client_tunnel_keys[connection_token].shared_secret.decapsulated_key.raw[:10]}...")
 
     @LogPre
     # @ReplayErrorBackToUser
@@ -672,8 +673,6 @@ class ControlConnectionManager:
 
         data = self._layer_encrypt(data)
         data = command.value.to_bytes(1, "big") + connection_token + data
-
-        print(len(self._my_route.route))
 
         first_node = self._my_route.route[0] if len(self._my_route.route) == 1 else self._my_route.route[1]
         self._udp_server.udp_send(data, first_node.connection_token.address.socket_format())
