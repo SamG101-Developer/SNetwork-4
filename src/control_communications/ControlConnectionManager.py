@@ -162,10 +162,12 @@ class ControlConnectionManager:
 
         # Decrypt the data in a conversation, which won't have been initiated if this is the request to connect.
         known_addresses = [c.address.ip for c in self._conversations.keys()]
-        if raw_addr[0] in known_addresses and self._conversations[conversation_id].shared_secret:
-            symmetric_key = self._conversations[conversation_id].shared_secret
-            data = SecureBytes(data)
-            data = SymmetricEncryption.decrypt(data, symmetric_key).raw
+        if raw_addr[0] in known_addresses:
+            conversation_id = self._conversations.keys()[known_addresses.index(raw_addr[0])]
+            if self._conversations[conversation_id].shared_secret:
+                symmetric_key = self._conversations[conversation_id].shared_secret
+                data = SecureBytes(data)
+                data = SymmetricEncryption.decrypt(data, symmetric_key).raw
 
         # Parse the data into the components of the message.
         command, connection_token, data = self._parse_message(data)
