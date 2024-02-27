@@ -332,8 +332,8 @@ class ControlConnectionManager:
             their_id=their_static_public_key)
 
         logging.debug(f"\t\tTheir ephemeral public key: {their_ephemeral_public_key.raw[:10]}...")
-        logging.debug(f"\t\tShared secret: {kem_wrapped_shared_secret.encapsulated_key.raw[:10]}...")
-        logging.debug(f"\t\tKEM wrapped shared secret: {kem_wrapped_shared_secret.encapsulated_key.raw[:10]}...")
+        logging.debug(f"\t\tShared secret: {kem_wrapped_shared_secret.decapsulated_key.raw[:10]}...")
+        logging.debug(f"\t\tKEM-wrapped shared secret: {kem_wrapped_shared_secret.encapsulated_key.raw[:10]}...")
         logging.debug(f"\t\tSigned KEM wrapped shared secret: {signed_kem_wrapped_shared_secret.signature.raw[:10]}...")
 
         # Create a key for the new node, to allow e2e encrypted tunnel via the other nodes in the circuit.
