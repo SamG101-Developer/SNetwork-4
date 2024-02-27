@@ -93,7 +93,6 @@ class ControlConnectionRoute:
 
 class ControlConnectionManager:
     _udp_server: ControlConnectionServer
-    _msg_threads: List[Thread]
     _conversations: Dict[ConnectionToken, ControlConnectionConversationInfo]
     _my_route: Optional[ControlConnectionRoute]
     _pending_node_to_add_to_route: Optional[Address]
@@ -105,7 +104,6 @@ class ControlConnectionManager:
         self._udp_server = ControlConnectionServer()
         self._udp_server.on_message_received = self._recv_message
 
-        self._msg_threads = []
         self._conversations = {}
         self._my_route = None
         self._mutex = Lock()
@@ -261,8 +259,8 @@ class ControlConnectionManager:
                 pass
 
         # End this handler thread, and remove it from the list of message threads.
-        current_thread = threading.current_thread()
-        self._msg_threads.remove(current_thread)
+        # current_thread = threading.current_thread()
+        # self._msg_threads.remove(current_thread)
         # current_thread.join()  # TODO
 
     @LogPre
