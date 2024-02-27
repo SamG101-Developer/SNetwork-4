@@ -27,7 +27,7 @@ class ControlConnectionServer:
         # For each message received, handle it in a new thread
         while True:
             message = self._socket.recvfrom(16384)
-            logging.debug(f"\t\tReceived message: {message[0][:10]}... from {message[1]}")
+            # logging.debug(f"\t\tReceived message: {message[0][:10]}... from {message[1]}")
             thread = Thread(target=self.on_message_received, args=(*message,))
             thread.start()
             self._temp_threads.append(thread)
