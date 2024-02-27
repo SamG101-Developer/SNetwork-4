@@ -149,6 +149,8 @@ class ControlConnectionManager:
             shared_secret = self._conversations[node_token].shared_secret
             data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + node_token.address.ip.encode() + data
             data = SymmetricEncryption.encrypt(SecureBytes(data), shared_secret).raw
+
+        logging.debug(f"\t\tLayer encrypted data: {data[:10]}...")
         return data
 
     @LogPre
@@ -300,7 +302,7 @@ class ControlConnectionManager:
             their_id=their_static_public_key)
 
         logging.debug(f"\t\tTheir ephemeral public key: {their_ephemeral_public_key.raw[:10]}...")
-        logging.debug(f"\t\tShared secret: {kem_wrapped_shared_secret.decapsulated_key.raw[:10]}...")
+        logging.debug(f"\t\tShared secret: {kem_wrapped_shared_secret.encapsulated_key.raw[:10]}...")
         logging.debug(f"\t\tKEM wrapped shared secret: {kem_wrapped_shared_secret.encapsulated_key.raw[:10]}...")
         logging.debug(f"\t\tSigned KEM wrapped shared secret: {signed_kem_wrapped_shared_secret.signature.raw[:10]}...")
 
@@ -363,8 +365,10 @@ class ControlConnectionManager:
             message=my_ephemeral_public_key,
             their_id=target_static_public_key)
 
-        sending_data = pickle.dumps(signed_my_ephemeral_public_key)
-        self._send_message(target_node, connection_token, ControlConnectionProtocol.CONN_EXT_ACC, sending_data)
+        # If this node is not the client of a route, then send the message to the previous node in the route.
+        if not (self._my_route and self._my_route.connection_token.token == connection_token):
+            sending_data = pickle.dumps(signed_my_ephemeral_public_key)
+            self._send_message(target_node, connection_token, ControlConnectionProtocol.CONN_EXT_ACC, sending_data)
 
     @LogPre
     # @ReplayErrorBackToUser
@@ -567,6 +571,10 @@ class ControlConnectionManager:
         :param data:
         """
 
+        logging.debug(f"\t\tSending message to: {addr.ip}")
+        logging.debug(f"\t\tCommand: {command}")
+        logging.debug(f"\t\tData: {data[:10]}...")
+
         # Add the command to the data.
         data = command.value.to_bytes(1, "big") + connection_token + data
 
@@ -577,12 +585,19 @@ class ControlConnectionManager:
             data = SecureBytes(data)
             data = SymmetricEncryption.encrypt(data, symmetric_key).raw
 
+            logging.debug(f"\t\tEncrypted data: {data[:10]}...")
+
         # Send the data to the node.
         self._udp_server.udp_send(data, addr.socket_format())
 
     @LogPre
     def _send_layered_message(self, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
         assert isinstance(data, Bytes)
+
+        logging.debug(f"\t\tSending layered message")
+        logging.debug(f"\t\tCommand: {command}")
+        logging.debug(f"\t\tData: {data[:10]}...")
+
         data = self._layer_encrypt(data)
         data = command.value.to_bytes(1, "big") + connection_token + data
         self._udp_server.udp_send(data, self._my_route.route[0].address.socket_format())
