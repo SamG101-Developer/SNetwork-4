@@ -359,8 +359,8 @@ class ControlConnectionManager:
             my_ephemeral_public_key=None,
             my_ephemeral_secret_key=None)
 
-        time.sleep(2)
-        self._send_message(addr, connection_token, ControlConnectionProtocol.CONN_PKT_KEM, pickle.dumps(signed_e2e_key))
+        # time.sleep(2)
+        # self._send_message(addr, connection_token, ControlConnectionProtocol.CONN_PKT_KEM, pickle.dumps(signed_e2e_key))
 
     @LogPre
     # @ReplayErrorBackToUser
