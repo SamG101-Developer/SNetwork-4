@@ -104,7 +104,7 @@ class ControlConnectionManager:
     _udp_server: ControlConnectionServer
     _conversations: Dict[ConnectionToken, ControlConnectionConversationInfo]
     _my_route: Optional[ControlConnectionRoute]
-    _node_to_client_tunnel_keys: Dict[ConnectionToken, ControlConnectionRouteNode]
+    _node_to_client_tunnel_keys: Dict[Bytes, ControlConnectionRouteNode]
     _pending_node_to_add_to_route: Optional[Address]
     _mutex: Lock
     _server_socket_thread: Thread
@@ -340,7 +340,7 @@ class ControlConnectionManager:
             my_ephemeral_secret_key=None)
 
         # Create a key for the new node, to allow e2e encrypted tunnel via the other nodes in the circuit.
-        self._node_to_client_tunnel_keys[ConnectionToken(token=connection_token, address=addr)] = ControlConnectionRouteNode(
+        self._node_to_client_tunnel_keys[connection_token] = ControlConnectionRouteNode(
             connection_token=conversation_id,
             ephemeral_key_pair=KEM.generate_key_pair(),
             shared_secret=None)
@@ -572,8 +572,8 @@ class ControlConnectionManager:
     @LogPre
     def _handle_packet_key(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
         conversation_id = ConnectionToken(token=connection_token, address=addr)
-        my_ephemeral_secret_key = self._node_to_client_tunnel_keys[conversation_id].ephemeral_key_pair.secret_key
-        self._node_to_client_tunnel_keys[conversation_id].shared_secret = KEM.kem_unwrap(my_ephemeral_secret_key, SecureBytes(data))
+        my_ephemeral_secret_key = self._node_to_client_tunnel_keys[connection_token].ephemeral_key_pair.secret_key
+        self._node_to_client_tunnel_keys[connection_token].shared_secret = KEM.kem_unwrap(my_ephemeral_secret_key, SecureBytes(data))
 
     @LogPre
     # @ReplayErrorBackToUser
@@ -651,7 +651,7 @@ class ControlConnectionManager:
         logging.debug(f"\t\tSending layered message backwards")
         logging.debug(f"\t\tData: {data[:10]}...")
 
-        data = SymmetricEncryption.encrypt(SecureBytes(data), self._node_to_client_tunnel_keys[connection_token].shared_secret.decapsulated_key).raw
+        data = SymmetricEncryption.encrypt(SecureBytes(data), self._node_to_client_tunnel_keys[connection_token.token].shared_secret.decapsulated_key).raw
         data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + connection_token.token + data
         self._udp_server.udp_send(data, connection_token.address.socket_format())
 
