@@ -33,5 +33,6 @@ class ControlConnectionServer:
             self._temp_threads.append(thread)
 
     def udp_send(self, message: bytes, address: Tuple[Str, Int]) -> None:
+        print(len(message))
         # Send a message to the specified address
         self._socket.sendto(message, address)

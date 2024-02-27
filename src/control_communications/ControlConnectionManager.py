@@ -252,6 +252,11 @@ class ControlConnectionManager:
                 self._handle_accept_connection(addr, connection_token, data)
                 self._mutex.release()
 
+            case ControlConnectionProtocol.CONN_ACC if connected:
+                self._mutex.acquire()
+                self._handle_accept_connection_attack_key_to_client(addr, connection_token, data)
+                self._mutex.release()
+
             case ControlConnectionProtocol.CONN_REJ if waiting_for_ack:
                 self._mutex.acquire()
                 self._handle_reject_connection(addr, connection_token, data)
@@ -342,8 +347,8 @@ class ControlConnectionManager:
             their_id=their_static_public_key)
 
         # Send the signed KEM wrapped shared secret to the requesting node.
-        sending_data = pickle.dumps((signed_kem_wrapped_shared_secret, signed_e2e_key))
-        self._send_message(addr, connection_token, ControlConnectionProtocol.CONN_ACC, sending_data)
+        self._send_message(addr, connection_token, ControlConnectionProtocol.CONN_ACC, pickle.dumps(signed_kem_wrapped_shared_secret))
+        self._send_message(addr, connection_token, ControlConnectionProtocol.CONN_ACC, pickle.dumps(signed_e2e_key))
 
         # Save the connection information for the requesting node.
         self._conversations[conversation_id] = ControlConnectionConversationInfo(
@@ -352,8 +357,6 @@ class ControlConnectionManager:
             shared_secret=kem_wrapped_shared_secret.decapsulated_key,
             my_ephemeral_public_key=None,
             my_ephemeral_secret_key=None)
-
-
 
     @LogPre
     # @ReplayErrorBackToUser
@@ -368,7 +371,7 @@ class ControlConnectionManager:
         # Get the signed KEM wrapped shared secret from the data, and verify the signature.
         my_static_private_key, my_static_public_key = KeyPair().import_("./_keys/me", "static").both()
         their_static_public_key = DHT.get_static_public_key(addr.ip)
-        signed_kem_wrapped_shared_secret, signed_e2e_pub_key = pickle.loads(data)
+        signed_kem_wrapped_shared_secret = pickle.loads(data)
 
         # Verify the signature of the KEM wrapped shared secret being sent from the accepting node.
         DigitalSigning.verify(
@@ -388,21 +391,22 @@ class ControlConnectionManager:
             my_ephemeral_public_key=my_ephemeral_public_key,
             my_ephemeral_secret_key=my_ephemeral_secret_key)
 
-        # Pass the ephemeral public key to the previous node in the route, so the first node can collect all the keys
-        # for key exchanges between the client and the route nodes, to establish layered packet encryption keys. Get the
-        # address of the other node in the conversation list who has the same connection token.
+    @LogPre
+    def _handle_accept_connection_attack_key_to_client(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
+        my_static_private_key, my_static_public_key = KeyPair().import_("./_keys/me", "static").both()
+        their_static_public_key = DHT.get_static_public_key(addr.ip)
+        signed_e2e_pub_key = pickle.loads(data)
+
+        DigitalSigning.verify(
+            their_static_public_key=their_static_public_key,
+            signed_message=signed_e2e_pub_key,
+            my_id=my_static_public_key)
+
         candidates = [c.address for c in self._conversations.keys() if c.token == connection_token and c.address != addr]
         assert len(candidates) == 1
         target_node = candidates[0]
 
-        # Use the EXT_ACK command to send the ephemeral public key to the previous node in the route. TODO: ERROR HERE
-
-        # If this node is not the client of a route, then send the message to the previous node in the route.
-        # if not (self._my_route and self._my_route.connection_token.token == connection_token):
         self._send_layered_message_backward(target_node, connection_token, ControlConnectionProtocol.CONN_EXT_ACC, pickle.dumps(signed_e2e_pub_key))
-
-        # sending_data = pickle.dumps(signed_my_ephemeral_public_key)
-        # self._send_message(target_node, connection_token, ControlConnectionProtocol.CONN_EXT_ACC, sending_data)
 
     @LogPre
     # @ReplayErrorBackToUser
@@ -615,9 +619,10 @@ class ControlConnectionManager:
     @LogPre
     def _send_message(self, addr: Address, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
         """
-        Send a message to a node, with a command and accompanying data. If a shared secret exists for the node, the data
-        will be encrypted before being sent. This always happens after the initial key exchange with an authenticated
-        KEM. This DOES NOT use layered encryption to nodes. Use the self._send_layered_message method for that.
+        Send a message to a direct-neighbour node, with a command and accompanying data. If a shared secret exists for
+        the node, the data will be encrypted before being sent. This always happens after the initial key exchange with
+        an authenticated KEM. This DOES NOT use layered encryption to nodes. Use the self._send_layered_message method
+        for that.
         :param addr:
         :param command:
         :param data:
