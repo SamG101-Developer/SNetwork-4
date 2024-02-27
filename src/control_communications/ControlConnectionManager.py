@@ -132,7 +132,8 @@ class ControlConnectionManager:
         while len(self._my_route.route) < 4:
 
             # Extend the connection to the next node in the route.
-            self._pending_node_to_add_to_route = Address(ip=DHT.get_random_node(), port=12345)
+            current_ips_in_route = [node.address.ip for node in self._my_route.route]
+            self._pending_node_to_add_to_route = Address(ip=DHT.get_random_node(current_ips_in_route), port=12345)
             self._send_layered_message(connection_token.token, ControlConnectionProtocol.CONN_EXT, b"")
 
             # Wait for the next node to be added to the route.
@@ -396,7 +397,7 @@ class ControlConnectionManager:
             their_id=their_static_public_key)
 
         # Register the connection in the conversation list.
-        conversation_id = ConnectionToken(token=connection_token, address=addr)
+        conversation_id = ConnectionToken(token=connection_token, address=target_addr)
         self._conversations[conversation_id] = ControlConnectionConversationInfo(
             state=ControlConnectionState.WAITING_FOR_ACK,
             their_static_public_key=their_static_public_key,
@@ -566,12 +567,10 @@ class ControlConnectionManager:
         conversation_id = ConnectionToken(token=connection_token, address=addr)
         self._conversations.pop(conversation_id)
 
-    @LogPre
     def _waiting_for_ack_from(self, addr: Address, connection_token: Bytes) -> bool:
         conversation_id = ConnectionToken(token=connection_token, address=addr)
-        return addr in self._conversations and self._conversations[conversation_id] == ControlConnectionState.WAITING_FOR_ACK
+        return conversation_id in self._conversations.keys() and self._conversations[conversation_id].state == ControlConnectionState.WAITING_FOR_ACK
 
-    @LogPre
     def _is_connected_to(self, addr: Address, connection_token: Bytes) -> bool:
         conversation_id = ConnectionToken(token=connection_token, address=addr)
         return conversation_id in self._conversations.keys() and self._conversations[conversation_id].state == ControlConnectionState.CONNECTED
