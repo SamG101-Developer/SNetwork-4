@@ -329,12 +329,23 @@ class ControlConnectionManager:
         logging.debug(f"\t\tKEM wrapped shared secret: {kem_wrapped_shared_secret.encapsulated_key.raw[:10]}...")
         logging.debug(f"\t\tSigned KEM wrapped shared secret: {signed_kem_wrapped_shared_secret.signature.raw[:10]}...")
 
+        # Create a key for the new node, to allow e2e encrypted tunnel via the other nodes in the circuit.
+        conversation_id = ConnectionToken(token=connection_token, address=addr)
+        self._node_to_client_tunnel_keys[connection_token] = ControlConnectionRouteNode(
+            connection_token=conversation_id,
+            ephemeral_key_pair=KEM.generate_key_pair(),
+            shared_secret=None)
+
+        signed_e2e_key = DigitalSigning.sign(
+            message=self._node_to_client_tunnel_keys[connection_token].ephemeral_key_pair.public_key,
+            my_static_private_key=my_static_private_key,
+            their_id=their_static_public_key)
+
         # Send the signed KEM wrapped shared secret to the requesting node.
-        sending_data = pickle.dumps(signed_kem_wrapped_shared_secret)
+        sending_data = pickle.dumps((signed_kem_wrapped_shared_secret, signed_e2e_key))
         self._send_message(addr, connection_token, ControlConnectionProtocol.CONN_ACC, sending_data)
 
         # Save the connection information for the requesting node.
-        conversation_id = ConnectionToken(token=connection_token, address=addr)
         self._conversations[conversation_id] = ControlConnectionConversationInfo(
             state=ControlConnectionState.CONNECTED,
             their_static_public_key=their_static_public_key,
@@ -342,11 +353,7 @@ class ControlConnectionManager:
             my_ephemeral_public_key=None,
             my_ephemeral_secret_key=None)
 
-        # Create a key for the new node, to allow e2e encrypted tunnel via the other nodes in the circuit.
-        self._node_to_client_tunnel_keys[connection_token] = ControlConnectionRouteNode(
-            connection_token=conversation_id,
-            ephemeral_key_pair=KEM.generate_key_pair(),
-            shared_secret=None)
+
 
     @LogPre
     # @ReplayErrorBackToUser
@@ -361,7 +368,7 @@ class ControlConnectionManager:
         # Get the signed KEM wrapped shared secret from the data, and verify the signature.
         my_static_private_key, my_static_public_key = KeyPair().import_("./_keys/me", "static").both()
         their_static_public_key = DHT.get_static_public_key(addr.ip)
-        signed_kem_wrapped_shared_secret: SignedMessage = pickle.loads(data)
+        signed_kem_wrapped_shared_secret, signed_e2e_pub_key = pickle.loads(data)
 
         # Verify the signature of the KEM wrapped shared secret being sent from the accepting node.
         DigitalSigning.verify(
@@ -392,8 +399,7 @@ class ControlConnectionManager:
 
         # If this node is not the client of a route, then send the message to the previous node in the route.
         # if not (self._my_route and self._my_route.connection_token.token == connection_token):
-        target_static_public_key = DHT.get_static_public_key(target_node.ip)
-        self._send_layered_message_backward(target_node, connection_token, ControlConnectionProtocol.CONN_EXT_ACC, pickle.dumps(target_static_public_key))
+        self._send_layered_message_backward(target_node, connection_token, ControlConnectionProtocol.CONN_EXT_ACC, pickle.dumps(signed_e2e_pub_key))
 
         # sending_data = pickle.dumps(signed_my_ephemeral_public_key)
         # self._send_message(target_node, connection_token, ControlConnectionProtocol.CONN_EXT_ACC, sending_data)
