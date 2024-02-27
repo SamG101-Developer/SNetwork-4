@@ -161,11 +161,6 @@ class ControlConnectionManager:
         # Get the data and address from the udp socket, and parse the message into a command and data. Split the data
         # into the connection token and the rest of the data.
         addr = Address(ip=raw_addr[0], port=raw_addr[1])
-        command, connection_token, data = self._parse_message(data)
-
-        logging.debug(f"\t\tMessage from: {addr.ip}")
-        logging.debug(f"\t\tCommand: {command}")
-        logging.debug(f"\t\tData: {data[:10]}...")
 
         # Decrypt the data in a conversation, which won't have been initiated if this is the request to connect.
         conversation_id = ConnectionToken(token=connection_token, address=addr)
@@ -174,12 +169,17 @@ class ControlConnectionManager:
             data = SecureBytes(data)
             data = SymmetricEncryption.decrypt(data, symmetric_key).raw
 
+        # Parse the data into the components of the message.
+        command, connection_token, data = self._parse_message(data)
+
+        # Log the message & associated data.
+        logging.debug(f"\t\tMessage from: {addr.ip}")
+        logging.debug(f"\t\tCommand: {command}")
+        logging.debug(f"\t\tData: {data[:10]}...")
         logging.debug(f"\t\tDecrypted data: {data[:20]}...")
 
         # Create a new thread to handle the message, and add it to the list of message threads.
-        msg_thread = Thread(target=self._handle_message, args=(addr, command, connection_token, data))
-        self._msg_threads.append(msg_thread)
-        msg_thread.start()
+        self._handle_message(addr, command, connection_token, data)
 
     @LogPre
     def _parse_message(self, data: Bytes) -> Tuple[ControlConnectionProtocol, Bytes, Bytes]:
