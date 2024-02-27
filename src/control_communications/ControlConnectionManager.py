@@ -386,11 +386,12 @@ class ControlConnectionManager:
         target_node = candidates[0]
 
         # Use the EXT_ACK command to send the ephemeral public key to the previous node in the route. TODO: ERROR HERE
-        target_static_public_key = DHT.get_static_public_key(target_node.ip)
-        self._send_layered_message_backward(conversation_id, ControlConnectionProtocol.CONN_EXT_ACC, pickle.dumps(target_static_public_key))
 
         # If this node is not the client of a route, then send the message to the previous node in the route.
-        # if not (self._my_route and self._my_route.connection_token.token == connection_token):
+        if not (self._my_route and self._my_route.connection_token.token == connection_token):
+            target_static_public_key = DHT.get_static_public_key(target_node.ip)
+            self._send_layered_message_backward(conversation_id, ControlConnectionProtocol.CONN_EXT_ACC, pickle.dumps(target_static_public_key))
+
         # sending_data = pickle.dumps(signed_my_ephemeral_public_key)
         # self._send_message(target_node, connection_token, ControlConnectionProtocol.CONN_EXT_ACC, sending_data)
 
