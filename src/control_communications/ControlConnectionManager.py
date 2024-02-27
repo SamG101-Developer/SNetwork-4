@@ -4,7 +4,7 @@ from threading import Thread, Lock
 from enum import Enum
 from dataclasses import dataclass
 from argparse import Namespace
-import os, pickle, socket, threading, logging
+import logging, os, pickle, socket
 
 from control_communications.ControlConnectionServer import ControlConnectionServer
 from crypto_engines.crypto.digital_signing import DigitalSigning, SignedMessage
@@ -64,6 +64,7 @@ class ControlConnectionConversationInfo:
     state: ControlConnectionState
     their_static_public_key: SecureBytes
     shared_secret: Optional[SecureBytes]
+    my_ephemeral_public_key: Optional[SecureBytes]
     my_ephemeral_secret_key: Optional[SecureBytes]
 
 
@@ -124,6 +125,7 @@ class ControlConnectionManager:
             state=ControlConnectionState.CONNECTED,
             their_static_public_key=KeyPair().import_("./_keys/me", "static").public_key,
             shared_secret=None,
+            my_ephemeral_public_key=None,
             my_ephemeral_secret_key=None)
 
         # Extend the connection (use a while loop so failed connections don't affect the node counter for route length).
@@ -304,6 +306,7 @@ class ControlConnectionManager:
             state=ControlConnectionState.CONNECTED,
             their_static_public_key=their_static_public_key,
             shared_secret=kem_wrapped_shared_secret.decapsulated_key,
+            my_ephemeral_public_key=None,
             my_ephemeral_secret_key=None)
 
     @LogPre
@@ -317,7 +320,7 @@ class ControlConnectionManager:
         """
 
         # Get the signed KEM wrapped shared secret from the data, and verify the signature.
-        my_static_public_key = KeyPair().import_("./_keys/me", "static").public_key
+        my_static_private_key, my_static_public_key = KeyPair().import_("./_keys/me", "static").both()
         their_static_public_key = DHT.get_static_public_key(addr.ip)
         signed_kem_wrapped_shared_secret: SignedMessage = pickle.loads(data)
 
@@ -329,11 +332,13 @@ class ControlConnectionManager:
 
         # Save the connection information for the accepting node.
         conversation_id = ConnectionToken(token=connection_token, address=addr)
+        my_ephemeral_public_key = self._conversations[conversation_id].my_ephemeral_public_key
         my_ephemeral_secret_key = self._conversations[conversation_id].my_ephemeral_secret_key
         self._conversations[conversation_id] = ControlConnectionConversationInfo(
             state=ControlConnectionState.CONNECTED,
             their_static_public_key=their_static_public_key,
             shared_secret=KEM.kem_unwrap(my_ephemeral_secret_key, signed_kem_wrapped_shared_secret.message).decapsulated_key,
+            my_ephemeral_public_key=my_ephemeral_public_key,
             my_ephemeral_secret_key=my_ephemeral_secret_key)
 
         # Pass the ephemeral public key to the previous node in the route, so the first node can collect all the keys
@@ -344,7 +349,12 @@ class ControlConnectionManager:
         target_node = candidates[0]
 
         # Use the EXT_ACK command to send the ephemeral public key to the previous node in the route.
-        sending_data = pickle.dumps(my_ephemeral_secret_key)
+        signed_my_ephemeral_public_key = DigitalSigning.sign(
+            my_static_private_key=my_static_private_key,
+            message=my_ephemeral_public_key,
+            their_id=their_static_public_key)
+
+        sending_data = pickle.dumps(signed_my_ephemeral_public_key)
         self._send_message(target_node, connection_token, ControlConnectionProtocol.CONN_EXT_ACC, sending_data)
 
     @LogPre
@@ -402,6 +412,7 @@ class ControlConnectionManager:
             state=ControlConnectionState.WAITING_FOR_ACK,
             their_static_public_key=their_static_public_key,
             shared_secret=None,
+            my_ephemeral_public_key=my_ephemeral_public_key,
             my_ephemeral_secret_key=my_ephemeral_private_key)
 
         # Send the signed ephemeral public key to the next node, maintaining the connection token. The next node will
