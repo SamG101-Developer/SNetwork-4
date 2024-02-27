@@ -161,6 +161,7 @@ class ControlConnectionManager:
         addr = Address(ip=raw_addr[0], port=raw_addr[1])
 
         # Decrypt the data in a conversation, which won't have been initiated if this is the request to connect.
+        connection_token = [c for c in self._conversations.keys() if c.address == addr][0].token
         conversation_id = ConnectionToken(token=connection_token, address=addr)
         if conversation_id in self._conversations.keys() and self._conversations[conversation_id].shared_secret:
             symmetric_key = self._conversations[conversation_id].shared_secret
