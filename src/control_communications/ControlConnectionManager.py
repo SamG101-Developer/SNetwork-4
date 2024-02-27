@@ -390,7 +390,7 @@ class ControlConnectionManager:
         # If this node is not the client of a route, then send the message to the previous node in the route.
         # if not (self._my_route and self._my_route.connection_token.token == connection_token):
         target_static_public_key = DHT.get_static_public_key(target_node.ip)
-        self._send_layered_message_backward(conversation_id, ControlConnectionProtocol.CONN_EXT_ACC, pickle.dumps(target_static_public_key))
+        self._send_layered_message_backward(target_node, connection_token, ControlConnectionProtocol.CONN_EXT_ACC, pickle.dumps(target_static_public_key))
 
         # sending_data = pickle.dumps(signed_my_ephemeral_public_key)
         # self._send_message(target_node, connection_token, ControlConnectionProtocol.CONN_EXT_ACC, sending_data)
@@ -646,16 +646,16 @@ class ControlConnectionManager:
         self._udp_server.udp_send(data, self._my_route.route[0].connection_token.address.socket_format())
 
     @LogPre
-    def _send_layered_message_backward(self, connection_token: ConnectionToken, command: ControlConnectionProtocol, data: Bytes) -> None:
+    def _send_layered_message_backward(self, addr: Address, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
         assert isinstance(data, Bytes)
 
         logging.debug(f"\t\tSending layered message backwards")
         logging.debug(f"\t\tData: {data[:10]}...")
 
-        if connection_token.address != Address.me():
-            data = SymmetricEncryption.encrypt(SecureBytes(data), self._node_to_client_tunnel_keys[connection_token.token].shared_secret.decapsulated_key).raw
-            data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + connection_token.token + data
-        self._udp_server.udp_send(data, connection_token.address.socket_format())
+        if addr != Address.me():
+            data = SymmetricEncryption.encrypt(SecureBytes(data), self._node_to_client_tunnel_keys[connection_token].shared_secret.decapsulated_key).raw
+            data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + connection_token + data
+        self._udp_server.udp_send(data, addr.socket_format())
 
     @LogPre
     def _cleanup_connection(self, addr: Address, connection_token: Bytes) -> None:
