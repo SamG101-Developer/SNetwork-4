@@ -349,10 +349,11 @@ class ControlConnectionManager:
         target_node = candidates[0]
 
         # Use the EXT_ACK command to send the ephemeral public key to the previous node in the route.
+        target_static_public_key = DHT.get_static_public_key(target_node.ip)
         signed_my_ephemeral_public_key = DigitalSigning.sign(
             my_static_private_key=my_static_private_key,
             message=my_ephemeral_public_key,
-            their_id=their_static_public_key)
+            their_id=target_static_public_key)
 
         sending_data = pickle.dumps(signed_my_ephemeral_public_key)
         self._send_message(target_node, connection_token, ControlConnectionProtocol.CONN_EXT_ACC, sending_data)
@@ -394,7 +395,7 @@ class ControlConnectionManager:
         # Get the address and static public key of the next node in the route to extend the connection to. The static
         # public key could be obtained from the DHT from the "target_addr", but it can be sent to reduce DHT lookups.
         target_addr = self._pending_node_to_add_to_route
-        their_static_public_key = DHT.get_static_public_key(target_addr.ip)
+        target_static_public_key = DHT.get_static_public_key(target_addr.ip)
         logging.debug(f"\t\tExtending to: {target_addr.ip}")
 
         # Create an ephemeral public key, sign it, and send it to the next node in the route. This establishes e2e
@@ -406,7 +407,7 @@ class ControlConnectionManager:
         conversation_id = ConnectionToken(token=connection_token, address=target_addr)
         self._conversations[conversation_id] = ControlConnectionConversationInfo(
             state=ControlConnectionState.WAITING_FOR_ACK,
-            their_static_public_key=their_static_public_key,
+            their_static_public_key=target_static_public_key,
             shared_secret=None,
             my_ephemeral_public_key=my_ephemeral_public_key,
             my_ephemeral_secret_key=my_ephemeral_private_key)
@@ -416,7 +417,7 @@ class ControlConnectionManager:
         signed_my_ephemeral_public_key = DigitalSigning.sign(
             my_static_private_key=my_static_private_key,
             message=my_ephemeral_public_key,
-            their_id=DHT.get_static_public_key(addr.ip))
+            their_id=target_static_public_key)
 
         sending_data = pickle.dumps(signed_my_ephemeral_public_key)
         self._send_message(target_addr, connection_token, ControlConnectionProtocol.CONN_REQ, sending_data)
