@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from threading import Thread, Lock
 from enum import Enum
 from dataclasses import dataclass
@@ -57,7 +58,8 @@ class ControlConnectionProtocol(Enum):
     CONN_EXT     = 0b0110  # Extend a connection
     CONN_EXT_ACC = 0b0111  # Acknowledge an extended connection
     CONN_EXT_REJ = 0b1000  # Reject an extended connection
-    CONN_PKT_KEY = 0b1001  # Packet key exchange
+    CONN_PKT_KEM = 0b1001  # Packet key: send pub key for KEM
+    CONN_PKT_KEY = 0b1010  # Packet key: send KEM-wrapped key
 
 
 @dataclass(kw_only=True)
@@ -201,7 +203,6 @@ class ControlConnectionManager:
         logging.debug(f"\t\tCommand: {command}")
         logging.debug(f"\t\tData: {data[:10]}...")
 
-
         # Create a new thread to handle the message, and add it to the list of message threads.
         self._handle_message(addr, command, connection_token, data)
 
@@ -252,7 +253,7 @@ class ControlConnectionManager:
                 self._handle_accept_connection(addr, connection_token, data)
                 self._mutex.release()
 
-            case ControlConnectionProtocol.CONN_ACC if connected:
+            case ControlConnectionProtocol.CONN_PKT_KEM if connected:
                 self._mutex.acquire()
                 self._handle_accept_connection_attack_key_to_client(addr, connection_token, data)
                 self._mutex.release()
@@ -348,7 +349,8 @@ class ControlConnectionManager:
 
         # Send the signed KEM wrapped shared secret to the requesting node.
         self._send_message(addr, connection_token, ControlConnectionProtocol.CONN_ACC, pickle.dumps(signed_kem_wrapped_shared_secret))
-        self._send_message(addr, connection_token, ControlConnectionProtocol.CONN_ACC, pickle.dumps(signed_e2e_key))
+        time.sleep(0.1)  # todo: remove
+        self._send_message(addr, connection_token, ControlConnectionProtocol.CONN_PKT_KEM, pickle.dumps(signed_e2e_key))
 
         # Save the connection information for the requesting node.
         self._conversations[conversation_id] = ControlConnectionConversationInfo(
