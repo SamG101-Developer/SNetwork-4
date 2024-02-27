@@ -64,8 +64,6 @@ class DigitalSigning:
 
         # Hash the message to keep the signature short, and sign it.
         hashed_message = Hashing.hash(enriched_message)
-        print(my_static_private_key.length)
-        print(hashed_message.length)
         signature = DigitalSigning.ALGORITHM.sign(my_static_private_key.raw, hashed_message.raw)
 
         # Package the message and signature into a SignedMessage object.
