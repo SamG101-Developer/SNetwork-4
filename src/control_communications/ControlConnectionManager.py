@@ -143,10 +143,11 @@ class ControlConnectionManager:
 
         # Extend the connection (use a while loop so failed connections don't affect the node counter for route length).
         while len(self._my_route.route) < 4:
-
             # Extend the connection to the next node in the route.
             current_ips_in_route = [node.connection_token.address.ip for node in self._my_route.route]
             self._pending_node_to_add_to_route = Address(ip=DHT.get_random_node(current_ips_in_route), port=12345)
+            logging.info(f"\t\tExtending route to: {self._pending_node_to_add_to_route.ip}")
+
             self._send_layered_message_forward(connection_token.token, ControlConnectionProtocol.CONN_EXT, b"")
 
             # Wait for the next node to be added to the route.
@@ -593,9 +594,15 @@ class ControlConnectionManager:
 
     @LogPre
     def _handle_packet_key(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
+        logging.debug(f"\t\tReceived KEM-wrapped packet key from: {addr.ip}")
+        logging.debug(f"\t\tConnection token: {connection_token}")
+
         conversation_id = ConnectionToken(token=connection_token, address=addr)
         my_ephemeral_secret_key = self._node_to_client_tunnel_keys[connection_token].ephemeral_key_pair.secret_key
         self._node_to_client_tunnel_keys[connection_token].shared_secret = KEM.kem_unwrap(my_ephemeral_secret_key, SecureBytes(data))
+
+        logging.debug(f"\t\tShared secret [to client]: {self._node_to_client_tunnel_keys[connection_token].shared_secret.decapsulated_key.raw[:10]}...")
+
 
     @LogPre
     # @ReplayErrorBackToUser
