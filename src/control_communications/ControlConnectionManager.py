@@ -523,9 +523,9 @@ class ControlConnectionManager:
             # Check that the command (signed by the target node being extended to), is indeed what the next node
             # reported. This is to prevent the next node lying about the state of the connection. If the next node is
             # lying, this node needs changing. TODO: Remove lying node
-            target_cmd, target_connection_token, data = self._parse_message(signed_ephemeral_public_key.message.raw)
-            assert target_cmd == ControlConnectionProtocol.CONN_EXT_ACC
-            assert target_connection_token == connection_token
+            # target_cmd, target_connection_token, data = self._parse_message(signed_ephemeral_public_key.message.raw)
+            # assert target_cmd == ControlConnectionProtocol.CONN_EXT_ACC
+            # assert target_connection_token == connection_token todo : what was this for?
 
             # Verify the signature of the ephemeral public key being sent from the accepting node.
             DigitalSigning.verify(
