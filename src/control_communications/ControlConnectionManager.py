@@ -401,10 +401,6 @@ class ControlConnectionManager:
         # encryption over the connection.
         my_static_private_key = KeyPair().import_("./_keys/me", "static").secret_key
         my_ephemeral_private_key, my_ephemeral_public_key = KEM.generate_key_pair().both()
-        signed_my_ephemeral_public_key = DigitalSigning.sign(
-            my_static_private_key=my_static_private_key,
-            message=my_ephemeral_public_key,
-            their_id=their_static_public_key)
 
         # Register the connection in the conversation list.
         conversation_id = ConnectionToken(token=connection_token, address=target_addr)
@@ -417,6 +413,11 @@ class ControlConnectionManager:
 
         # Send the signed ephemeral public key to the next node, maintaining the connection token. The next node will
         # ultimately send an EXT_ACK command to acknowledge the extension.
+        signed_my_ephemeral_public_key = DigitalSigning.sign(
+            my_static_private_key=my_static_private_key,
+            message=my_ephemeral_public_key,
+            their_id=DHT.get_static_public_key(addr.ip))
+
         sending_data = pickle.dumps(signed_my_ephemeral_public_key)
         self._send_message(target_addr, connection_token, ControlConnectionProtocol.CONN_REQ, sending_data)
 
@@ -440,7 +441,7 @@ class ControlConnectionManager:
         if self._my_route and self._my_route.connection_token.token == connection_token:
             # Get the signed ephemeral public key from the data, and verify the signature. The key from Node Z was
             # originally sent to Node Y, so the identifier of Node Y is used to verify the signature.
-            original_node_static_public_key = DHT.get_static_public_key(self._my_route.route[-1].address.ip)
+            current_final_node_static_public_key = DHT.get_static_public_key(self._my_route.route[-1].address.ip)
             their_static_public_key = DHT.get_static_public_key(self._pending_node_to_add_to_route.ip)
             cmd_and_signed_ephemeral_public_key: SignedMessage = pickle.loads(data)
 
@@ -448,7 +449,7 @@ class ControlConnectionManager:
             DigitalSigning.verify(
                 their_static_public_key=their_static_public_key,
                 signed_message=cmd_and_signed_ephemeral_public_key,
-                my_id=original_node_static_public_key)
+                my_id=current_final_node_static_public_key)
 
             # Check that the command (signed by the target node being extended to), is indeed what the next node
             # reported. This is to prevent the next node lying about the state of the connection. If the next node is
