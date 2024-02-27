@@ -388,9 +388,9 @@ class ControlConnectionManager:
         # Use the EXT_ACK command to send the ephemeral public key to the previous node in the route. TODO: ERROR HERE
 
         # If this node is not the client of a route, then send the message to the previous node in the route.
-        if not (self._my_route and self._my_route.connection_token.token == connection_token):
-            target_static_public_key = DHT.get_static_public_key(target_node.ip)
-            self._send_layered_message_backward(conversation_id, ControlConnectionProtocol.CONN_EXT_ACC, pickle.dumps(target_static_public_key))
+        # if not (self._my_route and self._my_route.connection_token.token == connection_token):
+        target_static_public_key = DHT.get_static_public_key(target_node.ip)
+        self._send_layered_message_backward(conversation_id, ControlConnectionProtocol.CONN_EXT_ACC, pickle.dumps(target_static_public_key))
 
         # sending_data = pickle.dumps(signed_my_ephemeral_public_key)
         # self._send_message(target_node, connection_token, ControlConnectionProtocol.CONN_EXT_ACC, sending_data)
@@ -652,8 +652,9 @@ class ControlConnectionManager:
         logging.debug(f"\t\tSending layered message backwards")
         logging.debug(f"\t\tData: {data[:10]}...")
 
-        data = SymmetricEncryption.encrypt(SecureBytes(data), self._node_to_client_tunnel_keys[connection_token.token].shared_secret.decapsulated_key).raw
-        data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + connection_token.token + data
+        if connection_token.address != Address.me():
+            data = SymmetricEncryption.encrypt(SecureBytes(data), self._node_to_client_tunnel_keys[connection_token.token].shared_secret.decapsulated_key).raw
+            data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + connection_token.token + data
         self._udp_server.udp_send(data, connection_token.address.socket_format())
 
     @LogPre
