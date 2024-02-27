@@ -421,8 +421,12 @@ class ControlConnectionManager:
         :return:
         """
 
+        logging.debug(f"\t\tAccepting extension to: {addr.ip}")
+        logging.debug(f"\t\tConnection token: {connection_token}")
+        logging.debug(f"\t\tData: {data[:10]}...")
+
         # If this is the client node accepting the extension to the route, add the node to the route list.
-        if self._my_route and self._my_route.connection_token == connection_token:
+        if self._my_route and self._my_route.connection_token.token == connection_token:
             # Get the signed ephemeral public key from the data, and verify the signature. The key from Node Z was
             # originally sent to Node Y, so the identifier of Node Y is used to verify the signature.
             original_node_static_public_key = DHT.get_static_public_key(self._my_route.route[-1].address.ip)
@@ -467,7 +471,7 @@ class ControlConnectionManager:
 
         # If this is the client node accepting the extension to the route, then a new node needs to be requested to be
         # added to the route list.
-        if self._my_route and self._my_route.connection_token == connection_token:
+        if self._my_route and self._my_route.connection_token.token == connection_token:
             their_static_public_key = DHT.get_static_public_key(self._pending_node_to_add_to_route.ip)
             original_node_static_public_key = DHT.get_static_public_key(self._my_route.route[-1].address.ip)
             rejection_message: SignedMessage = pickle.loads(data)
