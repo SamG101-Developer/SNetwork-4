@@ -539,13 +539,12 @@ class ControlConnectionManager:
                 ephemeral_key_pair=KeyPair(public_key=signed_ephemeral_public_key.message),
                 shared_secret=KEM.kem_wrap(signed_ephemeral_public_key.message)))
 
-            logging.debug(f"\t\tAdded to route: {self._pending_node_to_add_to_route.ip}")
-
             # Note: vulnerable to MITM, so use unilateral authentication later. TODO
-            self._pending_node_to_add_to_route = None
             self._send_layered_message_forward(connection_token, ControlConnectionProtocol.CONN_PKT_KEY, self._my_route.route[-1].shared_secret.encapsulated_key.raw)
-
+            logging.debug(f"\t\tAdded to route: {self._pending_node_to_add_to_route.ip}")
             logging.debug(f"\t\tSent packet key to: {self._my_route.route[-1].connection_token.address.ip}")
+
+            self._pending_node_to_add_to_route = None
 
         # Otherwise, send this message to the previous node in the route.
         else:
@@ -601,6 +600,7 @@ class ControlConnectionManager:
         logging.debug(f"\t\tReceived KEM-wrapped packet key from: {addr.ip}")
         logging.debug(f"\t\tConnection token: {connection_token}")
 
+        print(self._node_to_client_tunnel_keys.keys())
         my_ephemeral_secret_key = self._node_to_client_tunnel_keys[connection_token].ephemeral_key_pair.secret_key
         self._node_to_client_tunnel_keys[connection_token].shared_secret = KEM.kem_unwrap(my_ephemeral_secret_key, SecureBytes(data))
 
