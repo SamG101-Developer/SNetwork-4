@@ -140,6 +140,9 @@ class ControlConnectionManager:
             while self._pending_node_to_add_to_route:
                 pass
 
+        # Log the route.
+        logging.info(f"\t\tCreated route: {" -> ".join([node.address.ip for node in self._my_route.route])}")
+
     @LogPre
     def _layer_encrypt(self, data: Bytes) -> Bytes:
         for node_token in reversed(self._my_route.route[1:]):  # todo : encrypt to self
@@ -403,6 +406,9 @@ class ControlConnectionManager:
         my_static_private_key = KeyPair().import_("./_keys/me", "static").secret_key
         my_ephemeral_private_key, my_ephemeral_public_key = KEM.generate_key_pair().both()
 
+        logging.debug(f"\t\tGenerated ephemeral public key: {my_ephemeral_public_key[:10]}...")
+        logging.debug(f"\t\tGenerated ephemeral secret key: {my_ephemeral_private_key[:10]}...")
+
         # Register the connection in the conversation list.
         conversation_id = ConnectionToken(token=connection_token, address=target_addr)
         self._conversations[conversation_id] = ControlConnectionConversationInfo(
@@ -418,6 +424,8 @@ class ControlConnectionManager:
             my_static_private_key=my_static_private_key,
             message=my_ephemeral_public_key,
             their_id=target_static_public_key)
+
+        logging.debug(f"\t\tSigned ephemeral public key: {signed_my_ephemeral_public_key[:10]}...")
 
         sending_data = pickle.dumps(signed_my_ephemeral_public_key)
         self._send_message(target_addr, connection_token, ControlConnectionProtocol.CONN_REQ, sending_data)
@@ -445,6 +453,10 @@ class ControlConnectionManager:
             current_final_node_static_public_key = DHT.get_static_public_key(self._my_route.route[-1].address.ip)
             their_static_public_key = DHT.get_static_public_key(self._pending_node_to_add_to_route.ip)
             cmd_and_signed_ephemeral_public_key: SignedMessage = pickle.loads(data)
+
+            # Log the signed ephemeral public key.
+            logging.debug(f"\t\tTheir ephemeral public key: {cmd_and_signed_ephemeral_public_key.message[:10]}...")
+            logging.debug(f"\t\tTheir signed ephemeral public key: {cmd_and_signed_ephemeral_public_key.signature[:10]}...")
 
             # Verify the signature of the ephemeral public key being sent from the accepting node.
             DigitalSigning.verify(

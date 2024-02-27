@@ -81,5 +81,5 @@ class DigitalSigning:
         # Check that the id matches, that the timestamp is in tolerance and that the signature is valid.
         assert recipient_id == my_id, f"Recipient ID {str(recipient_id)[:20]}... != {str(my_id)[:20]}..."
         assert tolerance.in_tolerance, f"Timestamp {time_bytes} is out of tolerance by {tolerance.out_by}"
-        assert DigitalSigning.ALGORITHM.verify(their_static_public_key.raw, hashed_message.raw, signed_message.signature.raw) is True, "Signature is invalid"
+        assert DigitalSigning.ALGORITHM.verify(their_static_public_key.raw, hashed_message.raw, signed_message.signature.raw), "Signature is invalid"
         return True
