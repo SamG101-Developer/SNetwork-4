@@ -10,7 +10,7 @@ from control_communications.ControlConnectionServer import ControlConnectionServ
 from crypto_engines.crypto.digital_signing import DigitalSigning, SignedMessage
 from crypto_engines.crypto.key_encapsulation import KEM
 from crypto_engines.crypto.symmetric_encryption import SymmetricEncryption
-from crypto_engines.keys.key_pair import KeyPair
+from crypto_engines.keys.key_pair import KeyPair, KEMKeyPair
 from crypto_engines.tools.secure_bytes import SecureBytes
 from distributed_hash_table.DHT import DHT
 from my_types import Bytes, Tuple, Str, Int, List, Dict, Optional
@@ -48,15 +48,16 @@ class ControlConnectionState(Enum):
 
 
 class ControlConnectionProtocol(Enum):
-    CONN_REQ     = 0b000  # Request a connection
-    CONN_ACC     = 0b001  # Accept a connection request
-    CONN_REJ     = 0b011  # Reject a connection request
-    CONN_CLS     = 0b011  # Close a connection
-    CONN_ERR     = 0b100  # Error in connection
-    CONN_FWD     = 0b101  # Forward a connection command
-    CONN_EXT     = 0b110  # Extend a connection
-    CONN_EXT_ACC = 0b111  # Acknowledge an extended connection
+    CONN_REQ     = 0b0000  # Request a connection
+    CONN_ACC     = 0b0001  # Accept a connection request
+    CONN_REJ     = 0b0011  # Reject a connection request
+    CONN_CLS     = 0b0011  # Close a connection
+    CONN_ERR     = 0b0100  # Error in connection
+    CONN_FWD     = 0b0101  # Forward a connection command
+    CONN_EXT     = 0b0110  # Extend a connection
+    CONN_EXT_ACC = 0b0111  # Acknowledge an extended connection
     CONN_EXT_REJ = 0b1000  # Reject an extended connection
+    CONN_PKT_KEY = 0b1001  # Packet key exchange
 
 
 @dataclass(kw_only=True)
@@ -87,8 +88,15 @@ def LogPre(function):
 
 
 @dataclass(kw_only=True)
+class ControlConnectionRouteNode:
+    connection_token: ConnectionToken
+    ephemeral_key_pair: Optional[KeyPair]
+    shared_secret: Optional[KEMKeyPair]
+
+
+@dataclass(kw_only=True)
 class ControlConnectionRoute:
-    route: List[ConnectionToken]
+    route: List[ControlConnectionRouteNode]
     connection_token: ConnectionToken
 
 
@@ -96,6 +104,7 @@ class ControlConnectionManager:
     _udp_server: ControlConnectionServer
     _conversations: Dict[ConnectionToken, ControlConnectionConversationInfo]
     _my_route: Optional[ControlConnectionRoute]
+    _node_to_client_tunnel_keys: Dict[ConnectionToken, ControlConnectionRouteNode]
     _pending_node_to_add_to_route: Optional[Address]
     _mutex: Lock
     _server_socket_thread: Thread
@@ -107,6 +116,7 @@ class ControlConnectionManager:
 
         self._conversations = {}
         self._my_route = None
+        self._node_to_client_tunnel_keys = {}
         self._mutex = Lock()
 
     @LogPre
@@ -118,7 +128,8 @@ class ControlConnectionManager:
         # time a new node is added, the communication flows via every node in the existing network, so only the first
         # node in the route knows the client node.
         connection_token = ConnectionToken(token=os.urandom(32), address=Address.me())
-        self._my_route = ControlConnectionRoute(route=[connection_token], connection_token=connection_token)
+        route_node = ControlConnectionRouteNode(connection_token=connection_token, ephemeral_key_pair=None, shared_secret=None)
+        self._my_route = ControlConnectionRoute(route=[route_node], connection_token=connection_token)
 
         # Add the conversation to myself
         self._conversations[connection_token] = ControlConnectionConversationInfo(
@@ -132,44 +143,47 @@ class ControlConnectionManager:
         while len(self._my_route.route) < 4:
 
             # Extend the connection to the next node in the route.
-            current_ips_in_route = [node.address.ip for node in self._my_route.route]
+            current_ips_in_route = [node.connection_token.address.ip for node in self._my_route.route]
             self._pending_node_to_add_to_route = Address(ip=DHT.get_random_node(current_ips_in_route), port=12345)
-            self._send_layered_message(connection_token.token, ControlConnectionProtocol.CONN_EXT, b"")
+            self._send_layered_message_forward(connection_token.token, ControlConnectionProtocol.CONN_EXT, b"")
 
             # Wait for the next node to be added to the route.
             while self._pending_node_to_add_to_route:
                 pass
 
         # Log the route.
-        logging.info(f"\t\tCreated route: {' -> '.join([node.address.ip for node in self._my_route.route])}")
+        logging.info(f"\t\tCreated route: {' -> '.join([node.connection_token.address.ip for node in self._my_route.route])}")
 
     @LogPre
     def _layer_encrypt(self, data: Bytes) -> Bytes:
-        for node_token in reversed(self._my_route.route[1:]):  # todo : encrypt to self
-            shared_secret = self._conversations[node_token].shared_secret
-            data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + node_token.address.ip.encode() + data
-            data = SymmetricEncryption.encrypt(SecureBytes(data), shared_secret).raw
+        for node in reversed(self._my_route.route[1:]):  # todo : encrypt to self
+            data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + node.connection_token.address.ip.encode() + data
+            data = SymmetricEncryption.encrypt(SecureBytes(data), node.shared_secret.decapsulated_key).raw
 
         logging.debug(f"\t\tLayer encrypted data: {data[:10]}...")
         return data
 
     @LogPre
     def _layer_decrypt(self, data: Bytes) -> Bytes:
-        for node_token in self._my_route.route:
-            shared_secret = self._conversations[node_token].shared_secret
-            data = SymmetricEncryption.decrypt(SecureBytes(data), shared_secret).raw
+        for node in self._my_route.route[1:]:
+            assert ControlConnectionProtocol(data[0]) == ControlConnectionProtocol.CONN_FWD
+            data = SymmetricEncryption.decrypt(SecureBytes(data), node.shared_secret.decapsulated_key).raw
             data = data[1:]
-        return data
+        return data[1:]
 
     @LogPre
     def _recv_message(self, data: Bytes, raw_addr: Tuple[Str, Int]) -> None:
         # Get the data and address from the udp socket, and parse the message into a command and data. Split the data
         # into the connection token and the rest of the data.
         addr = Address(ip=raw_addr[0], port=raw_addr[1])
+        known_addresses = [c.address.ip for c in self._conversations.keys()]
+
+        # Decrypt forwarded messages from the route, if the message is forwarded.
+        if data[0] == ControlConnectionProtocol.CONN_FWD.value:
+            data = self._layer_decrypt(data)
 
         # Decrypt the data in a conversation, which won't have been initiated if this is the request to connect.
-        known_addresses = [c.address.ip for c in self._conversations.keys()]
-        if raw_addr[0] in known_addresses:
+        elif raw_addr[0] in known_addresses:
             conversation_id = list(self._conversations.keys())[known_addresses.index(raw_addr[0])]
             if self._conversations[conversation_id].shared_secret:
                 symmetric_key = self._conversations[conversation_id].shared_secret
@@ -220,6 +234,7 @@ class ControlConnectionManager:
 
         waiting_for_ack = self._waiting_for_ack_from(addr, connection_token)
         connected = self._is_connected_to(addr, connection_token)
+        in_route = self._is_in_route(addr, connection_token)
 
         # Decide on the function to call based on the command, and call it. The mutex is used to lock the conversation
         # list, so that only one thread can access it at a time. This is to prevent
@@ -262,6 +277,11 @@ class ControlConnectionManager:
             case ControlConnectionProtocol.CONN_FWD:
                 self._mutex.acquire()
                 self._forward_message(addr, data)
+                self._mutex.release()
+
+            case ControlConnectionProtocol.CONN_PKT_KEY if in_route:
+                self._mutex.acquire()
+                self._handle_packet_key(addr, connection_token, data)
                 self._mutex.release()
 
             case _:
@@ -319,6 +339,12 @@ class ControlConnectionManager:
             my_ephemeral_public_key=None,
             my_ephemeral_secret_key=None)
 
+        # Create a key for the new node, to allow e2e encrypted tunnel via the other nodes in the circuit.
+        self._node_to_client_tunnel_keys[ConnectionToken(token=connection_token, address=addr)] = ControlConnectionRouteNode(
+            connection_token=conversation_id,
+            ephemeral_key_pair=KEM.generate_key_pair(),
+            shared_secret=None)
+
     @LogPre
     # @ReplayErrorBackToUser
     def _handle_accept_connection(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
@@ -344,6 +370,7 @@ class ControlConnectionManager:
         conversation_id = ConnectionToken(token=connection_token, address=addr)
         my_ephemeral_public_key = self._conversations[conversation_id].my_ephemeral_public_key
         my_ephemeral_secret_key = self._conversations[conversation_id].my_ephemeral_secret_key
+
         self._conversations[conversation_id] = ControlConnectionConversationInfo(
             state=ControlConnectionState.CONNECTED,
             their_static_public_key=their_static_public_key,
@@ -358,17 +385,14 @@ class ControlConnectionManager:
         assert len(candidates) == 1
         target_node = candidates[0]
 
-        # Use the EXT_ACK command to send the ephemeral public key to the previous node in the route.
+        # Use the EXT_ACK command to send the ephemeral public key to the previous node in the route. TODO: ERROR HERE
         target_static_public_key = DHT.get_static_public_key(target_node.ip)
-        signed_my_ephemeral_public_key = DigitalSigning.sign(
-            my_static_private_key=my_static_private_key,
-            message=my_ephemeral_public_key,
-            their_id=target_static_public_key)
+        self._send_layered_message_backward(conversation_id, ControlConnectionProtocol.CONN_EXT_ACC, pickle.dumps(target_static_public_key))
 
         # If this node is not the client of a route, then send the message to the previous node in the route.
-        if not (self._my_route and self._my_route.connection_token.token == connection_token):
-            sending_data = pickle.dumps(signed_my_ephemeral_public_key)
-            self._send_message(target_node, connection_token, ControlConnectionProtocol.CONN_EXT_ACC, sending_data)
+        # if not (self._my_route and self._my_route.connection_token.token == connection_token):
+        # sending_data = pickle.dumps(signed_my_ephemeral_public_key)
+        # self._send_message(target_node, connection_token, ControlConnectionProtocol.CONN_EXT_ACC, sending_data)
 
     @LogPre
     # @ReplayErrorBackToUser
@@ -459,30 +483,42 @@ class ControlConnectionManager:
         if self._my_route and self._my_route.connection_token.token == connection_token:
             # Get the signed ephemeral public key from the data, and verify the signature. The key from Node Z was
             # originally sent to Node Y, so the identifier of Node Y is used to verify the signature.
-            current_final_node_static_public_key = DHT.get_static_public_key(self._my_route.route[-1].address.ip)
+            current_final_node_static_public_key = DHT.get_static_public_key(self._my_route.route[-1].connection_token.address.ip)
             their_static_public_key = DHT.get_static_public_key(self._pending_node_to_add_to_route.ip)
-            cmd_and_signed_ephemeral_public_key: SignedMessage = pickle.loads(data)
+            signed_ephemeral_public_key: SignedMessage = pickle.loads(data)
 
             # Log the signed ephemeral public key.
-            logging.debug(f"\t\tTheir ephemeral public key: {cmd_and_signed_ephemeral_public_key.message.raw[:10]}...")
-            logging.debug(f"\t\tTheir signed ephemeral public key: {cmd_and_signed_ephemeral_public_key.signature.raw[:10]}...")
+            logging.debug(f"\t\tTheir ephemeral public key: {signed_ephemeral_public_key.message.raw[:10]}...")
+            logging.debug(f"\t\tTheir signed ephemeral public key: {signed_ephemeral_public_key.signature.raw[:10]}...")
 
             # Verify the signature of the ephemeral public key being sent from the accepting node.
             DigitalSigning.verify(
                 their_static_public_key=their_static_public_key,
-                signed_message=cmd_and_signed_ephemeral_public_key,
+                signed_message=signed_ephemeral_public_key,
                 my_id=current_final_node_static_public_key)
 
             # Check that the command (signed by the target node being extended to), is indeed what the next node
             # reported. This is to prevent the next node lying about the state of the connection. If the next node is
             # lying, this node needs changing. TODO: Remove lying node
-            target_cmd, target_connection_token, signed_ephemeral_public_key = self._parse_message(cmd_and_signed_ephemeral_public_key.message.raw)
+            target_cmd, target_connection_token, data = self._parse_message(signed_ephemeral_public_key.message.raw)
             assert target_cmd == ControlConnectionProtocol.CONN_EXT_ACC
             assert target_connection_token == connection_token
 
+            # Verify the signature of the ephemeral public key being sent from the accepting node.
+            DigitalSigning.verify(
+                their_static_public_key=their_static_public_key,
+                signed_message=signed_ephemeral_public_key,
+                my_id=current_final_node_static_public_key)
+
             # Save the connection information to the route list.
-            self._my_route.route.append(ConnectionToken(token=connection_token, address=self._pending_node_to_add_to_route))
+            self._my_route.route.append(ControlConnectionRouteNode(
+                connection_token=ConnectionToken(token=connection_token, address=self._pending_node_to_add_to_route),
+                ephemeral_key_pair=KeyPair(public_key=signed_ephemeral_public_key.message),
+                shared_secret=KEM.kem_wrap(signed_ephemeral_public_key.message)))
+
+            # Note: vulnerable to MITM, so use unilateral authentication later. TODO
             self._pending_node_to_add_to_route = None
+            self._send_layered_message_forward(connection_token, ControlConnectionProtocol.CONN_PKT_KEY, self._my_route.route[-1].shared_secret.encapsulated_key.raw)
 
         # Otherwise, send this message to the previous node in the route.
         else:
@@ -507,7 +543,7 @@ class ControlConnectionManager:
         # added to the route list.
         if self._my_route and self._my_route.connection_token.token == connection_token:
             their_static_public_key = DHT.get_static_public_key(self._pending_node_to_add_to_route.ip)
-            original_node_static_public_key = DHT.get_static_public_key(self._my_route.route[-1].address.ip)
+            original_node_static_public_key = DHT.get_static_public_key(self._my_route.route[-1].connection_token.address.ip)
             rejection_message: SignedMessage = pickle.loads(data)
 
             # Verify the signature of the rejection message being sent from the rejecting node.
@@ -532,6 +568,12 @@ class ControlConnectionManager:
             assert len(candidates) == 1
             target_node = candidates[0]
             self._send_message(target_node, connection_token, ControlConnectionProtocol.CONN_EXT_REJ, data)
+
+    @LogPre
+    def _handle_packet_key(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
+        conversation_id = ConnectionToken(token=connection_token, address=addr)
+        my_ephemeral_secret_key = self._node_to_client_tunnel_keys[conversation_id].ephemeral_key_pair.secret_key
+        self._node_to_client_tunnel_keys[conversation_id].shared_secret = KEM.kem_unwrap(my_ephemeral_secret_key, SecureBytes(data))
 
     @LogPre
     # @ReplayErrorBackToUser
@@ -591,16 +633,27 @@ class ControlConnectionManager:
         self._udp_server.udp_send(data, addr.socket_format())
 
     @LogPre
-    def _send_layered_message(self, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
+    def _send_layered_message_forward(self, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
         assert isinstance(data, Bytes)
 
-        logging.debug(f"\t\tSending layered message")
+        logging.debug(f"\t\tSending layered message forwards")
         logging.debug(f"\t\tCommand: {command}")
         logging.debug(f"\t\tData: {data[:10]}...")
 
         data = self._layer_encrypt(data)
         data = command.value.to_bytes(1, "big") + connection_token + data
-        self._udp_server.udp_send(data, self._my_route.route[0].address.socket_format())
+        self._udp_server.udp_send(data, self._my_route.route[0].connection_token.address.socket_format())
+
+    @LogPre
+    def _send_layered_message_backward(self, connection_token: ConnectionToken, command: ControlConnectionProtocol, data: Bytes) -> None:
+        assert isinstance(data, Bytes)
+
+        logging.debug(f"\t\tSending layered message backwards")
+        logging.debug(f"\t\tData: {data[:10]}...")
+
+        data = SymmetricEncryption.encrypt(SecureBytes(data), self._node_to_client_tunnel_keys[connection_token].shared_secret.decapsulated_key).raw
+        data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + connection_token.token + data
+        self._udp_server.udp_send(data, connection_token.address.socket_format())
 
     @LogPre
     def _cleanup_connection(self, addr: Address, connection_token: Bytes) -> None:
@@ -623,3 +676,7 @@ class ControlConnectionManager:
     def _is_connected_to(self, addr: Address, connection_token: Bytes) -> bool:
         conversation_id = ConnectionToken(token=connection_token, address=addr)
         return conversation_id in self._conversations.keys() and self._conversations[conversation_id].state == ControlConnectionState.CONNECTED
+
+    def _is_in_route(self, addr: Address, connection_token: Bytes) -> bool:
+        conversation_id = ConnectionToken(token=connection_token, address=addr)
+        return self._my_route and conversation_id in [n.connection_token for n in self._my_route.route]
