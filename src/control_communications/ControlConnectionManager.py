@@ -360,7 +360,7 @@ class ControlConnectionManager:
             my_ephemeral_secret_key=None)
 
         # time.sleep(2)
-        # self._send_message(addr, connection_token, ControlConnectionProtocol.CONN_PKT_KEM, pickle.dumps(signed_e2e_key))
+        self._send_message(addr, connection_token, ControlConnectionProtocol.CONN_PKT_KEM, pickle.dumps(signed_e2e_key))
 
     @LogPre
     # @ReplayErrorBackToUser
@@ -394,6 +394,8 @@ class ControlConnectionManager:
             shared_secret=KEM.kem_unwrap(my_ephemeral_secret_key, signed_kem_wrapped_shared_secret.message).decapsulated_key,
             my_ephemeral_public_key=my_ephemeral_public_key,
             my_ephemeral_secret_key=my_ephemeral_secret_key)
+
+        logging.debug(f"\t\tShared secret: {self._conversations[conversation_id].shared_secret.raw[:10]}...")
 
     @LogPre
     def _handle_accept_connection_attack_key_to_client(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
