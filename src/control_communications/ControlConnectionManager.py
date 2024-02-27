@@ -189,7 +189,6 @@ class ControlConnectionManager:
         # Decrypt the data in a conversation, which won't have been initiated if this is the request to connect.
         elif raw_addr[0] in known_addresses:
             conversation_id = list(self._conversations.keys())[known_addresses.index(raw_addr[0])]
-            print(self._conversations[conversation_id])
             if self._conversations[conversation_id].shared_secret:
                 symmetric_key = self._conversations[conversation_id].shared_secret
                 data = SecureBytes(data)
@@ -254,9 +253,9 @@ class ControlConnectionManager:
                 self._handle_accept_connection(addr, connection_token, data)
                 self._mutex.release()
 
-            case ControlConnectionProtocol.CONN_PKT_KEM if connected:
+            case ControlConnectionProtocol.CONN_PKT_KEM if connected or waiting_for_ack:
                 self._mutex.acquire()
-                self._handle_accept_connection_attack_key_to_client(addr, connection_token, data)
+                self._handle_accept_connection_attach_key_to_client(addr, connection_token, data)
                 self._mutex.release()
 
             case ControlConnectionProtocol.CONN_REJ if waiting_for_ack:
@@ -396,10 +395,13 @@ class ControlConnectionManager:
         logging.debug(f"\t\tShared secret: {self._conversations[conversation_id].shared_secret.raw[:10]}...")
 
     @LogPre
-    def _handle_accept_connection_attack_key_to_client(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
+    def _handle_accept_connection_attach_key_to_client(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
         my_static_private_key, my_static_public_key = KeyPair().import_("./_keys/me", "static").both()
         their_static_public_key = DHT.get_static_public_key(addr.ip)
         signed_e2e_pub_key = pickle.loads(data)
+
+        logging.debug(f"\t\tTheir signed e2e public key: {signed_e2e_pub_key.signature.raw[:10]}...")
+        logging.debug(f"\t\tTheir e2e public key: {signed_e2e_pub_key.message.raw[:10]}...")
 
         DigitalSigning.verify(
             their_static_public_key=their_static_public_key,
@@ -409,6 +411,8 @@ class ControlConnectionManager:
         candidates = [c.address for c in self._conversations.keys() if c.token == connection_token and c.address != addr]
         assert len(candidates) == 1
         target_node = candidates[0]
+
+        logging.debug(f"\t\tSending e2e public key to: {target_node.ip}")
 
         self._send_layered_message_backward(target_node, connection_token, ControlConnectionProtocol.CONN_EXT_ACC, pickle.dumps(signed_e2e_pub_key))
 
