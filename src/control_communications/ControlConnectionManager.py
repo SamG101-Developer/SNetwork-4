@@ -674,7 +674,7 @@ class ControlConnectionManager:
 
         data = self._layer_encrypt(data)
         data = command.value.to_bytes(1, "big") + connection_token + data
-        self._udp_server.udp_send(data, self._my_route.route[1].connection_token.address.socket_format())
+        self._udp_server.udp_send(data, self._my_route.route[0].connection_token.address.socket_format())
 
     @LogPre
     def _send_layered_message_backward(self, addr: Address, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
