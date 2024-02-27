@@ -189,6 +189,7 @@ class ControlConnectionManager:
         # Decrypt the data in a conversation, which won't have been initiated if this is the request to connect.
         elif raw_addr[0] in known_addresses:
             conversation_id = list(self._conversations.keys())[known_addresses.index(raw_addr[0])]
+            print(self._conversations[conversation_id])
             if self._conversations[conversation_id].shared_secret:
                 symmetric_key = self._conversations[conversation_id].shared_secret
                 data = SecureBytes(data)
@@ -358,6 +359,7 @@ class ControlConnectionManager:
             my_ephemeral_public_key=None,
             my_ephemeral_secret_key=None)
 
+        time.sleep(2)
         self._send_message(addr, connection_token, ControlConnectionProtocol.CONN_PKT_KEM, pickle.dumps(signed_e2e_key))
 
     @LogPre
