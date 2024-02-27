@@ -141,7 +141,7 @@ class ControlConnectionManager:
                 pass
 
         # Log the route.
-        logging.info(f"\t\tCreated route: {" -> ".join([node.address.ip for node in self._my_route.route])}")
+        logging.info(f"\t\tCreated route: {' -> '.join([node.address.ip for node in self._my_route.route])}")
 
     @LogPre
     def _layer_encrypt(self, data: Bytes) -> Bytes:
