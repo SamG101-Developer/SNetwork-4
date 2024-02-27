@@ -178,6 +178,8 @@ class ControlConnectionManager:
         addr = Address(ip=raw_addr[0], port=raw_addr[1])
         known_addresses = [c.address.ip for c in self._conversations.keys()]
 
+        logging.debug(f"\t\tRaw data: {data[:20]}...")
+
         # Decrypt forwarded messages from the route, if the message is forwarded.
         if data[0] == ControlConnectionProtocol.CONN_FWD.value:
             data = self._layer_decrypt(data)
@@ -189,6 +191,7 @@ class ControlConnectionManager:
                 symmetric_key = self._conversations[conversation_id].shared_secret
                 data = SecureBytes(data)
                 data = SymmetricEncryption.decrypt(data, symmetric_key).raw
+                logging.debug(f"\t\tDecrypted data: {data[:20]}...")
 
         # Parse the data into the components of the message.
         command, connection_token, data = self._parse_message(data)
@@ -197,7 +200,7 @@ class ControlConnectionManager:
         logging.debug(f"\t\tMessage from: {addr.ip}")
         logging.debug(f"\t\tCommand: {command}")
         logging.debug(f"\t\tData: {data[:10]}...")
-        logging.debug(f"\t\tDecrypted data: {data[:20]}...")
+
 
         # Create a new thread to handle the message, and add it to the list of message threads.
         self._handle_message(addr, command, connection_token, data)
@@ -650,8 +653,10 @@ class ControlConnectionManager:
         assert isinstance(data, Bytes)
 
         logging.debug(f"\t\tSending layered message backwards")
+        logging.debug(f"\t\tCommand: {command}")
         logging.debug(f"\t\tData: {data[:10]}...")
 
+        data = command.value.to_bytes(1, "big") + connection_token + data
         if addr != Address.me():
             data = SymmetricEncryption.encrypt(SecureBytes(data), self._node_to_client_tunnel_keys[connection_token].shared_secret.decapsulated_key).raw
             data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + connection_token + data
