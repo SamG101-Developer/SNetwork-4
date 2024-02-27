@@ -253,7 +253,7 @@ class ControlConnectionManager:
                 self._handle_accept_connection(addr, connection_token, data)
                 self._mutex.release()
 
-            case ControlConnectionProtocol.CONN_PKT_KEM if connected or waiting_for_ack:
+            case ControlConnectionProtocol.CONN_PKT_KEM if connected:
                 self._mutex.acquire()
                 self._handle_accept_connection_attack_key_to_client(addr, connection_token, data)
                 self._mutex.release()
@@ -349,8 +349,6 @@ class ControlConnectionManager:
 
         # Send the signed KEM wrapped shared secret to the requesting node.
         self._send_message(addr, connection_token, ControlConnectionProtocol.CONN_ACC, pickle.dumps(signed_kem_wrapped_shared_secret))
-        time.sleep(1)  # todo: remove
-        self._send_message(addr, connection_token, ControlConnectionProtocol.CONN_PKT_KEM, pickle.dumps(signed_e2e_key))
 
         # Save the connection information for the requesting node.
         self._conversations[conversation_id] = ControlConnectionConversationInfo(
@@ -359,6 +357,8 @@ class ControlConnectionManager:
             shared_secret=kem_wrapped_shared_secret.decapsulated_key,
             my_ephemeral_public_key=None,
             my_ephemeral_secret_key=None)
+
+        self._send_message(addr, connection_token, ControlConnectionProtocol.CONN_PKT_KEM, pickle.dumps(signed_e2e_key))
 
     @LogPre
     # @ReplayErrorBackToUser
