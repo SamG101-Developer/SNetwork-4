@@ -601,7 +601,6 @@ class ControlConnectionManager:
         logging.debug(f"\t\tReceived KEM-wrapped packet key from: {addr.ip}")
         logging.debug(f"\t\tConnection token: {connection_token}")
 
-        conversation_id = ConnectionToken(token=connection_token, address=addr)
         my_ephemeral_secret_key = self._node_to_client_tunnel_keys[connection_token].ephemeral_key_pair.secret_key
         self._node_to_client_tunnel_keys[connection_token].shared_secret = KEM.kem_unwrap(my_ephemeral_secret_key, SecureBytes(data))
 
@@ -675,7 +674,7 @@ class ControlConnectionManager:
 
         data = self._layer_encrypt(data)
         data = command.value.to_bytes(1, "big") + connection_token + data
-        self._udp_server.udp_send(data, self._my_route.route[0].connection_token.address.socket_format())
+        self._udp_server.udp_send(data, self._my_route.route[1].connection_token.address.socket_format())
 
     @LogPre
     def _send_layered_message_backward(self, addr: Address, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
