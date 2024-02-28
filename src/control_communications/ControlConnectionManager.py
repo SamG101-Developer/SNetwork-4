@@ -600,7 +600,8 @@ class ControlConnectionManager:
                 data = SymmetricEncryption.encrypt(SecureBytes(data), next_node.shared_secret.decapsulated_key).raw
 
         # Send the message on the e2e encrypted connection.
-        self._send_message_onwards(addr, connection_token, command, data)
+        target_node = self._my_route.route[0] if len(self._my_route.route) == 0 else self._my_route.route[1]
+        self._send_message_onwards(target_node.connection_token.address, connection_token, command, data)
 
     @LogPre
     def _tunnel_message_backward(self, addr: Address, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
