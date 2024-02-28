@@ -619,9 +619,16 @@ class ControlConnectionManager:
 
     @LogPre
     def _send_message_onwards(self, addr: Address, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
+        logging.debug(f"\t\tSending {command} to: {addr.ip}")
+        logging.debug(f"\t\tConnection token: {connection_token}")
+        logging.debug(f"\t\tRaw payload: {data[:20]}...")
+
+        data = command.value.to_bytes(1, "big") + connection_token + data
+
         # Encrypt the connection to the direct neighbour node, if a shared secret has been established.
         if shared_secret := self._conversations[ConnectionToken(token=connection_token, address=addr)].shared_secret:
             data = SymmetricEncryption.encrypt(SecureBytes(data), shared_secret).raw
+            logging.debug(f"\t\tE2E encrypted payload: {data[:20]}...")
 
         # Send the data to the node.
         self._udp_server.udp_send(data, addr.socket_format())
