@@ -1,76 +1,21 @@
 from __future__ import annotations
 
 from threading import Thread
-from enum import Enum
-from dataclasses import dataclass
 from argparse import Namespace
-import logging, os, pickle, socket
+import logging, os, pickle
 
 from control_communications.ControlConnectionServer import ControlConnectionServer
+from control_communications.ControlConnectionProtocol import ControlConnectionProtocol
+from control_communications.ControlConnectionRoute import ControlConnectionRoute, ControlConnectionRouteNode, Address, ConnectionToken
+from control_communications.ControlConnectionConversation import ControlConnectionConversationInfo, ControlConnectionState
+
 from crypto_engines.crypto.digital_signing import DigitalSigning, SignedMessage
 from crypto_engines.crypto.key_encapsulation import KEM
 from crypto_engines.crypto.symmetric_encryption import SymmetricEncryption
-from crypto_engines.keys.key_pair import KeyPair, KEMKeyPair
+from crypto_engines.keys.key_pair import KeyPair
 from crypto_engines.tools.secure_bytes import SecureBytes
 from distributed_hash_table.DHT import DHT
-from my_types import Bytes, Tuple, Str, Int, List, Dict, Optional, Bool
-
-
-@dataclass(kw_only=True)
-class Address:
-    ip: Str
-    port: Int
-
-    def socket_format(self) -> Tuple[Str, Int]:
-        return self.ip, self.port
-
-    @staticmethod
-    def me() -> Address:
-        return Address(ip=socket.gethostbyname(socket.gethostname()), port=12345)
-
-    def __hash__(self):
-        from hashlib import md5
-        return int(md5(self.ip.encode()).hexdigest(), 16) % 2**64
-
-    def __eq__(self, other) -> Bool:
-        return self.ip == other.ip and self.port == other.port
-
-
-@dataclass(kw_only=True)
-class ConnectionToken:
-    token: Bytes
-    address: Address
-
-    def __hash__(self):
-        return (hash(self.token) * hash(self.address)) % 2**64
-
-
-class ControlConnectionState(Enum):
-    WAITING_FOR_ACK = 0
-    CONNECTED = 1
-
-
-class ControlConnectionProtocol(Enum):
-    CONN_REQ     = 0b0000  # Request a connection
-    CONN_ACC     = 0b0001  # Accept a connection request
-    CONN_REJ     = 0b0011  # Reject a connection request
-    CONN_CLS     = 0b0011  # Close a connection
-    CONN_ERR     = 0b0100  # Error in connection
-    CONN_FWD     = 0b0101  # Forward a connection command
-    CONN_EXT     = 0b0110  # Extend a connection
-    CONN_EXT_ACC = 0b0111  # Acknowledge an extended connection
-    CONN_EXT_REJ = 0b1000  # Reject an extended connection
-    CONN_PKT_KEM = 0b1001  # Packet key: send pub key for KEM
-    CONN_PKT_KEY = 0b1010  # Packet key: send KEM-wrapped key
-
-
-@dataclass(kw_only=True)
-class ControlConnectionConversationInfo:
-    state: ControlConnectionState
-    their_static_public_key: SecureBytes
-    shared_secret: Optional[SecureBytes]
-    my_ephemeral_public_key: Optional[SecureBytes]
-    my_ephemeral_secret_key: Optional[SecureBytes]
+from my_types import Bytes, Tuple, Str, Int, Dict, Optional
 
 
 def ReplayErrorBackToUser(error_command):
@@ -89,19 +34,6 @@ def LogPre(function):
         logging.info(f"ConnectionControlManager::{function.__name__}")
         return function(self, *args)
     return inner
-
-
-@dataclass(kw_only=True)
-class ControlConnectionRouteNode:
-    connection_token: ConnectionToken
-    ephemeral_key_pair: Optional[KeyPair]
-    shared_secret: Optional[KEMKeyPair]
-
-
-@dataclass(kw_only=True)
-class ControlConnectionRoute:
-    route: List[ControlConnectionRouteNode]
-    connection_token: ConnectionToken
 
 
 class ControlConnectionManager:
@@ -133,6 +65,14 @@ class ControlConnectionManager:
         connection_token = ConnectionToken(token=os.urandom(32), address=Address.me())
         route_node = ControlConnectionRouteNode(connection_token=connection_token, ephemeral_key_pair=None, shared_secret=None)
         self._my_route = ControlConnectionRoute(route=[route_node], connection_token=connection_token)
+
+        # Register a key for when the client node sends information to itself.
+        self._node_to_client_tunnel_keys[connection_token.token] = ControlConnectionRouteNode(
+            connection_token=connection_token,
+            ephemeral_key_pair=KEM.generate_key_pair(),
+            shared_secret=None)
+        self._node_to_client_tunnel_keys[connection_token.token].shared_secret = KEM.kem_wrap(
+            their_ephemeral_public_key=self._node_to_client_tunnel_keys[connection_token.token].ephemeral_key_pair.public_key)
 
         # Add the conversation to myself
         self._conversations[connection_token] = ControlConnectionConversationInfo(
@@ -230,7 +170,7 @@ class ControlConnectionManager:
                 self._handle_packet_key(addr, connection_token, data)
                 
             case _:
-                pass
+                logging.error(f"\t\tUnknown command or invalid state: {command}")
 
         # End this handler thread, and remove it from the list of message threads.
         # current_thread = threading.current_thread()
@@ -607,9 +547,8 @@ class ControlConnectionManager:
         data = command.value.to_bytes(1, "big") + connection_token + data
 
         # Encrypt with 1 layer as this message is travelling backwards to the client node.
-        if addr != Address.me():  # todo: encrypt to self
-            client_key = self._node_to_client_tunnel_keys[connection_token].shared_secret.decapsulated_key
-            data = SymmetricEncryption.encrypt(SecureBytes(data), client_key).raw
+        client_key = self._node_to_client_tunnel_keys[connection_token].shared_secret.decapsulated_key
+        data = SymmetricEncryption.encrypt(SecureBytes(data), client_key).raw
 
         # Send the message to the previous node in the route.
         self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_FWD, data)
@@ -680,3 +619,6 @@ class ControlConnectionManager:
     def _is_in_route(self, addr: Address, connection_token: Bytes) -> bool:
         conversation_id = ConnectionToken(token=connection_token, address=addr)
         return self._my_route and conversation_id in [n.connection_token for n in self._my_route.route]
+
+
+__all__ = ["ControlConnectionManager"]
