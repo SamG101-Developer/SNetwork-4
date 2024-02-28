@@ -1,5 +1,3 @@
-import logging
-
 from my_types import Optional, Callable, Tuple, Int, Str
 
 from threading import Thread
@@ -35,3 +33,6 @@ class ControlConnectionServer:
     def udp_send(self, message: bytes, address: Tuple[Str, Int]) -> None:
         # Send a message to the specified address
         self._socket.sendto(message, address)
+
+
+__all__ = ["ControlConnectionServer"]
