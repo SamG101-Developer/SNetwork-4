@@ -543,11 +543,10 @@ class ControlConnectionManager:
 
     @LogPre
     def _tunnel_message_backward(self, addr: Address, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
-        data = command.value.to_bytes(1, "big") + connection_token + data
-
         # Encrypt with 1 layer as this message is travelling backwards to the client node. Don't do this for sending
         # information to self.
         if not (self._my_route and self._my_route.connection_token.token == connection_token):
+            data = command.value.to_bytes(1, "big") + connection_token + data
             client_key = self._node_to_client_tunnel_keys[connection_token].shared_secret.decapsulated_key
             data = SymmetricEncryption.encrypt(SecureBytes(data), client_key).raw
             self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_FWD, data)
