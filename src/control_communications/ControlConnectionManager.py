@@ -547,7 +547,7 @@ class ControlConnectionManager:
 
         # Encrypt with 1 layer as this message is travelling backwards to the client node. Don't do this for sending
         # information to self.
-        if not (self._my_route and self._my_route.connection_token == connection_token):
+        if not (self._my_route and self._my_route.connection_token.token == connection_token):
             client_key = self._node_to_client_tunnel_keys[connection_token].shared_secret.decapsulated_key
             data = SymmetricEncryption.encrypt(SecureBytes(data), client_key).raw
 
