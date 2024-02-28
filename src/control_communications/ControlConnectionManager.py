@@ -629,6 +629,8 @@ class ControlConnectionManager:
     @LogPre
     def _recv_message(self, data: Bytes, raw_addr: Tuple[Str, Int]) -> None:
         addr = Address(ip=raw_addr[0], port=raw_addr[1])
+        print(self._conversations)
+        print(addr)
         connection_token = [c.token for c in self._conversations.keys() if c.address == addr][0]
 
         # Decrypt the e2e connection if its encrypted (not encrypted when initiating a connection).
