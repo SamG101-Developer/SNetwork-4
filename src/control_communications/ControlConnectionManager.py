@@ -532,7 +532,7 @@ class ControlConnectionManager:
             relay_nodes = iter(reversed(self._my_route.route[1:relay_node_position]))
             while (next_node := next(relay_nodes)).connection_token.address != addr:
                 logging.debug(f"\t\tRelaying to: {next_node.connection_token.address.ip}")
-                data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + next_node.connection_token.address.ip.encode() + data
+                data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + next_node.connection_token.token + data
                 data = SymmetricEncryption.encrypt(SecureBytes(data), next_node.shared_secret.decapsulated_key).raw
                 logging.debug(f"\t\tTunnel encrypted payload: {data[:20]}...")
 
