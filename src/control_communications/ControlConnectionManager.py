@@ -607,8 +607,9 @@ class ControlConnectionManager:
         data = command.value.to_bytes(1, "big") + connection_token + data
 
         # Encrypt with 1 layer as this message is travelling backwards to the client node.
-        client_key = self._node_to_client_tunnel_keys[connection_token].shared_secret.decapsulated_key
-        data = SymmetricEncryption.encrypt(SecureBytes(data), client_key).raw
+        if addr != Address.me():  # todo: encrypt to self
+            client_key = self._node_to_client_tunnel_keys[connection_token].shared_secret.decapsulated_key
+            data = SymmetricEncryption.encrypt(SecureBytes(data), client_key).raw
 
         # Send the message to the previous node in the route.
         self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_FWD, data)
