@@ -91,6 +91,9 @@ class SecureBytes:
         # Convert the bytes of a SecureBytes object to a base58 string and return it.
         return base58.b58encode(self._bytes).decode("utf-8")
 
+    def __repr__(self):
+        return self.__str__()
+
     @property
     def length(self) -> int:
         # Return the length of the bytes of a SecureBytes object.
