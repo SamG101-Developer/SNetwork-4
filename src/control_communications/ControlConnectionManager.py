@@ -578,7 +578,7 @@ class ControlConnectionManager:
                 data = SymmetricEncryption.decrypt(SecureBytes(data), shared_secret).raw
 
         # Decrypt any layered encryption (if the command is CONN_FWD).
-        if data[0] == ControlConnectionProtocol.CONN_FWD.value:
+        if data[0] == ControlConnectionProtocol.CONN_FWD.value and addr != Address.me():
             connection_token = [c.token for c in self._conversations.keys() if c.address == addr][0]
             client_key = self._node_to_client_tunnel_keys[connection_token].shared_secret.decapsulated_key
             data = data[1:]
