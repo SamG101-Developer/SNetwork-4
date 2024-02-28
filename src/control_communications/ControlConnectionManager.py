@@ -119,6 +119,7 @@ class ControlConnectionManager:
         self._conversations = {}
         self._my_route = None
         self._node_to_client_tunnel_keys = {}
+        self._pending_node_to_add_to_route = None
         self._mutex = Lock()
 
     @LogPre
@@ -148,7 +149,7 @@ class ControlConnectionManager:
             self._pending_node_to_add_to_route = Address(ip=DHT.get_random_node(current_ips_in_route), port=12345)
             logging.info(f"\t\tExtending route to: {self._pending_node_to_add_to_route.ip}")
 
-            self._send_layered_message_forward(connection_token.token, ControlConnectionProtocol.CONN_EXT, b"")
+            self._send_layered_message_forward(connection_token.token, ControlConnectionProtocol.CONN_EXT, pickle.dumps(self._pending_node_to_add_to_route))
 
             # Wait for the next node to be added to the route.
             while self._pending_node_to_add_to_route:
@@ -456,7 +457,7 @@ class ControlConnectionManager:
 
         # Get the address and static public key of the next node in the route to extend the connection to. The static
         # public key could be obtained from the DHT from the "target_addr", but it can be sent to reduce DHT lookups.
-        target_addr = self._pending_node_to_add_to_route
+        target_addr = pickle.loads(data)
         target_static_public_key = DHT.get_static_public_key(target_addr.ip)
         logging.debug(f"\t\tExtending to: {target_addr.ip}")
 
