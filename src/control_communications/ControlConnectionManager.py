@@ -193,7 +193,7 @@ class ControlConnectionManager:
         # Decrypt the data in a conversation, which won't have been initiated if this is the request to connect.
         elif raw_addr[0] in known_addresses:
             expected_connection_token = [c.token for c in self._conversations.keys() if c.address.ip == raw_addr[0]][0]  # todo: assert this is correct
-            if self._node_to_client_tunnel_keys[expected_connection_token].shared_secret:
+            if self._node_to_client_tunnel_keys[expected_connection_token] and self._node_to_client_tunnel_keys[expected_connection_token].shared_secret:
                 symmetric_key = self._node_to_client_tunnel_keys[expected_connection_token].shared_secret.decapsulated_key
                 data = SecureBytes(data)
                 data = SymmetricEncryption.decrypt(data, symmetric_key).raw
