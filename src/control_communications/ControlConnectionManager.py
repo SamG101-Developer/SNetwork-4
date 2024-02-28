@@ -629,17 +629,16 @@ class ControlConnectionManager:
     @LogPre
     def _recv_message(self, data: Bytes, raw_addr: Tuple[Str, Int]) -> None:
         addr = Address(ip=raw_addr[0], port=raw_addr[1])
-        print(self._conversations)
-        print(addr)
-        connection_token = [c.token for c in self._conversations.keys() if c.address == addr][0]
 
         # Decrypt the e2e connection if its encrypted (not encrypted when initiating a connection).
         if addr in [c.address for c in self._conversations.keys()]:
+            connection_token = [c.token for c in self._conversations.keys() if c.address == addr][0]
             if shared_secret := self._conversations[ConnectionToken(token=connection_token, address=addr)].shared_secret:
                 data = SymmetricEncryption.decrypt(SecureBytes(data), shared_secret).raw
 
         # Decrypt any layered encryption (if the command is CONN_FWD).
         if data[0] == ControlConnectionProtocol.CONN_FWD.value:
+            connection_token = [c.token for c in self._conversations.keys() if c.address == addr][0]
             client_key = self._node_to_client_tunnel_keys[connection_token].shared_secret.decapsulated_key
             data = data[1:]
             data = SymmetricEncryption.decrypt(SecureBytes(data), client_key).raw
