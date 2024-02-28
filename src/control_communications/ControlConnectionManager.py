@@ -537,14 +537,17 @@ class ControlConnectionManager:
             self._my_route.route.append(ControlConnectionRouteNode(
                 connection_token=ConnectionToken(token=connection_token, address=self._pending_node_to_add_to_route),
                 ephemeral_key_pair=KeyPair(public_key=signed_ephemeral_public_key.message),
-                shared_secret=KEM.kem_wrap(signed_ephemeral_public_key.message)))
+                shared_secret=None))
+            kem_wrapped_packet_key = KEM.kem_wrap(signed_ephemeral_public_key.message)
 
             # Note: vulnerable to MITM, so use unilateral authentication later. TODO
-            self._send_layered_message_forward(connection_token, ControlConnectionProtocol.CONN_PKT_KEY, self._my_route.route[-1].shared_secret.encapsulated_key.raw)
+            self._send_layered_message_forward(connection_token, ControlConnectionProtocol.CONN_PKT_KEY, kem_wrapped_packet_key.encapsulated_key.raw)
             logging.debug(f"\t\tAdded to route: {self._pending_node_to_add_to_route.ip}")
             logging.debug(f"\t\tShared secret (PKT) {self._my_route.route[-1].shared_secret.decapsulated_key.raw[:10]}...")
             logging.debug(f"\t\tSent packet key to: {self._my_route.route[-1].connection_token.address.ip}")
 
+            # The shared secret is added here. If added before, the recipient would need the key to decrypt the key.
+            self._my_route.route[-1].shared_secret = kem_wrapped_packet_key
             self._pending_node_to_add_to_route = None
 
         # Otherwise, send this message to the previous node in the route.
@@ -603,7 +606,7 @@ class ControlConnectionManager:
 
         my_ephemeral_secret_key = self._node_to_client_tunnel_keys[connection_token].ephemeral_key_pair.secret_key
         self._node_to_client_tunnel_keys[connection_token].shared_secret = KEM.kem_unwrap(my_ephemeral_secret_key, SecureBytes(data))
-        logging.debug(f"\t\tShared secret (PKT)): {self._node_to_client_tunnel_keys[connection_token].shared_secret.decapsulated_key.raw[:10]}...")
+        logging.debug(f"\t\tShared secret (PKT): {self._node_to_client_tunnel_keys[connection_token].shared_secret.decapsulated_key.raw[:10]}...")
 
     @LogPre
     # @ReplayErrorBackToUser
