@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import time
-from threading import Thread, Lock
+from threading import Thread
 from enum import Enum
 from dataclasses import dataclass
 from argparse import Namespace
@@ -111,7 +110,6 @@ class ControlConnectionManager:
     _my_route: Optional[ControlConnectionRoute]
     _node_to_client_tunnel_keys: Dict[Bytes, ControlConnectionRouteNode]
     _pending_node_to_add_to_route: Optional[Address]
-    _mutex: Lock
     _server_socket_thread: Thread
 
     def __init__(self):
@@ -123,7 +121,6 @@ class ControlConnectionManager:
         self._my_route = None
         self._node_to_client_tunnel_keys = {}
         self._pending_node_to_add_to_route = None
-        self._mutex = Lock()
 
     @LogPre
     def create_route(self, _arguments: Namespace) -> None:
@@ -203,55 +200,35 @@ class ControlConnectionManager:
         # list, so that only one thread can access it at a time. This is to prevent
         match command:
             case ControlConnectionProtocol.CONN_REQ:
-                self._mutex.acquire()
                 self._handle_request_to_connect(addr, connection_token, data)
-                self._mutex.release()
-
+                
             case ControlConnectionProtocol.CONN_ACC if waiting_for_ack:
-                self._mutex.acquire()
                 self._handle_accept_connection(addr, connection_token, data)
-                self._mutex.release()
-
+                
             case ControlConnectionProtocol.CONN_PKT_KEM if connected or waiting_for_ack:
-                self._mutex.acquire()
                 self._handle_accept_connection_attach_key_to_client(addr, connection_token, data)
-                self._mutex.release()
-
+                
             case ControlConnectionProtocol.CONN_REJ if waiting_for_ack:
-                self._mutex.acquire()
                 self._handle_reject_connection(addr, connection_token, data)
-                self._mutex.release()
-
+                
             case ControlConnectionProtocol.CONN_CLS if waiting_for_ack or connected:
-                self._mutex.acquire()
                 self._cleanup_connection(addr, connection_token)
-                self._mutex.release()
-
+                
             case ControlConnectionProtocol.CONN_EXT if connected:
-                self._mutex.acquire()
                 self._handle_extend_connection(addr, connection_token, data)
-                self._mutex.release()
-
+                
             case ControlConnectionProtocol.CONN_EXT_ACC if connected:
-                self._mutex.acquire()
                 self._handle_accept_extended_connection(addr, connection_token, data)
-                self._mutex.release()
-
+                
             case ControlConnectionProtocol.CONN_EXT_REJ if connected:
-                self._mutex.acquire()
                 self._handle_reject_extended_connection(addr, connection_token, data)
-                self._mutex.release()
-
+                
             case ControlConnectionProtocol.CONN_FWD:
-                self._mutex.acquire()
                 self._forward_message(addr, data)
-                self._mutex.release()
-
+                
             case ControlConnectionProtocol.CONN_PKT_KEY if in_route:
-                self._mutex.acquire()
                 self._handle_packet_key(addr, connection_token, data)
-                self._mutex.release()
-
+                
             case _:
                 pass
 
