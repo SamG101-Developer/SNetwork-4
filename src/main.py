@@ -1,3 +1,7 @@
+__author__ = "Sam Gardner"
+__version__ = "4.10.1"
+
+
 import os
 from argparse import ArgumentParser
 from setup.cmd_handler import CmdHandler
