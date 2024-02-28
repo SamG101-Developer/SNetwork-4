@@ -306,19 +306,20 @@ class ControlConnectionManager:
             my_static_private_key=my_static_private_key,
             their_id=their_static_public_key)
 
-        # Send the signed KEM wrapped shared secret to the requesting node.
-        self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_ACC, pickle.dumps(signed_kem_wrapped_shared_secret))
-
         # Save the connection information for the requesting node.
         self._conversations[conversation_id] = ControlConnectionConversationInfo(
             state=ControlConnectionState.CONNECTED,
             their_static_public_key=their_static_public_key,
-            shared_secret=kem_wrapped_shared_secret.decapsulated_key,
+            shared_secret=None,
             my_ephemeral_public_key=None,
             my_ephemeral_secret_key=None)
 
-        # Send todo: comment
+        # Send the signed KEM wrapped shared secret to the requesting node.
+        self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_ACC, pickle.dumps(signed_kem_wrapped_shared_secret))
         self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_PKT_KEM, pickle.dumps(signed_e2e_key))
+
+        # Register the key afterwards, otherwise the recipient would need the key to decrypt the same key.
+        self._conversations[conversation_id].shared_secret = kem_wrapped_shared_secret.decapsulated_key
 
     @LogPre
     # @ReplayErrorBackToUser
