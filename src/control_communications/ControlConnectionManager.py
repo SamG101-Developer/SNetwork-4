@@ -306,10 +306,6 @@ class ControlConnectionManager:
             my_static_private_key=my_static_private_key,
             their_id=their_static_public_key)
 
-        # Send the signed KEM wrapped shared secret to the requesting node.
-        self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_ACC, pickle.dumps(signed_kem_wrapped_shared_secret))
-        self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_PKT_KEM, pickle.dumps(signed_e2e_key))
-
         # Save the connection information for the requesting node.
         self._conversations[conversation_id] = ControlConnectionConversationInfo(
             state=ControlConnectionState.CONNECTED,
@@ -317,6 +313,10 @@ class ControlConnectionManager:
             shared_secret=kem_wrapped_shared_secret.decapsulated_key,
             my_ephemeral_public_key=None,
             my_ephemeral_secret_key=None)
+
+        # Send the signed KEM wrapped shared secret to the requesting node.
+        self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_ACC, pickle.dumps(signed_kem_wrapped_shared_secret))
+        self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_PKT_KEM, pickle.dumps(signed_e2e_key))
 
     @LogPre
     # @ReplayErrorBackToUser
@@ -638,7 +638,7 @@ class ControlConnectionManager:
 
         # Encrypt the connection to the direct neighbour node, if a shared secret has been established.
         conversation_id = ConnectionToken(token=connection_token, address=addr)
-        if conversation_id in self._conversations and (shared_secret := self._conversations[conversation_id].shared_secret):
+        if shared_secret := self._conversations[conversation_id].shared_secret:
             data = SymmetricEncryption.encrypt(SecureBytes(data), shared_secret).raw
             logging.debug(f"\t\tE2E encrypted payload: {data[:20]}...")
 
