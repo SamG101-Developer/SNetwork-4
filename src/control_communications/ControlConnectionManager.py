@@ -66,14 +66,6 @@ class ControlConnectionManager:
         route_node = ControlConnectionRouteNode(connection_token=connection_token, ephemeral_key_pair=None, shared_secret=None)
         self._my_route = ControlConnectionRoute(route=[route_node], connection_token=connection_token)
 
-        # Register a key for when the client node sends information to itself.
-        self._node_to_client_tunnel_keys[connection_token.token] = ControlConnectionRouteNode(
-            connection_token=connection_token,
-            ephemeral_key_pair=KEM.generate_key_pair(),
-            shared_secret=None)
-        self._node_to_client_tunnel_keys[connection_token.token].shared_secret = KEM.kem_wrap(
-            their_ephemeral_public_key=self._node_to_client_tunnel_keys[connection_token.token].ephemeral_key_pair.public_key)
-
         # Add the conversation to myself
         self._conversations[connection_token] = ControlConnectionConversationInfo(
             state=ControlConnectionState.CONNECTED,
@@ -546,9 +538,11 @@ class ControlConnectionManager:
     def _tunnel_message_backward(self, addr: Address, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
         data = command.value.to_bytes(1, "big") + connection_token + data
 
-        # Encrypt with 1 layer as this message is travelling backwards to the client node.
-        client_key = self._node_to_client_tunnel_keys[connection_token].shared_secret.decapsulated_key
-        data = SymmetricEncryption.encrypt(SecureBytes(data), client_key).raw
+        # Encrypt with 1 layer as this message is travelling backwards to the client node. Don't do this for sending
+        # information to self.
+        if addr != Address.me():
+            client_key = self._node_to_client_tunnel_keys[connection_token].shared_secret.decapsulated_key
+            data = SymmetricEncryption.encrypt(SecureBytes(data), client_key).raw
 
         # Send the message to the previous node in the route.
         self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_FWD, data)
