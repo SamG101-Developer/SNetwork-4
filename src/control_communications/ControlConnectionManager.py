@@ -377,7 +377,7 @@ class ControlConnectionManager:
         logging.debug(f"\t\tSending e2e public key to: {target_node.ip}")
 
         # Wait for the CONN_ACC to register the shared secret in another thread.
-        while not self._node_to_client_tunnel_keys[connection_token].shared_secret:
+        while connection_token not in self._conversations:
             pass
 
         self._tunnel_message_backward(target_node, connection_token, ControlConnectionProtocol.CONN_EXT_ACC, pickle.dumps(signed_e2e_pub_key))
