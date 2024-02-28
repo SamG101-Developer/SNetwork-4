@@ -502,8 +502,8 @@ class ControlConnectionManager:
         assert len(candidates) == 1
         target_node = candidates[0]
 
-        logging.debug(f"\t\tConnection token: {connection_token}")
-        logging.debug(f"\t\tRaw payload: {data[:20]}...")
+        logging.debug(f"\t\t[F] Connection token: {connection_token}")
+        logging.debug(f"\t\t[F] Raw payload: {data[:20]}...")
 
         # Get the next command and data from the message, and send it to the target node. The "next_data" may still be
         # ciphertext if the intended target isn't the next node (could be the node after that), with multiple nested
@@ -511,9 +511,9 @@ class ControlConnectionManager:
         next_command, next_connection_token, next_data = self._parse_message(data)
         assert next_connection_token == connection_token
 
-        logging.debug(f"\t\tNext command: {next_command}")
-        logging.debug(f"\t\tNext data: {next_data[:20]}...")
-        logging.debug(f"\t\tForwarding message to: {target_node.ip}")
+        logging.debug(f"\t\t[F] Next command: {next_command}")
+        logging.debug(f"\t\t[F] Next data: {next_data[:20]}...")
+        logging.debug(f"\t\t[F] Forwarding message to: {target_node.ip}")
 
         # Send the message to the target node. It will be automatically encrypted.
         self._send_message_onwards(target_node, connection_token, next_command, next_data)
@@ -550,9 +550,17 @@ class ControlConnectionManager:
         if not (self._my_route and self._my_route.connection_token.token == connection_token):
             client_key = self._node_to_client_tunnel_keys[connection_token].shared_secret.decapsulated_key
             data = SymmetricEncryption.encrypt(SecureBytes(data), client_key).raw
+            self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_FWD, data)
 
-        # Send the message to the previous node in the route.
-        self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_FWD, data)
+        else:
+            nested_command, nested_data = command, data
+            relay_nodes = iter(self._my_route.route[1:])
+            while nested_command == ControlConnectionProtocol.CONN_FWD:
+                data = SymmetricEncryption.decrypt(SecureBytes(nested_data), next(relay_nodes).shared_secret.decapsulated_key).raw
+                nested_command, nested_connection_token, nested_data = self._parse_message(data)
+                assert nested_connection_token == connection_token
+
+            self._handle_message(addr, nested_command, connection_token, nested_data)
 
     @LogPre
     def _send_message_onwards(self, addr: Address, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
