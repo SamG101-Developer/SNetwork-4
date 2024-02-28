@@ -502,11 +502,18 @@ class ControlConnectionManager:
         assert len(candidates) == 1
         target_node = candidates[0]
 
+        logging.debug(f"Connection token: {connection_token}")
+        logging.debug(f"Raw payload: {data[:20]}...")
+
         # Get the next command and data from the message, and send it to the target node. The "next_data" may still be
         # ciphertext if the intended target isn't the next node (could be the node after that), with multiple nested
         # messages of "CONN_FWD" commands.
         next_command, next_connection_token, next_data = self._parse_message(data)
         assert next_connection_token == connection_token
+
+        logging.debug(f"Next command: {next_command}")
+        logging.debug(f"Next data: {next_data[:20]}...")
+        logging.debug(f"Forwarding message to: {target_node.ip}")
 
         # Send the message to the target node. It will be automatically encrypted.
         self._send_message_onwards(target_node, connection_token, next_command, next_data)
