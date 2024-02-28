@@ -149,7 +149,7 @@ class ControlConnectionManager:
             self._pending_node_to_add_to_route = Address(ip=DHT.get_random_node(current_ips_in_route), port=12345)
             logging.info(f"\t\tExtending route to: {self._pending_node_to_add_to_route.ip}")
 
-            self._send_layered_message_forward(connection_token.token, ControlConnectionProtocol.CONN_EXT, pickle.dumps(self._pending_node_to_add_to_route))
+            self._tunnel_message_forwards(connection_token.token, ControlConnectionProtocol.CONN_EXT, pickle.dumps(self._pending_node_to_add_to_route))
 
             # Wait for the next node to be added to the route.
             while self._pending_node_to_add_to_route:
@@ -157,59 +157,6 @@ class ControlConnectionManager:
 
         # Log the route.
         logging.info(f"\t\tCreated route: {' -> '.join([node.connection_token.address.ip for node in self._my_route.route])}")
-
-    @LogPre
-    def _layer_encrypt(self, data: Bytes) -> Bytes:
-        for node in reversed(self._my_route.route[1:]):  # todo : encrypt to self
-            data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + node.connection_token.address.ip.encode() + data
-
-            # Check for non-init commands
-            if node.shared_secret:
-                data = SymmetricEncryption.encrypt(SecureBytes(data), node.shared_secret.decapsulated_key).raw
-
-        logging.debug(f"\t\tLayer encrypted data: {data[:10]}...")
-        return data
-
-    @LogPre
-    def _layer_decrypt(self, data: Bytes) -> Bytes:
-        for node in self._my_route.route[1:]:
-            assert ControlConnectionProtocol(data[0]) == ControlConnectionProtocol.CONN_FWD
-            data = SymmetricEncryption.decrypt(SecureBytes(data), node.shared_secret.decapsulated_key).raw
-            data = data[1:]
-        return data[1:]
-
-    @LogPre
-    def _recv_message(self, data: Bytes, raw_addr: Tuple[Str, Int]) -> None:
-        # Get the data and address from the udp socket, and parse the message into a command and data. Split the data
-        # into the connection token and the rest of the data.
-        addr = Address(ip=raw_addr[0], port=raw_addr[1])
-        known_addresses = [c.address.ip for c in self._conversations.keys()]
-
-        logging.debug(f"\t\tRaw data: {data[:20]}...")
-
-        # Decrypt forwarded messages from the route, if the message is forwarded.
-        if data[0] == ControlConnectionProtocol.CONN_FWD.value:
-            data = self._layer_decrypt(data)
-
-        # Decrypt the data in a conversation, which won't have been initiated if this is the request to connect.
-        elif raw_addr[0] in known_addresses:
-            expected_connection_token = [c.token for c in self._conversations.keys() if c.address.ip == raw_addr[0]][0]  # todo: assert this is correct
-            if expected_connection_token in self._node_to_client_tunnel_keys and self._node_to_client_tunnel_keys[expected_connection_token].shared_secret:
-                symmetric_key = self._node_to_client_tunnel_keys[expected_connection_token].shared_secret.decapsulated_key
-                data = SecureBytes(data)
-                data = SymmetricEncryption.decrypt(data, symmetric_key).raw
-                logging.debug(f"\t\tDecrypted data: {data[:20]}...")
-
-        # Parse the data into the components of the message.
-        command, connection_token, data = self._parse_message(data)
-
-        # Log the message & associated data.
-        logging.debug(f"\t\tMessage from: {addr.ip}")
-        logging.debug(f"\t\tCommand: {command}")
-        logging.debug(f"\t\tData: {data[:10]}...")
-
-        # Create a new thread to handle the message, and add it to the list of message threads.
-        self._handle_message(addr, command, connection_token, data)
 
     @LogPre
     def _parse_message(self, data: Bytes) -> Tuple[ControlConnectionProtocol, Bytes, Bytes]:
@@ -353,8 +300,8 @@ class ControlConnectionManager:
             their_id=their_static_public_key)
 
         # Send the signed KEM wrapped shared secret to the requesting node.
-        self._send_message(addr, connection_token, ControlConnectionProtocol.CONN_ACC, pickle.dumps(signed_kem_wrapped_shared_secret))
-        self._send_message(addr, connection_token, ControlConnectionProtocol.CONN_PKT_KEM, pickle.dumps(signed_e2e_key))
+        self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_ACC, pickle.dumps(signed_kem_wrapped_shared_secret))
+        self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_PKT_KEM, pickle.dumps(signed_e2e_key))
 
         # Save the connection information for the requesting node.
         self._conversations[conversation_id] = ControlConnectionConversationInfo(
@@ -419,7 +366,7 @@ class ControlConnectionManager:
 
         logging.debug(f"\t\tSending e2e public key to: {target_node.ip}")
 
-        self._send_layered_message_backward(target_node, connection_token, ControlConnectionProtocol.CONN_EXT_ACC, pickle.dumps(signed_e2e_pub_key))
+        self._tunnel_message_backward(target_node, connection_token, ControlConnectionProtocol.CONN_EXT_ACC, pickle.dumps(signed_e2e_pub_key))
 
     @LogPre
     # @ReplayErrorBackToUser
@@ -436,7 +383,7 @@ class ControlConnectionManager:
         assert len(candidates) in (0, 1)
         if candidates:
             target_node = candidates[0]
-            self._send_message(target_node, connection_token, ControlConnectionProtocol.CONN_EXT_REJ, data)
+            self._send_message_onwards(target_node, connection_token, ControlConnectionProtocol.CONN_EXT_REJ, data)
 
         # Remove the connection information for the rejecting node.
         conversation_id = ConnectionToken(token=connection_token, address=addr)
@@ -488,7 +435,7 @@ class ControlConnectionManager:
         logging.debug(f"\t\tSigned ephemeral public key: {signed_my_ephemeral_public_key.signature.raw[:10]}...")
 
         sending_data = pickle.dumps(signed_my_ephemeral_public_key)
-        self._send_message(target_addr, connection_token, ControlConnectionProtocol.CONN_REQ, sending_data)
+        self._send_message_onwards(target_addr, connection_token, ControlConnectionProtocol.CONN_REQ, sending_data)
 
     @LogPre
     # @ReplayErrorBackToUser
@@ -545,7 +492,7 @@ class ControlConnectionManager:
             kem_wrapped_packet_key = KEM.kem_wrap(signed_ephemeral_public_key.message)
 
             # Note: vulnerable to MITM, so use unilateral authentication later. TODO
-            self._send_layered_message_forward(connection_token, ControlConnectionProtocol.CONN_PKT_KEY, kem_wrapped_packet_key.encapsulated_key.raw)
+            self._tunnel_message_forwards(connection_token, ControlConnectionProtocol.CONN_PKT_KEY, kem_wrapped_packet_key.encapsulated_key.raw)
             logging.debug(f"\t\tAdded to route: {self._pending_node_to_add_to_route.ip}")
 
             # The shared secret is added here. If added before, the recipient would need the key to decrypt the key.
@@ -560,7 +507,7 @@ class ControlConnectionManager:
             candidates = [c.address for c in self._conversations.keys() if c.token == connection_token and c.address != addr]
             assert len(candidates) == 1
             target_node = candidates[0]
-            self._send_message(target_node, connection_token, ControlConnectionProtocol.CONN_EXT_ACC, data)
+            self._send_message_onwards(target_node, connection_token, ControlConnectionProtocol.CONN_EXT_ACC, data)
 
     @LogPre
     # @ReplayErrorBackToUser
@@ -602,7 +549,7 @@ class ControlConnectionManager:
             candidates = [c.address for c in self._conversations.keys() if c.token == connection_token and c.address != addr]
             assert len(candidates) == 1
             target_node = candidates[0]
-            self._send_message(target_node, connection_token, ControlConnectionProtocol.CONN_EXT_REJ, data)
+            self._send_message_onwards(target_node, connection_token, ControlConnectionProtocol.CONN_EXT_REJ, data)
 
     @LogPre
     def _handle_packet_key(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
@@ -638,66 +585,62 @@ class ControlConnectionManager:
         assert next_connection_token == connection_token
 
         # Send the message to the target node. It will be automatically encrypted.
-        self._send_message(target_node, connection_token, next_command, next_data)
+        self._send_message_onwards(target_node, connection_token, next_command, next_data)
 
     @LogPre
-    def _send_message(self, addr: Address, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
-        """
-        Send a message to a direct-neighbour node, with a command and accompanying data. If a shared secret exists for
-        the node, the data will be encrypted before being sent. This always happens after the initial key exchange with
-        an authenticated KEM. This DOES NOT use layered encryption to nodes. Use the self._send_layered_message method
-        for that.
-        :param addr:
-        :param command:
-        :param data:
-        """
-
-        logging.debug(f"\t\tSending message to: {addr.ip}")
-        logging.debug(f"\t\tCommand: {command}")
-        logging.debug(f"\t\tData: {data[:10]}...")
-
-        # Add the command to the data.
+    def _tunnel_message_forwards(self, addr: Address, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
         data = command.value.to_bytes(1, "big") + connection_token + data
 
-        # Encrypt the data if a shared secret exists (only won't when initiating a connection).
-        conversation_id = ConnectionToken(token=connection_token, address=addr)
-        if self._is_connected_to(addr, connection_token) and self._conversations[conversation_id].shared_secret:
-            symmetric_key = self._conversations[conversation_id].shared_secret
-            data = SecureBytes(data)
-            data = SymmetricEncryption.encrypt(data, symmetric_key).raw
+        # Encrypt per layer until the node in the route == the node that the data is being sent to.
+        if self._my_route and self._my_route.connection_token == connection_token:
+            relay_node_position = [n.connection_token.address for n in self._my_route.route].index(addr)
+            relay_nodes = iter(reversed(self._my_route.route[1:relay_node_position]))
+            while (next_node := next(relay_nodes)).connection_token.address != addr:
+                data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + next_node.connection_token.address.ip.encode() + data
+                data = SymmetricEncryption.encrypt(SecureBytes(data), next_node.shared_secret.decapsulated_key).raw
 
-            logging.debug(f"\t\tEncrypted data: {data[:10]}...")
+        # Send the message on the e2e encrypted connection.
+        self._send_message_onwards(addr, connection_token, command, data)
+
+    @LogPre
+    def _tunnel_message_backward(self, addr: Address, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
+        data = command.value.to_bytes(1, "big") + connection_token + data
+
+        # Encrypt with 1 layer as this message is travelling backwards to the client node.
+        client_key = self._node_to_client_tunnel_keys[connection_token].shared_secret.decapsulated_key
+        data = SymmetricEncryption.encrypt(SecureBytes(data), client_key).raw
+
+        # Send the message to the previous node in the route.
+        self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_FWD, data)
+
+    @LogPre
+    def _send_message_onwards(self, addr: Address, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
+        # Encrypt the connection to the direct neighbour node, if a shared secret has been established.
+        if shared_secret := self._conversations[ConnectionToken(token=connection_token, address=addr)].shared_secret:
+            data = SymmetricEncryption.encrypt(SecureBytes(data), shared_secret).raw
 
         # Send the data to the node.
         self._udp_server.udp_send(data, addr.socket_format())
 
     @LogPre
-    def _send_layered_message_forward(self, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
-        assert isinstance(data, Bytes)
+    def _recv_message(self, data: Bytes, raw_addr: Tuple[Str, Int]) -> None:
+        addr = Address(ip=raw_addr[0], port=raw_addr[1])
+        connection_token = [c.token for c in self._conversations.keys() if c.address == addr][0]
 
-        logging.debug(f"\t\tSending layered message forwards")
-        logging.debug(f"\t\tCommand: {command}")
-        logging.debug(f"\t\tData: {data[:10]}...")
+        # Decrypt the e2e connection if its encrypted (not encrypted when initiating a connection).
+        if addr in [c.address for c in self._conversations.keys()]:
+            if shared_secret := self._conversations[ConnectionToken(token=connection_token, address=addr)].shared_secret:
+                data = SymmetricEncryption.decrypt(SecureBytes(data), shared_secret).raw
 
-        data = self._layer_encrypt(data)
-        data = command.value.to_bytes(1, "big") + connection_token + data
+        # Decrypt any layered encryption (if the command is CONN_FWD).
+        if data[0] == ControlConnectionProtocol.CONN_FWD.value:
+            client_key = self._node_to_client_tunnel_keys[connection_token].shared_secret.decapsulated_key
+            data = data[1:]
+            data = SymmetricEncryption.decrypt(SecureBytes(data), client_key).raw
 
-        first_node = self._my_route.route[0] if len(self._my_route.route) == 1 else self._my_route.route[1]
-        self._udp_server.udp_send(data, first_node.connection_token.address.socket_format())
-
-    @LogPre
-    def _send_layered_message_backward(self, addr: Address, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
-        assert isinstance(data, Bytes)
-
-        logging.debug(f"\t\tSending layered message backwards")
-        logging.debug(f"\t\tCommand: {command}")
-        logging.debug(f"\t\tData: {data[:10]}...")
-
-        data = command.value.to_bytes(1, "big") + connection_token + data
-        if addr != Address.me():
-            data = SymmetricEncryption.encrypt(SecureBytes(data), self._node_to_client_tunnel_keys[connection_token].shared_secret.decapsulated_key).raw
-            data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + connection_token + data
-        self._udp_server.udp_send(data, addr.socket_format())
+        # Parse and handle the message
+        command, connection_token, data = self._parse_message(data)
+        self._handle_message(addr, command, connection_token, data)
 
     @LogPre
     def _cleanup_connection(self, addr: Address, connection_token: Bytes) -> None:
