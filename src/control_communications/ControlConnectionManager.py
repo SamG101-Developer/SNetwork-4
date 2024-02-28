@@ -373,7 +373,7 @@ class ControlConnectionManager:
         :return:
         """
 
-        logging.debug(f"\t\tAccepting extension to: {addr.ip}")
+        logging.debug(f"\t\tAccepting extension to: {self._pending_node_to_add_to_route.ip}")
         logging.debug(f"\t\tConnection token: {connection_token}")
         logging.debug(f"\t\tData: {data[:10]}...")
 
@@ -529,7 +529,7 @@ class ControlConnectionManager:
             data = command.value.to_bytes(1, "big") + connection_token + data
             relay_node_position = [n.connection_token.address for n in self._my_route.route].index(addr)
             relay_nodes = iter(reversed(self._my_route.route[1:relay_node_position]))
-            while (next_node := next(relay_nodes)).connection_token.address != addr:
+            while (next_node := next(relay_nodes, None)) and next_node and next_node.connection_token.address != addr:
                 logging.debug(f"\t\tRelaying to: {next_node.connection_token.address.ip}")
                 data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + next_node.connection_token.token + data
                 data = SymmetricEncryption.encrypt(SecureBytes(data), next_node.shared_secret.decapsulated_key).raw
