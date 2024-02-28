@@ -546,12 +546,13 @@ class ControlConnectionManager:
             # Note: vulnerable to MITM, so use unilateral authentication later. TODO
             self._send_layered_message_forward(connection_token, ControlConnectionProtocol.CONN_PKT_KEY, kem_wrapped_packet_key.encapsulated_key.raw)
             logging.debug(f"\t\tAdded to route: {self._pending_node_to_add_to_route.ip}")
-            logging.debug(f"\t\tShared secret (PKT) {self._my_route.route[-1].shared_secret.decapsulated_key.raw[:10]}...")
-            logging.debug(f"\t\tSent packet key to: {self._my_route.route[-1].connection_token.address.ip}")
 
             # The shared secret is added here. If added before, the recipient would need the key to decrypt the key.
             self._my_route.route[-1].shared_secret = kem_wrapped_packet_key
             self._pending_node_to_add_to_route = None
+
+            logging.debug(f"\t\tShared secret (PKT) {self._my_route.route[-1].shared_secret.decapsulated_key.raw[:10]}...")
+            logging.debug(f"\t\tSent packet key to: {self._my_route.route[-1].connection_token.address.ip}")
 
         # Otherwise, send this message to the previous node in the route.
         else:
