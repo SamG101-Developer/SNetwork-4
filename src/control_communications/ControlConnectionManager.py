@@ -175,6 +175,10 @@ class ControlConnectionManager:
         connection_token = data[1:33]
         data = data[33:]
 
+        logging.debug(f"\t\tParsed command: {command}")
+        logging.debug(f"\t\tParsed connection token: {connection_token}...")
+        logging.debug(f"\t\tParsed data: {data[:20]}...")
+
         # Return the command, connection token and data.
         return command, connection_token, data
 
@@ -592,19 +596,26 @@ class ControlConnectionManager:
 
     @LogPre
     def _tunnel_message_forwards(self, addr: Address, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
-        data = command.value.to_bytes(1, "big") + connection_token + data
+        logging.debug(f"\t\tTunneling {command} to: {addr.ip}")
+        logging.debug(f"\t\tConnection token: {connection_token}")
+        logging.debug(f"\t\tRaw payload: {data[:20]}...")
 
         # Encrypt per layer until the node in the route == the node that the data is being sent to.
-        if self._my_route and self._my_route.connection_token == connection_token:
+        if self._my_route and self._my_route.connection_token.token == connection_token and addr in [n.connection_token.address for n in self._my_route.route]:
+            data = command.value.to_bytes(1, "big") + connection_token + data
             relay_node_position = [n.connection_token.address for n in self._my_route.route].index(addr)
             relay_nodes = iter(reversed(self._my_route.route[1:relay_node_position]))
             while (next_node := next(relay_nodes)).connection_token.address != addr:
+                logging.debug(f"\t\tRelaying to: {next_node.connection_token.address.ip}")
                 data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + next_node.connection_token.address.ip.encode() + data
                 data = SymmetricEncryption.encrypt(SecureBytes(data), next_node.shared_secret.decapsulated_key).raw
+                logging.debug(f"\t\tTunnel encrypted payload: {data[:20]}...")
 
-        # Send the message on the e2e encrypted connection.
-        target_node = self._my_route.route[0] if len(self._my_route.route) == 1 else self._my_route.route[1]
-        self._send_message_onwards(target_node.connection_token.address, connection_token, command, data)
+            self._send_message_onwards(self._my_route.route[1].connection_token.address, connection_token, command, data)
+
+        else:
+            # Send the message on the e2e encrypted connection.
+            self._send_message_onwards(self._my_route.route[0].connection_token.address, connection_token, command, data)
 
     @LogPre
     def _tunnel_message_backward(self, addr: Address, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
@@ -635,6 +646,9 @@ class ControlConnectionManager:
 
     @LogPre
     def _recv_message(self, data: Bytes, raw_addr: Tuple[Str, Int]) -> None:
+        logging.debug(f"\t\tReceived message from: {raw_addr[0]}")
+        logging.debug(f"\t\tRaw payload: {data[:20]}...")
+
         addr = Address(ip=raw_addr[0], port=raw_addr[1])
 
         # Decrypt the e2e connection if its encrypted (not encrypted when initiating a connection).
