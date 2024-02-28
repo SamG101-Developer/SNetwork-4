@@ -637,7 +637,8 @@ class ControlConnectionManager:
         data = command.value.to_bytes(1, "big") + connection_token + data
 
         # Encrypt the connection to the direct neighbour node, if a shared secret has been established.
-        if shared_secret := self._conversations[ConnectionToken(token=connection_token, address=addr)].shared_secret:
+        conversation_id = ConnectionToken(token=connection_token, address=addr)
+        if conversation_id in self._conversations and (shared_secret := self._conversations[conversation_id].shared_secret):
             data = SymmetricEncryption.encrypt(SecureBytes(data), shared_secret).raw
             logging.debug(f"\t\tE2E encrypted payload: {data[:20]}...")
 
