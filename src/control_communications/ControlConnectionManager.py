@@ -149,7 +149,7 @@ class ControlConnectionManager:
             self._pending_node_to_add_to_route = Address(ip=DHT.get_random_node(current_ips_in_route), port=12345)
             logging.info(f"\t\tExtending route to: {self._pending_node_to_add_to_route.ip}")
 
-            self._tunnel_message_forwards(connection_token.token, ControlConnectionProtocol.CONN_EXT, pickle.dumps(self._pending_node_to_add_to_route))
+            self._tunnel_message_forwards(self._pending_node_to_add_to_route, connection_token.token, ControlConnectionProtocol.CONN_EXT, pickle.dumps(self._pending_node_to_add_to_route))
 
             # Wait for the next node to be added to the route.
             while self._pending_node_to_add_to_route:
@@ -492,7 +492,7 @@ class ControlConnectionManager:
             kem_wrapped_packet_key = KEM.kem_wrap(signed_ephemeral_public_key.message)
 
             # Note: vulnerable to MITM, so use unilateral authentication later. TODO
-            self._tunnel_message_forwards(connection_token, ControlConnectionProtocol.CONN_PKT_KEY, kem_wrapped_packet_key.encapsulated_key.raw)
+            self._tunnel_message_forwards(self._pending_node_to_add_to_route, connection_token, ControlConnectionProtocol.CONN_PKT_KEY, kem_wrapped_packet_key.encapsulated_key.raw)
             logging.debug(f"\t\tAdded to route: {self._pending_node_to_add_to_route.ip}")
 
             # The shared secret is added here. If added before, the recipient would need the key to decrypt the key.
