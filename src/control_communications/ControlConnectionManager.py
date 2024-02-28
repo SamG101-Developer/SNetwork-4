@@ -161,7 +161,10 @@ class ControlConnectionManager:
     def _layer_encrypt(self, data: Bytes) -> Bytes:
         for node in reversed(self._my_route.route[1:]):  # todo : encrypt to self
             data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + node.connection_token.address.ip.encode() + data
-            data = SymmetricEncryption.encrypt(SecureBytes(data), node.shared_secret.decapsulated_key).raw
+
+            # Check for non-init commands
+            if node.shared_secret:
+                data = SymmetricEncryption.encrypt(SecureBytes(data), node.shared_secret.decapsulated_key).raw
 
         logging.debug(f"\t\tLayer encrypted data: {data[:10]}...")
         return data
