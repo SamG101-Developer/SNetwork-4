@@ -156,7 +156,7 @@ class ControlConnectionManager:
                 self._handle_reject_extended_connection(addr, connection_token, data)
                 
             case ControlConnectionProtocol.CONN_FWD:
-                self._forward_message(addr, data)
+                self._forward_message(addr, connection_token, data)
                 
             case ControlConnectionProtocol.CONN_PKT_KEY if in_route:
                 self._handle_packet_key(addr, connection_token, data)
