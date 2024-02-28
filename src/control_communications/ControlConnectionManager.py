@@ -14,7 +14,7 @@ from crypto_engines.crypto.symmetric_encryption import SymmetricEncryption
 from crypto_engines.keys.key_pair import KeyPair, KEMKeyPair
 from crypto_engines.tools.secure_bytes import SecureBytes
 from distributed_hash_table.DHT import DHT
-from my_types import Bytes, Tuple, Str, Int, List, Dict, Optional
+from my_types import Bytes, Tuple, Str, Int, List, Dict, Optional, Bool
 
 
 @dataclass(kw_only=True)
@@ -32,6 +32,9 @@ class Address:
     def __hash__(self):
         from hashlib import md5
         return int(md5(self.ip.encode()).hexdigest(), 16) % 2**64
+
+    def __eq__(self, other) -> Bool:
+        return self.ip == other.ip and self.port == other.port
 
 
 @dataclass(kw_only=True)
@@ -600,7 +603,7 @@ class ControlConnectionManager:
                 data = SymmetricEncryption.encrypt(SecureBytes(data), next_node.shared_secret.decapsulated_key).raw
 
         # Send the message on the e2e encrypted connection.
-        target_node = self._my_route.route[0] if len(self._my_route.route) == 0 else self._my_route.route[1]
+        target_node = self._my_route.route[0] if len(self._my_route.route) == 1 else self._my_route.route[1]
         self._send_message_onwards(target_node.connection_token.address, connection_token, command, data)
 
     @LogPre
