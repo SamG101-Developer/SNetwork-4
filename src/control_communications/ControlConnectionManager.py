@@ -132,8 +132,8 @@ class ControlConnectionManager:
         in_route = self._is_in_route(addr, connection_token)
 
         # Decide on the function to call based on the command, and call it. The mutex is used to lock the conversation
-        # list, so that only one thread can access it at a time. This is to prevent
-        self._mutex.acquire()
+        # list, so that only one thread can access it at a time.
+        # self._mutex.acquire()
         match command:
             case ControlConnectionProtocol.CONN_REQ:
                 self._handle_request_to_connect(addr, connection_token, data)
@@ -168,7 +168,7 @@ class ControlConnectionManager:
             case _:
                 logging.error(f"\t\tUnknown command or invalid state: {command}")
 
-        self._mutex.release()
+        # self._mutex.release()
 
         # End this handler thread, and remove it from the list of message threads.
         # current_thread = threading.current_thread()
@@ -612,8 +612,8 @@ class ControlConnectionManager:
                 data = SymmetricEncryption.decrypt(SecureBytes(data), shared_secret).raw
 
         # Decrypt any layered encryption (if the command is CONN_FWD).
-        if data[0] == ControlConnectionProtocol.CONN_FWD.value and addr != Address.me():
-            connection_token = [c.token for c in self._conversations.keys() if c.address == addr][0]
+        connection_token = [c.token for c in self._conversations.keys() if c.address == addr][0]
+        if connection_token in self._node_to_client_tunnel_keys.keys() and self._node_to_client_tunnel_keys[connection_token].shared_secret:
             client_key = self._node_to_client_tunnel_keys[connection_token].shared_secret.decapsulated_key
             data = data[1:]
             data = SymmetricEncryption.decrypt(SecureBytes(data), client_key).raw
