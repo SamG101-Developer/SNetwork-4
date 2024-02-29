@@ -283,6 +283,7 @@ class ControlConnectionManager:
 
     @LogPre
     def _handle_accept_connection_attach_key_to_client(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
+        current_final_node_static_public_key = DHT.get_static_public_key(self._my_route.route[-1].connection_token.address.ip)
         my_static_private_key, my_static_public_key = KeyPair().import_("./_keys/me", "static").both()
         their_static_public_key = DHT.get_static_public_key(addr.ip)
         signed_e2e_pub_key = pickle.loads(data)
@@ -293,7 +294,7 @@ class ControlConnectionManager:
         DigitalSigning.verify(
             their_static_public_key=their_static_public_key,
             signed_message=signed_e2e_pub_key,
-            my_id=my_static_public_key)
+            my_id=current_final_node_static_public_key)
 
         candidates = [c.address for c in self._conversations.keys() if c.token == connection_token and c.address != addr]
         assert len(candidates) == 1, f"There should be exactly one candidate, but there are {len(candidates)}: {candidates}"
