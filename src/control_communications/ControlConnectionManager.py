@@ -93,7 +93,7 @@ class ControlConnectionManager:
             while conversation_id not in self._conversations:
                 pass
 
-            while not (self._conversations[conversation_id].state & ControlConnectionState.SECURE):
+            while not (self._conversations[conversation_id].state & (ControlConnectionState.SECURE | ControlConnectionState.CONNECTED)):
                 pass
 
         # Log the route.
