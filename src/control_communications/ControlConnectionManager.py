@@ -248,6 +248,13 @@ class ControlConnectionManager:
 
         # Send the signed KEM wrapped shared secret to the requesting node.
         self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_ACC, pickle.dumps(signed_kem_wrapped_shared_secret))
+
+        current_final_node = [node for node in self._my_route.route if node.connection_token.address != self._pending_node_to_add_to_route][-1]
+        conversation_id = current_final_node.connection_token
+        while True:
+            if self._conversations[conversation_id].state & ControlConnectionState.CONNECTED:
+                break
+
         self._tunnel_message_backward(addr, connection_token, ControlConnectionProtocol.CONN_PKT_KEM, pickle.dumps(signed_e2e_key))
 
         # Register the key afterwards, otherwise the recipient would need the key to decrypt the same key.
@@ -315,9 +322,9 @@ class ControlConnectionManager:
         logging.debug(f"\t\t[1] Sending e2e public key to: {target_node.ip}")
 
         # Wait for the CONN_ACC to register the shared secret in another thread.
-        conversation_id = ConnectionToken(token=connection_token, address=addr)
+        conversation_id = current_final_node.connection_token
         while True:
-            if conversation_id in self._conversations.keys() and self._conversations[conversation_id].state & ControlConnectionState.CONNECTED:
+            if self._conversations[conversation_id].state & ControlConnectionState.CONNECTED:
                 break
 
         logging.debug(f"\t\t[2] Sending e2e public key to: {target_node.ip}")
