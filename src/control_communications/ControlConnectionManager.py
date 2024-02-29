@@ -675,7 +675,7 @@ class ControlConnectionManager:
                     assert nested_connection_token == connection_token[0]
                     next_node = next(relay_nodes)
 
-        elif connection_token and self._node_to_client_tunnel_keys[connection_token[0]].shared_secret and self._parse_message(data)[0] == ControlConnectionProtocol.CONN_FWD:
+        elif connection_token and self._node_to_client_tunnel_keys[connection_token[0]].shared_secret and self._parse_message(data)[0] == ControlConnectionProtocol.CONN_FWD.value:
             two_nodes_with_connection_token = [c.address for c in self._conversations.keys() if c.token == connection_token[0]]
             from_previous_node = addr == two_nodes_with_connection_token[0]
 
