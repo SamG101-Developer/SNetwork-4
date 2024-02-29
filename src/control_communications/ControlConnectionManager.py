@@ -508,7 +508,9 @@ class ControlConnectionManager:
 
         # Get the address of the other node in the conversation list who has the same connection token.
         candidates = [c.address for c in self._conversations.keys() if c.token == connection_token and c.address != addr]
-        assert len(candidates) == 1, f"There should be exactly one candidate, but there are {len(candidates)}: {candidates}"
+        # assert len(candidates) == 1, f"There should be exactly one candidate, but there are {len(candidates)}: {candidates}"
+        if not candidates:
+            candidates = [Address.me()]
         target_node = candidates[0]
 
         logging.debug(f"\t\t[F] Connection token: {connection_token}")
@@ -560,7 +562,8 @@ class ControlConnectionManager:
                 data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + next_node.connection_token.token + data
                 logging.debug(f"\t\tForward-wrapped encrypted payload: {data[:100]}...")
 
-            command, connection_token, data = self._parse_message(data)
+            # command, connection_token, data = self._parse_message(data)
+            command, data = ControlConnectionProtocol.CONN_FWD, data
             # target = self._pending_node_to_add_to_route if len(self._my_route.route) == 1 else self._my_route.route[1].connection_token.address
             # self._send_message_onwards(target, connection_token, command, data)
             # return
