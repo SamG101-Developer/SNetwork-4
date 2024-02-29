@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from threading import Thread
+from threading import Thread, Lock
 from argparse import Namespace
 import logging, os, pickle
 
@@ -43,6 +43,7 @@ class ControlConnectionManager:
     _node_to_client_tunnel_keys: Dict[Bytes, ControlConnectionRouteNode]
     _pending_node_to_add_to_route: Optional[Address]
     _server_socket_thread: Thread
+    _mutex: Lock
 
     def __init__(self):
         # Setup the attributes of the control connection manager
@@ -53,6 +54,8 @@ class ControlConnectionManager:
         self._my_route = None
         self._node_to_client_tunnel_keys = {}
         self._pending_node_to_add_to_route = None
+
+        self._mutex = Lock()
 
     @LogPre
     def create_route(self, _arguments: Namespace) -> None:
@@ -130,6 +133,7 @@ class ControlConnectionManager:
 
         # Decide on the function to call based on the command, and call it. The mutex is used to lock the conversation
         # list, so that only one thread can access it at a time. This is to prevent
+        self._mutex.acquire()
         match command:
             case ControlConnectionProtocol.CONN_REQ:
                 self._handle_request_to_connect(addr, connection_token, data)
@@ -163,6 +167,8 @@ class ControlConnectionManager:
                 
             case _:
                 logging.error(f"\t\tUnknown command or invalid state: {command}")
+
+        self._mutex.release()
 
         # End this handler thread, and remove it from the list of message threads.
         # current_thread = threading.current_thread()
@@ -499,7 +505,10 @@ class ControlConnectionManager:
 
         # Get the address of the other node in the conversation list who has the same connection token.
         candidates = [c.address for c in self._conversations.keys() if c.token == connection_token and c.address != addr]
-        assert len(candidates) == 1
+        if len(candidates) == 0 and addr == Address.me():
+            candidates = [Address.me()]
+
+        assert len(candidates) == 1, f"There should be exactly one candidate, but there are {len(candidates)}: {candidates}"
         target_node = candidates[0]
 
         logging.debug(f"\t\t[F] Connection token: {connection_token}")
@@ -525,26 +534,30 @@ class ControlConnectionManager:
         logging.debug(f"\t\tRaw payload: {data[:20]}...")
 
         # Encrypt per layer until the node in the route == the node that the data is being sent to.
-        if self._my_route:
-            print(connection_token, addr)
-            print(self._my_route.connection_token.token)
-            print([n.connection_token.address for n in self._my_route.route])
-
         if self._my_route and self._my_route.connection_token.token == connection_token:
-            print("IN HERE")
-            mut_data = command.value.to_bytes(1, "big") + connection_token + data
-            relay_node_position = [n.connection_token.address for n in self._my_route.route].index(addr) if addr in [n.connection_token.address for n in self._my_route.route] else -1
-            relay_nodes = iter(reversed(self._my_route.route[:relay_node_position]))
+            route_node_addresses = [n.connection_token.address for n in self._my_route.route]
+            target_node_route_index = route_node_addresses.index(addr) if addr in route_node_addresses else -1
 
-            has_mut = False
-            while (next_node := next(relay_nodes, None)) and next_node and next_node.connection_token.address != addr:
+            if target_node_route_index > -1:
+                relay_nodes = list(reversed(self._my_route.route[:target_node_route_index + 1]))
+            else:
+                relay_nodes = list(reversed(self._my_route.route[:]))
+
+            logging.debug(f"\t\tTunneling via {[n.connection_token.address.ip for n in relay_nodes]}")
+
+            # Combine the data components (this data will be sent to "self" and forwarded on)
+            data = command.value.to_bytes(1, "big") + connection_token + data
+
+            # For each node in the path until the target node, apply a layer of encryption.
+            for next_node in relay_nodes:
+                logging.debug(f"\t\tLayering through: {next_node.connection_token.address.ip}")
                 if next_node.shared_secret:
-                    has_mut = True
-                    logging.debug(f"\t\tRelaying to: {next_node.connection_token.address.ip}")
-                    mut_data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + next_node.connection_token.token + mut_data
-                    mut_data = SymmetricEncryption.encrypt(SecureBytes(mut_data), next_node.shared_secret.decapsulated_key).raw
-                    logging.debug(f"\t\tTunnel encrypted payload: {mut_data[:20]}...")
-            data = mut_data if has_mut else data
+                    data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + next_node.connection_token.token + data
+                    data = SymmetricEncryption.encrypt(SecureBytes(data), next_node.shared_secret.decapsulated_key).raw
+                    logging.debug(f"\t\tTunnel encrypted payload: {data[:20]}...")
+
+            self._send_message_onwards(self._my_route.route[0].connection_token.address, connection_token, ControlConnectionProtocol.CONN_FWD, data)
+            return
 
         self._send_message_onwards(self._my_route.route[0].connection_token.address, connection_token, command, data)
 
