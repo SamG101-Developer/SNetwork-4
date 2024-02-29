@@ -94,8 +94,8 @@ class ControlConnectionManager:
                 pass
 
             while True:
-                if not (self._conversations[conversation_id].state & ControlConnectionState.SECURE): continue
-                if not (self._conversations[conversation_id].state & ControlConnectionState.CONNECTED): continue
+                if ~(self._conversations[conversation_id].state & ControlConnectionState.SECURE): continue
+                if ~(self._conversations[conversation_id].state & ControlConnectionState.CONNECTED): continue
                 break
 
         # Log the route.
@@ -263,6 +263,9 @@ class ControlConnectionManager:
         :return:
         """
 
+        logging.debug(f"\t\tAccepting connection from: {addr.ip}")
+        logging.debug(f"\t\tConnection token: {connection_token}")
+
         # Get the signed KEM wrapped shared secret from the data, and verify the signature.
         my_static_private_key, my_static_public_key = KeyPair().import_("./_keys/me", "static").both()
         their_static_public_key = DHT.get_static_public_key(addr.ip)
@@ -313,8 +316,9 @@ class ControlConnectionManager:
 
         # Wait for the CONN_ACC to register the shared secret in another thread.
         conversation_id = ConnectionToken(token=connection_token, address=addr)
-        while conversation_id not in self._conversations:
-            pass
+        while True:
+            if conversation_id in self._conversations and self._conversations[conversation_id].state & ControlConnectionState.CONNECTED:
+                break
 
         logging.debug(f"\t\t[2] Sending e2e public key to: {target_node.ip}")
         self._tunnel_message_backward(target_node, connection_token, ControlConnectionProtocol.CONN_EXT_ACC, pickle.dumps(signed_e2e_pub_key))
