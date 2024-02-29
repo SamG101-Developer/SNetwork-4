@@ -612,7 +612,7 @@ class ControlConnectionManager:
             if shared_secret := self._node_to_client_tunnel_keys[connection_token].shared_secret:
                 client_key = shared_secret.decapsulated_key
                 data = SymmetricEncryption.encrypt(SecureBytes(data), client_key).raw
-            self._send_message_onwards_raw(addr, connection_token, data)
+            self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_FWD, data)
 
         else:
             nested_command, nested_data = command, data
@@ -704,7 +704,6 @@ class ControlConnectionManager:
             elif self._parse_message(data)[0] == ControlConnectionProtocol.CONN_FWD.value:
                 client_key = self._node_to_client_tunnel_keys[connection_token[0]].shared_secret.decapsulated_key
                 data = SymmetricEncryption.encrypt(SecureBytes(data), client_key).raw
-                data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + connection_token[0] + data
                 data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + connection_token[0] + data
                 logging.debug(f"\t\tEncrypted payload: {data[:100]}...")
 
