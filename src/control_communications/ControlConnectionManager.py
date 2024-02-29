@@ -540,7 +540,7 @@ class ControlConnectionManager:
         # logging.debug(f"\t\t[F] Forwarding message to: {target_node.ip}")
 
         # Send the message to the target node. It will be automatically encrypted.
-        self._send_message_onwards_raw(target_node, connection_token, data)
+        self._send_message_onwards_raw(target_node, connection_token, data[1 + 32:])
 
     @LogPre
     def _tunnel_message_forwards(self, addr: Address, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
