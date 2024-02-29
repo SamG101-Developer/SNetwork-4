@@ -87,7 +87,8 @@ class ControlConnectionManager:
             self._tunnel_message_forwards(self._pending_node_to_add_to_route, connection_token.token, ControlConnectionProtocol.CONN_EXT, pickle.dumps(self._pending_node_to_add_to_route))
 
             # Wait for the next node to be added to the route.
-            while not (self._conversations[connection_token].state & ControlConnectionState.SECURE):
+            conversation_id = ConnectionToken(token=connection_token.token, address=self._pending_node_to_add_to_route)
+            while not (self._conversations[conversation_id].state & ControlConnectionState.SECURE):
                 pass
 
         # Log the route.
@@ -504,7 +505,6 @@ class ControlConnectionManager:
 
         conversation_id = ConnectionToken(token=connection_token, address=self._pending_node_to_add_to_route)
         self._conversations[conversation_id].state |= ControlConnectionState.SECURE
-        self._pending_node_to_add_to_route = None
 
     @LogPre
     # @ReplayErrorBackToUser
