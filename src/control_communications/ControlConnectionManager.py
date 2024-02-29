@@ -81,7 +81,7 @@ class ControlConnectionManager:
             # Extend the connection to the next node in the route.
             current_ips_in_route = [node.connection_token.address.ip for node in self._my_route.route]
             self._pending_node_to_add_to_route = Address(ip=DHT.get_random_node(current_ips_in_route), port=12345)
-            logging.info(f"\t\tExtending route to: {self._pending_node_to_add_to_route.ip}")
+            logging.info(f"\t\t\033[32mExtending route to: {self._pending_node_to_add_to_route.ip}\033[0m")
 
             self._tunnel_message_forwards(self._pending_node_to_add_to_route, connection_token.token, ControlConnectionProtocol.CONN_EXT, pickle.dumps(self._pending_node_to_add_to_route))
 
@@ -92,7 +92,7 @@ class ControlConnectionManager:
         # Log the route.
         logging.info(f"\t\tCreated route: {' -> '.join([node.connection_token.address.ip for node in self._my_route.route])}")
 
-    @LogPre
+    # @LogPre
     def _parse_message(self, data: Bytes) -> Tuple[ControlConnectionProtocol, Bytes, Bytes]:
         """
         Parse the message into a command, connection token and data. The command is the first byte, the connection token
@@ -106,9 +106,9 @@ class ControlConnectionManager:
         connection_token = data[1:33]
         data = data[33:]
 
-        logging.debug(f"\t\tParsed command: {command}")
-        logging.debug(f"\t\tParsed connection token: {connection_token}...")
-        logging.debug(f"\t\tParsed data: {data[:20]}...")
+        # logging.debug(f"\t\tParsed command: {command}")
+        # logging.debug(f"\t\tParsed connection token: {connection_token}...")
+        # logging.debug(f"\t\tParsed data: {data[:20]}...")
 
         # Return the command, connection token and data.
         return command, connection_token, data
@@ -166,6 +166,8 @@ class ControlConnectionManager:
                 
             case _:
                 logging.error(f"\t\tUnknown command or invalid state: {command}")
+                logging.error(f"\t\tWaiting for ack?: {waiting_for_ack}")
+                logging.error(f"\t\tConnected?: {connected}")
 
         # self._mutex.release()
 
@@ -379,7 +381,7 @@ class ControlConnectionManager:
         :return:
         """
 
-        logging.debug(f"\t\tAccepting extension to: {self._pending_node_to_add_to_route.ip}")
+        logging.debug(f"\t\tConfirming route extension to: {self._pending_node_to_add_to_route.ip}")
         logging.debug(f"\t\tConnection token: {connection_token}")
         logging.debug(f"\t\tData: {data[:10]}...")
 
@@ -392,6 +394,7 @@ class ControlConnectionManager:
             signed_ephemeral_public_key: SignedMessage = pickle.loads(data)
 
             # Log the signed ephemeral public key.
+            logging.debug(f"\t\tAdded to route: {self._pending_node_to_add_to_route.ip}")
             logging.debug(f"\t\tTheir ephemeral public key: {signed_ephemeral_public_key.message.raw[:10]}...")
             logging.debug(f"\t\tTheir signed ephemeral public key: {signed_ephemeral_public_key.signature.raw[:10]}...")
 
@@ -422,15 +425,14 @@ class ControlConnectionManager:
             kem_wrapped_packet_key = KEM.kem_wrap(signed_ephemeral_public_key.message)
 
             # Note: vulnerable to MITM, so use unilateral authentication later. TODO
+            logging.debug(f"\t\tSending packet key to: {self._pending_node_to_add_to_route.ip}")
             self._tunnel_message_forwards(self._pending_node_to_add_to_route, connection_token, ControlConnectionProtocol.CONN_PKT_KEY, kem_wrapped_packet_key.encapsulated_key.raw)
-            logging.debug(f"\t\tAdded to route: {self._pending_node_to_add_to_route.ip}")
 
             # The shared secret is added here. If added before, the recipient would need the key to decrypt the key.
             self._my_route.route[-1].shared_secret = kem_wrapped_packet_key
             self._pending_node_to_add_to_route = None
 
             logging.debug(f"\t\tShared secret (PKT) {self._my_route.route[-1].shared_secret.decapsulated_key.raw[:10]}...")
-            logging.debug(f"\t\tSent packet key to: {self._my_route.route[-1].connection_token.address.ip}")
 
         # Otherwise, send this message to the previous node in the route.
         else:
@@ -536,9 +538,9 @@ class ControlConnectionManager:
             target_node_route_index = route_node_addresses.index(addr) if addr in route_node_addresses else -1
 
             if target_node_route_index > -1:
-                relay_nodes = list(reversed(self._my_route.route[:target_node_route_index + 1]))
+                relay_nodes = list(reversed(self._my_route.route[1:target_node_route_index + 1]))
             else:
-                relay_nodes = list(reversed(self._my_route.route[:]))
+                relay_nodes = list(reversed(self._my_route.route[1:]))
 
             logging.debug(f"\t\tTunneling via {[n.connection_token.address.ip for n in relay_nodes]}")
 
@@ -548,13 +550,27 @@ class ControlConnectionManager:
             # For each node in the path until the target node, apply a layer of encryption.
             for next_node in relay_nodes:
                 logging.debug(f"\t\tLayering through & including: {next_node.connection_token.address.ip}")
+
+                # No shared secret when exchanging the KEM for the shared secret
                 if next_node.shared_secret:
                     data = SymmetricEncryption.encrypt(SecureBytes(data), next_node.shared_secret.decapsulated_key).raw
-                    data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + next_node.connection_token.token + data
                     logging.debug(f"\t\tTunnel encrypted payload: {data[:20]}...")
 
-            self._send_message_onwards(self._my_route.route[0].connection_token.address, connection_token, ControlConnectionProtocol.CONN_FWD, data)
+                data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + next_node.connection_token.token + data
+                logging.debug(f"\t\tForward-wrapped encrypted payload: {data[:20]}...")
+
+            command, connection_token, data = self._parse_message(data)
+            target = self._pending_node_to_add_to_route if len(self._my_route.route) == 1 else self._my_route.route[1].connection_token.address
+            self._send_message_onwards(target, connection_token, command, data)
             return
+
+            # if len(self._my_route.route) == 1:
+            #     logging.debug(f"\t\tSending to 'self': {self._my_route.route[0].connection_token.address.ip}")
+            #     self._send_message_onwards(self._my_route.route[0].connection_token.address, connection_token, command, data)
+            # else:
+            #     logging.debug(f"\t\tSending to 'node': {self._my_route.route[1].connection_token.address.ip}")
+            #     command, connection_token, data = self._parse_message(data)
+            #     self._send_message_onwards(self._my_route.route[1].connection_token.address, connection_token, command, data)
 
         self._send_message_onwards(self._my_route.route[0].connection_token.address, connection_token, command, data)
 
@@ -588,7 +604,7 @@ class ControlConnectionManager:
 
         # Encrypt the connection to the direct neighbour node, if a shared secret has been established.
         conversation_id = ConnectionToken(token=connection_token, address=addr)
-        if shared_secret := self._conversations[conversation_id].shared_secret:
+        if conversation_id in self._conversations and (shared_secret := self._conversations[conversation_id].shared_secret):
             data = SymmetricEncryption.encrypt(SecureBytes(data), shared_secret).raw
             logging.debug(f"\t\tE2E encrypted payload: {data[:20]}...")
 
@@ -612,27 +628,35 @@ class ControlConnectionManager:
         connection_token = [c.token for c in self._conversations.keys() if c.address == addr]
 
         # Decrypt all layers (this node is the client node)
-        # todo: this is broken. the issue is:
-        #   - relay_node = [node for node in self._my_route.route if node.connection_token.address == addr][0]
-        #   - this needs to instead be each node in the list
-        #   - need to allow a way to know which node it came from
-        #   - just decrypt the 1st then 2nd etc until error / different command
         if self._my_route and self._my_route.connection_token.token == connection_token[0]:
             nested_command, nested_connection_token, nested_data = self._parse_message(data)
             relay_nodes = iter(self._my_route.route[:])
 
+            logging.debug(f"\t\tUnwrapping layers")
+            logging.debug(f"\t\tParsed command: {nested_command}")
+            logging.debug(f"\t\tParsed connection token: {nested_connection_token}...")
+            logging.debug(f"\t\tParsed data: {nested_data[:100]}...")
+
             while nested_command == ControlConnectionProtocol.CONN_FWD:
                 data = nested_data
                 next_node = next(relay_nodes)
+
+                logging.debug(f"\t\tUnwrapping layer from {next_node.connection_token.address.ip}")
+
                 if next_node.shared_secret:
                     relay_node_key = next_node.shared_secret.decapsulated_key
                     data = SymmetricEncryption.decrypt(SecureBytes(data), relay_node_key).raw
-                    logging.debug(f"\t\tDecrypted payload: {data[:20]}...")
+                    logging.debug(f"\t\tDecrypted payload: {data[:100]}...")
 
                 nested_command, nested_connection_token, nested_data = self._parse_message(data)
                 assert nested_connection_token == connection_token[0]
 
+                logging.debug(f"\t\tParsed command: {nested_command}")
+                logging.debug(f"\t\tParsed connection token: {nested_connection_token}...")
+                logging.debug(f"\t\tParsed data: {nested_data[:100]}...")
+
                 if nested_command != ControlConnectionProtocol.CONN_FWD:
+                    logging.debug(f"\t\tUnwrapped to: {nested_command}")
                     break
                     # self._handle_message(addr, nested_command, nested_connection_token, nested_data)
                     # return
@@ -641,16 +665,15 @@ class ControlConnectionManager:
             client_key = self._node_to_client_tunnel_keys[connection_token[0]].shared_secret.decapsulated_key
             data = data[1:]
             data = SymmetricEncryption.decrypt(SecureBytes(data), client_key).raw
-            logging.debug(f"\t\tDecrypted payload: {data[:20]}...")
-
-        # if self._my_route and self._my_route.connection_token.token == connection_token[0]:
-        #     client_key = [node.shared_secret.decapsulated_key for node in self._my_route.route if node.connection_token.address == addr][0]
-        #     data = data[1:]
-        #     data = SymmetricEncryption.decrypt(SecureBytes(data), client_key).raw
-        #     logging.debug(f"\t\tDecrypted payload: {data[:20]}...")
+            logging.debug(f"\t\tDecrypted payload: {data[:100]}...")
 
         # Parse and handle the message
         command, connection_token, data = self._parse_message(data)
+
+        logging.debug(f"\t\tParsed command: {command}")
+        logging.debug(f"\t\tParsed connection token: {connection_token}...")
+        logging.debug(f"\t\tParsed data: {data[:100]}...")
+
         self._handle_message(addr, command, connection_token, data)
 
     @LogPre
