@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from threading import Lock
+from threading import Thread, Lock
 from argparse import Namespace
-import logging, pickle
+import logging, os, pickle
 
 from control_communications.ControlConnectionServer import ControlConnectionServer
 from control_communications.ControlConnectionProtocol import ControlConnectionProtocol
@@ -132,8 +132,9 @@ class ControlConnectionManager:
         :return:
         """
 
-        waiting_for_ack = self._waiting_for_ack_from(self._pending_node_to_add_to_route, connection_token)
-        connected = self._is_connected_to(self._pending_node_to_add_to_route, connection_token)
+        waiting_for_ack = self._waiting_for_ack_from(addr, connection_token)
+        connected = self._is_connected_to(addr, connection_token)
+        in_route = self._is_in_route(addr, connection_token)
 
         # Decide on the function to call based on the command, and call it. The mutex is used to lock the conversation
         # list, so that only one thread can access it at a time.
@@ -721,6 +722,10 @@ class ControlConnectionManager:
     def _is_connected_to(self, addr: Address, connection_token: Bytes) -> bool:
         conversation_id = ConnectionToken(token=connection_token, address=addr)
         return conversation_id in self._conversations.keys() and self._conversations[conversation_id].state & ControlConnectionState.CONNECTED
+
+    def _is_in_route(self, addr: Address, connection_token: Bytes) -> bool:
+        conversation_id = ConnectionToken(token=connection_token, address=addr)
+        return self._my_route and conversation_id in [n.connection_token for n in self._my_route.route]
 
 
 __all__ = ["ControlConnectionManager"]
