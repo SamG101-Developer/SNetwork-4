@@ -94,8 +94,8 @@ class ControlConnectionManager:
                 pass
 
             while True:
-                if ~(self._conversations[conversation_id].state & ControlConnectionState.SECURE): continue
-                if ~(self._conversations[conversation_id].state & ControlConnectionState.CONNECTED): continue
+                if not (self._conversations[conversation_id].state & ControlConnectionState.SECURE): continue
+                if not (self._conversations[conversation_id].state & ControlConnectionState.CONNECTED): continue
                 break
 
         # Log the route.
@@ -525,6 +525,7 @@ class ControlConnectionManager:
 
         conversation_id = ConnectionToken(token=connection_token, address=self._pending_node_to_add_to_route)
         self._conversations[conversation_id].state |= ControlConnectionState.SECURE
+        logging.debug(f"\t\tConnection flags: {self._conversations[conversation_id].state}")
 
     @LogPre
     # @ReplayErrorBackToUser
@@ -611,7 +612,7 @@ class ControlConnectionManager:
             if shared_secret := self._node_to_client_tunnel_keys[connection_token].shared_secret:
                 client_key = shared_secret.decapsulated_key
                 data = SymmetricEncryption.encrypt(SecureBytes(data), client_key).raw
-            self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_FWD, data)
+            self._send_message_onwards_raw(addr, connection_token, data)
 
         else:
             nested_command, nested_data = command, data
