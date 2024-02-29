@@ -8,7 +8,7 @@ from my_types import Optional
 class ControlConnectionState(IntFlag):
     WAITING_FOR_ACK = 0x01
     CONNECTED       = 0x02
-    SECURE          = 0x03
+    SECURE          = 0x04
 
 
 @dataclass(kw_only=True)
