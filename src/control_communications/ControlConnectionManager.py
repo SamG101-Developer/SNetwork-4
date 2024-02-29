@@ -93,8 +93,10 @@ class ControlConnectionManager:
             while conversation_id not in self._conversations:
                 pass
 
-            while not (self._conversations[conversation_id].state & (ControlConnectionState.SECURE | ControlConnectionState.CONNECTED)):
-                pass
+            while True:
+                if not (self._conversations[conversation_id].state & ControlConnectionState.SECURE): continue
+                if not (self._conversations[conversation_id].state & ControlConnectionState.CONNECTED): continue
+                break
 
         # Log the route.
         logging.info(f"\t\tCreated route: {' -> '.join([node.connection_token.address.ip for node in self._my_route.route])}")
@@ -288,7 +290,9 @@ class ControlConnectionManager:
 
     @LogPre
     def _handle_accept_connection_attach_key_to_client(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
-        current_final_node_static_public_key = DHT.get_static_public_key(self._my_route.route[-1].connection_token.address.ip)
+        current_final_node = [node for node in self._my_route.route if node.connection_token.address != self._pending_node_to_add_to_route][-1]
+        current_final_node_static_public_key = DHT.get_static_public_key(current_final_node.connection_token.address.ip)
+
         my_static_private_key, my_static_public_key = KeyPair().import_("./_keys/me", "static").both()
         their_static_public_key = DHT.get_static_public_key(self._pending_node_to_add_to_route.ip)
         signed_e2e_pub_key = pickle.loads(data)
@@ -404,7 +408,9 @@ class ControlConnectionManager:
         if self._my_route and self._my_route.connection_token.token == connection_token:
             # Get the signed ephemeral public key from the data, and verify the signature. The key from Node Z was
             # originally sent to Node Y, so the identifier of Node Y is used to verify the signature.
-            current_final_node_static_public_key = DHT.get_static_public_key(self._my_route.route[-1].connection_token.address.ip)
+            current_final_node = [node for node in self._my_route.route if node.connection_token.address != self._pending_node_to_add_to_route][-1]
+            current_final_node_static_public_key = DHT.get_static_public_key(current_final_node.connection_token.address.ip)
+
             their_static_public_key = DHT.get_static_public_key(self._pending_node_to_add_to_route.ip)
             signed_ephemeral_public_key: SignedMessage = pickle.loads(data)
 
@@ -585,7 +591,6 @@ class ControlConnectionManager:
                 data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + next_node.connection_token.token + data
                 logging.debug(f"\t\tForward-wrapped encrypted payload: {data[:100]}...")
 
-            print(f"HELLO: {relay_nodes}")
             if relay_nodes:
                 command, _, data = self._parse_message(data)
             else:
@@ -628,12 +633,6 @@ class ControlConnectionManager:
     def _send_message_onwards_raw(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
         # Encrypt the connection to the direct neighbour node, if a shared secret has been established.
         conversation_id = ConnectionToken(token=connection_token, address=addr)
-
-        print("-" * 50)
-        print(conversation_id)
-        if conversation_id in self._conversations.keys():
-            print(self._conversations[conversation_id].shared_secret)
-
         if shared_secret := self._conversations[conversation_id].shared_secret:
             data = SymmetricEncryption.encrypt(SecureBytes(data), shared_secret).raw
             logging.debug(f"\t\tE2E encrypted payload: {data[:100]}...")
