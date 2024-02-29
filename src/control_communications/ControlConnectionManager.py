@@ -560,9 +560,9 @@ class ControlConnectionManager:
                 logging.debug(f"\t\tForward-wrapped encrypted payload: {data[:20]}...")
 
             command, connection_token, data = self._parse_message(data)
-            target = self._pending_node_to_add_to_route if len(self._my_route.route) == 1 else self._my_route.route[1].connection_token.address
-            self._send_message_onwards(target, connection_token, command, data)
-            return
+            # target = self._pending_node_to_add_to_route if len(self._my_route.route) == 1 else self._my_route.route[1].connection_token.address
+            # self._send_message_onwards(target, connection_token, command, data)
+            # return
 
             # if len(self._my_route.route) == 1:
             #     logging.debug(f"\t\tSending to 'self': {self._my_route.route[0].connection_token.address.ip}")
@@ -604,7 +604,7 @@ class ControlConnectionManager:
 
         # Encrypt the connection to the direct neighbour node, if a shared secret has been established.
         conversation_id = ConnectionToken(token=connection_token, address=addr)
-        if conversation_id in self._conversations and (shared_secret := self._conversations[conversation_id].shared_secret):
+        if shared_secret := self._conversations[conversation_id].shared_secret:
             data = SymmetricEncryption.encrypt(SecureBytes(data), shared_secret).raw
             logging.debug(f"\t\tE2E encrypted payload: {data[:20]}...")
 
