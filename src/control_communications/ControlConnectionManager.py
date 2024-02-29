@@ -579,6 +579,7 @@ class ControlConnectionManager:
                     data = SymmetricEncryption.encrypt(SecureBytes(data), next_node.shared_secret.decapsulated_key).raw
                     logging.debug(f"\t\tTunnel encrypted payload: {data[:100]}...")
 
+            print(f"HELLO: {relay_nodes}")
             if relay_nodes:
                 command, _, data = self._parse_message(data)
             else:
@@ -643,9 +644,6 @@ class ControlConnectionManager:
 
         # Decrypt any layered encryption (if the command is CONN_FWD).
         connection_token = [c.token for c in self._conversations.keys() if c.address == addr]
-
-        print("+++", connection_token)
-        print("+++", self._node_to_client_tunnel_keys)
 
         # Decrypt all layers (this node is the client node). The exception is when this node has send this node data, as
         # at this point, the idea is to just execute the command on this node.
