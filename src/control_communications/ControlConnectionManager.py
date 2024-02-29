@@ -87,7 +87,7 @@ class ControlConnectionManager:
             self._tunnel_message_forwards(self._pending_node_to_add_to_route, connection_token.token, ControlConnectionProtocol.CONN_EXT, pickle.dumps(self._pending_node_to_add_to_route))
 
             # Wait for the next node to be added to the route.
-            while self._pending_node_to_add_to_route:
+            while not (self._conversations[connection_token].state & ControlConnectionState.SECURE):
                 pass
 
         # Log the route.
@@ -164,6 +164,9 @@ class ControlConnectionManager:
                 
             case ControlConnectionProtocol.CONN_PKT_KEY:
                 self._handle_packet_key(addr, connection_token, data)
+
+            case ControlConnectionProtocol.CONN_PKT_ACK if connected:
+                self._handle_packet_key_ack(addr, connection_token, data)
                 
             case _:
                 logging.error(f"\t\tUnknown command or invalid state: {command}")
@@ -493,6 +496,16 @@ class ControlConnectionManager:
         self._node_to_client_tunnel_keys[connection_token].shared_secret = KEM.kem_unwrap(my_ephemeral_secret_key, SecureBytes(data))
         logging.debug(f"\t\tShared secret (PKT): {self._node_to_client_tunnel_keys[connection_token].shared_secret.decapsulated_key.raw[:100]}...")
 
+        self._tunnel_message_backward(addr, connection_token, ControlConnectionProtocol.CONN_PKT_ACK, b"")
+
+    @LogPre
+    def _handle_packet_key_ack(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
+        logging.debug(f"\t\tReceived packet key ACK from: {addr.ip}")
+        logging.debug(f"\t\tConnection token: {connection_token}")
+
+        conversation_id = ConnectionToken(token=connection_token, address=addr)
+        self._conversations[conversation_id].state |= ControlConnectionState.SECURE
+
     @LogPre
     # @ReplayErrorBackToUser
     def _forward_message(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:  # TODO: bug in here (address)
@@ -718,11 +731,11 @@ class ControlConnectionManager:
 
     def _waiting_for_ack_from(self, addr: Address, connection_token: Bytes) -> bool:
         conversation_id = ConnectionToken(token=connection_token, address=addr)
-        return conversation_id in self._conversations.keys() and self._conversations[conversation_id].state == ControlConnectionState.WAITING_FOR_ACK
+        return conversation_id in self._conversations.keys() and self._conversations[conversation_id].state & ControlConnectionState.WAITING_FOR_ACK
 
     def _is_connected_to(self, addr: Address, connection_token: Bytes) -> bool:
         conversation_id = ConnectionToken(token=connection_token, address=addr)
-        return conversation_id in self._conversations.keys() and self._conversations[conversation_id].state == ControlConnectionState.CONNECTED
+        return conversation_id in self._conversations.keys() and self._conversations[conversation_id].state & ControlConnectionState.CONNECTED
 
     def _is_in_route(self, addr: Address, connection_token: Bytes) -> bool:
         conversation_id = ConnectionToken(token=connection_token, address=addr)

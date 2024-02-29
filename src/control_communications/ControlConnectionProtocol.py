@@ -13,6 +13,7 @@ class ControlConnectionProtocol(Enum):
     CONN_EXT_REJ = 0b1000  # Reject an extended connection
     CONN_PKT_KEM = 0b1001  # Packet key: send pub key for KEM
     CONN_PKT_KEY = 0b1010  # Packet key: send KEM-wrapped key
+    CONN_PKT_ACK = 0b1011  # Packet key: acknowledge key receipt
 
 
 __all__ = ["ControlConnectionProtocol"]

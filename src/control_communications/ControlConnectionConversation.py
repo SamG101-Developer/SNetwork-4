@@ -1,13 +1,14 @@
 from dataclasses import dataclass
-from enum import Enum
+from enum import IntFlag
 
 from crypto_engines.tools.secure_bytes import SecureBytes
 from my_types import Optional
 
 
-class ControlConnectionState(Enum):
-    WAITING_FOR_ACK = 0
-    CONNECTED = 1
+class ControlConnectionState(IntFlag):
+    WAITING_FOR_ACK = 0x00
+    CONNECTED       = 0x01
+    SECURE          = 0x02
 
 
 @dataclass(kw_only=True)
