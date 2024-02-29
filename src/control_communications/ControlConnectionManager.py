@@ -255,10 +255,9 @@ class ControlConnectionManager:
         self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_ACC, pickle.dumps(signed_kem_wrapped_shared_secret))
         while not self._conversations[conversation_id].secure:
             pass
-        self._tunnel_message_backward(addr, connection_token, ControlConnectionProtocol.CONN_PKT_KEM, pickle.dumps(signed_e2e_key))
 
-        # Register the key afterwards, otherwise the recipient would need the key to decrypt the same key.
         self._conversations[conversation_id].shared_secret = kem_wrapped_shared_secret.decapsulated_key
+        self._tunnel_message_backward(addr, connection_token, ControlConnectionProtocol.CONN_PKT_KEM, pickle.dumps(signed_e2e_key))
 
     @LogPre
     # @ReplayErrorBackToUser
