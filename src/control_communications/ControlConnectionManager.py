@@ -534,18 +534,15 @@ class ControlConnectionManager:
             print("IN HERE")
             data = command.value.to_bytes(1, "big") + connection_token + data
             relay_node_position = [n.connection_token.address for n in self._my_route.route].index(addr) if addr in [n.connection_token.address for n in self._my_route.route] else -1
-            relay_nodes = iter(reversed(self._my_route.route[1:relay_node_position]))
+            relay_nodes = iter(reversed(self._my_route.route[:relay_node_position]))
             while (next_node := next(relay_nodes, None)) and next_node and next_node.connection_token.address != addr:
-                logging.debug(f"\t\tRelaying to: {next_node.connection_token.address.ip}")
-                data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + next_node.connection_token.token + data
-                data = SymmetricEncryption.encrypt(SecureBytes(data), next_node.shared_secret.decapsulated_key).raw
-                logging.debug(f"\t\tTunnel encrypted payload: {data[:20]}...")
+                if next_node.shared_secret:
+                    logging.debug(f"\t\tRelaying to: {next_node.connection_token.address.ip}")
+                    data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + next_node.connection_token.token + data
+                    data = SymmetricEncryption.encrypt(SecureBytes(data), next_node.shared_secret.decapsulated_key).raw
+                    logging.debug(f"\t\tTunnel encrypted payload: {data[:20]}...")
 
-            self._send_message_onwards(self._my_route.route[1].connection_token.address, connection_token, command, data)
-
-        else:
-            # Send the message on the e2e encrypted connection.
-            self._send_message_onwards(self._my_route.route[0].connection_token.address, connection_token, command, data)
+        self._send_message_onwards(self._my_route.route[0].connection_token.address, connection_token, command, data)
 
     @LogPre
     def _tunnel_message_backward(self, addr: Address, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
