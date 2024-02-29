@@ -571,13 +571,13 @@ class ControlConnectionManager:
             for next_node in relay_nodes:
                 logging.debug(f"\t\tLayering through & including: {next_node.connection_token.address.ip}")
 
-                data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + next_node.connection_token.token + data
-                logging.debug(f"\t\tForward-wrapped encrypted payload: {data[:100]}...")
-
                 # No shared secret when exchanging the KEM for the shared secret.
                 if next_node.shared_secret:
                     data = SymmetricEncryption.encrypt(SecureBytes(data), next_node.shared_secret.decapsulated_key).raw
                     logging.debug(f"\t\tTunnel encrypted payload: {data[:100]}...")
+
+                data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + next_node.connection_token.token + data
+                logging.debug(f"\t\tForward-wrapped encrypted payload: {data[:100]}...")
 
             print(f"HELLO: {relay_nodes}")
             if relay_nodes:
@@ -697,7 +697,7 @@ class ControlConnectionManager:
                 client_key = self._node_to_client_tunnel_keys[connection_token[0]].shared_secret.decapsulated_key
                 data = SymmetricEncryption.encrypt(SecureBytes(data), client_key).raw
                 logging.debug(f"\t\tEncrypted payload: {data[:100]}...")
-                data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + connection_token + data
+                data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + connection_token[0] + data
 
         # Parse and handle the message
         command, connection_token, data = self._parse_message(data)
