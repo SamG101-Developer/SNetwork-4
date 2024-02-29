@@ -655,16 +655,15 @@ class ControlConnectionManager:
             if addr != Address.me():
                 nested_command, nested_connection_token, nested_data = self._parse_message(data)
                 relay_nodes = iter(self._my_route.route[1:])
+                next_node = next(relay_nodes, None)
 
                 logging.debug(f"\t\tUnwrapping layers")
                 logging.debug(f"\t\tParsed command: {nested_command}")
                 logging.debug(f"\t\tParsed connection token: {nested_connection_token}...")
                 logging.debug(f"\t\tParsed data: {nested_data[:100]}...")
 
-                while nested_command == ControlConnectionProtocol.CONN_FWD:
+                while next_node and nested_command == ControlConnectionProtocol.CONN_FWD:
                     data = nested_data
-                    next_node = next(relay_nodes)
-
                     logging.debug(f"\t\tUnwrapping layer from {next_node.connection_token.address.ip}")
 
                     if next_node.shared_secret:
@@ -674,8 +673,9 @@ class ControlConnectionManager:
 
                     nested_command, nested_connection_token, nested_data = self._parse_message(data)
                     assert nested_connection_token == connection_token[0]
+                    next_node = next(relay_nodes)
 
-        elif connection_token and self._node_to_client_tunnel_keys[connection_token[0]].shared_secret:
+        elif connection_token and self._node_to_client_tunnel_keys[connection_token[0]].shared_secret and self._parse_message(data)[0] == ControlConnectionProtocol.CONN_FWD:
             two_nodes_with_connection_token = [c.address for c in self._conversations.keys() if c.token == connection_token[0]]
             from_previous_node = addr == two_nodes_with_connection_token[0]
 
