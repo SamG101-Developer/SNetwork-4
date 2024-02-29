@@ -78,7 +78,7 @@ class ControlConnectionManager:
             my_ephemeral_secret_key=None)
 
         # Extend the connection (use a while loop so failed connections don't affect the node counter for route length).
-        while len(self._my_route.route) < 4:
+        while len(self._my_route.route) < 2:
             # Extend the connection to the next node in the route.
             current_ips_in_route = [node.connection_token.address.ip for node in self._my_route.route]
             self._pending_node_to_add_to_route = Address(ip=DHT.get_random_node(current_ips_in_route), port=12345)
@@ -162,7 +162,7 @@ class ControlConnectionManager:
             case ControlConnectionProtocol.CONN_FWD:
                 self._forward_message(addr, connection_token, data)
                 
-            case ControlConnectionProtocol.CONN_PKT_KEY if in_route:
+            case ControlConnectionProtocol.CONN_PKT_KEY:
                 self._handle_packet_key(addr, connection_token, data)
                 
             case _:
@@ -630,9 +630,10 @@ class ControlConnectionManager:
 
         # Decrypt all layers (this node is the client node)
         if self._my_route and self._my_route.connection_token.token == connection_token[0]:
+            print("???")
             if addr != Address.me():
                 nested_command, nested_connection_token, nested_data = self._parse_message(data)
-                relay_nodes = iter(self._my_route.route[:])
+                relay_nodes = iter(self._my_route.route[1:])
 
                 logging.debug(f"\t\tUnwrapping layers")
                 logging.debug(f"\t\tParsed command: {nested_command}")
