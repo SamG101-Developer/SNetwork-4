@@ -231,6 +231,9 @@ class ControlConnectionManager:
             my_static_private_key=my_static_private_key,
             their_id=their_static_public_key)
 
+        logging.debug(f"\t\tE2E public key: {self._node_to_client_tunnel_keys[connection_token].ephemeral_key_pair.public_key.raw[:100]}...")
+        logging.debug(f"\t\tSigned E2E public key: {signed_e2e_key.signature.raw[:100]}...")
+
         # Save the connection information for the requesting node.
         self._conversations[conversation_id] = ControlConnectionConversationInfo(
             state=ControlConnectionState.CONNECTED,
