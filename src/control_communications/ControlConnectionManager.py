@@ -575,7 +575,7 @@ class ControlConnectionManager:
         self._send_message_onwards_raw(target_node, connection_token, data)
 
     @LogPre
-    def _register_connection_as_secure(self, addr: Address, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
+    def _register_connection_as_secure(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
         conversation_id = ConnectionToken(token=connection_token, address=addr)
         self._conversations[conversation_id].secure = True
 
