@@ -628,11 +628,16 @@ class ControlConnectionManager:
         # Decrypt the e2e connection if its encrypted (not encrypted when initiating a connection).
         if addr in [c.address for c in self._conversations.keys()]:
             connection_token = [c.token for c in self._conversations.keys() if c.address == addr][0]
-            if shared_secret := self._conversations[ConnectionToken(token=connection_token, address=addr)].shared_secret:
+            conversation_id = ConnectionToken(token=connection_token, address=addr)
+            if shared_secret := self._conversations[conversation_id].shared_secret:
                 data = SymmetricEncryption.decrypt(SecureBytes(data), shared_secret).raw
+                logging.debug(f"\t\tE2E decrypted payload: {data[:100]}...")
 
         # Decrypt any layered encryption (if the command is CONN_FWD).
         connection_token = [c.token for c in self._conversations.keys() if c.address == addr]
+
+        print("+++", connection_token)
+        print("+++", self._node_to_client_tunnel_keys)
 
         # Decrypt all layers (this node is the client node). The exception is when this node has send this node data, as
         # at this point, the idea is to just execute the command on this node.
