@@ -519,15 +519,15 @@ class ControlConnectionManager:
         # Get the next command and data from the message, and send it to the target node. The "next_data" may still be
         # ciphertext if the intended target isn't the next node (could be the node after that), with multiple nested
         # messages of "CONN_FWD" commands.
-        next_command, next_connection_token, next_data = self._parse_message(data)
-        assert next_connection_token == connection_token
+        # next_command, next_connection_token, next_data = self._parse_message(data)
+        # assert next_connection_token == connection_token
 
-        logging.debug(f"\t\t[F] Next command: {next_command}")
-        logging.debug(f"\t\t[F] Next data: {next_data[:100]}...")
-        logging.debug(f"\t\t[F] Forwarding message to: {target_node.ip}")
+        # logging.debug(f"\t\t[F] Next command: {next_command}")
+        # logging.debug(f"\t\t[F] Next data: {next_data[:100]}...")
+        # logging.debug(f"\t\t[F] Forwarding message to: {target_node.ip}")
 
         # Send the message to the target node. It will be automatically encrypted.
-        self._send_message_onwards(target_node, connection_token, next_command, next_data)
+        self._send_message_onwards_raw(target_node, connection_token, data)
 
     @LogPre
     def _tunnel_message_forwards(self, addr: Address, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
@@ -554,13 +554,13 @@ class ControlConnectionManager:
             for next_node in relay_nodes:
                 logging.debug(f"\t\tLayering through & including: {next_node.connection_token.address.ip}")
 
+                data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + next_node.connection_token.token + data
+                logging.debug(f"\t\tForward-wrapped encrypted payload: {data[:100]}...")
+
                 # No shared secret when exchanging the KEM for the shared secret
                 if next_node.shared_secret:
                     data = SymmetricEncryption.encrypt(SecureBytes(data), next_node.shared_secret.decapsulated_key).raw
                     logging.debug(f"\t\tTunnel encrypted payload: {data[:100]}...")
-
-                data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + next_node.connection_token.token + data
-                logging.debug(f"\t\tForward-wrapped encrypted payload: {data[:100]}...")
 
             # command, connection_token, data = self._parse_message(data)
             command, data = ControlConnectionProtocol.CONN_FWD, data
@@ -605,7 +605,10 @@ class ControlConnectionManager:
         logging.debug(f"\t\tRaw payload: {data[:100]}...")
 
         data = command.value.to_bytes(1, "big") + connection_token + data
+        self._send_message_onwards_raw(addr, connection_token, data)
 
+    @LogPre
+    def _send_message_onwards_raw(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
         # Encrypt the connection to the direct neighbour node, if a shared secret has been established.
         conversation_id = ConnectionToken(token=connection_token, address=addr)
         if shared_secret := self._conversations[conversation_id].shared_secret:
