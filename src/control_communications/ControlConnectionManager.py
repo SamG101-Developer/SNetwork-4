@@ -249,8 +249,6 @@ class ControlConnectionManager:
         # Send the signed KEM wrapped shared secret to the requesting node.
         self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_ACC, pickle.dumps(signed_kem_wrapped_shared_secret))
 
-        current_final_node = [node for node in self._my_route.route if node.connection_token.address != self._pending_node_to_add_to_route][-1]
-        conversation_id = current_final_node.connection_token
         while True:
             if self._conversations[conversation_id].state & ControlConnectionState.CONNECTED:
                 break
