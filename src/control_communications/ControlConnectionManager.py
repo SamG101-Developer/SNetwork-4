@@ -280,7 +280,7 @@ class ControlConnectionManager:
             my_id=my_static_public_key)
 
         candidates = [c.address for c in self._conversations.keys() if c.token == connection_token and c.address != addr]
-        assert len(candidates) == 1
+        assert len(candidates) == 1, f"There should be exactly one candidate, but there are {len(candidates)}: {candidates}"
         target_node = candidates[0]
 
         logging.debug(f"\t\tSending e2e public key to: {target_node.ip}")
@@ -525,9 +525,15 @@ class ControlConnectionManager:
         logging.debug(f"\t\tRaw payload: {data[:20]}...")
 
         # Encrypt per layer until the node in the route == the node that the data is being sent to.
-        if self._my_route and self._my_route.connection_token.token == connection_token and addr in [n.connection_token.address for n in self._my_route.route]:
+        if self._my_route:
+            print(connection_token, addr)
+            print(self._my_route.connection_token.token)
+            print([n.connection_token.address for n in self._my_route.route])
+
+        if self._my_route and self._my_route.connection_token.token == connection_token:
+            print("IN HERE")
             data = command.value.to_bytes(1, "big") + connection_token + data
-            relay_node_position = [n.connection_token.address for n in self._my_route.route].index(addr)
+            relay_node_position = [n.connection_token.address for n in self._my_route.route].index(addr) if addr in [n.connection_token.address for n in self._my_route.route] else -1
             relay_nodes = iter(reversed(self._my_route.route[1:relay_node_position]))
             while (next_node := next(relay_nodes, None)) and next_node and next_node.connection_token.address != addr:
                 logging.debug(f"\t\tRelaying to: {next_node.connection_token.address.ip}")
