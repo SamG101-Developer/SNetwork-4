@@ -176,6 +176,7 @@ class ControlConnectionManager:
                 
             case _:
                 logging.error(f"\t\tUnknown command or invalid state: {command}")
+                logging.error(f"\t\t{addr.ip} {self._pending_node_to_add_to_route.ip}")
                 logging.error(f"\t\tWaiting for ack?: {waiting_for_ack}")
                 logging.error(f"\t\tConnected?: {connected}")
 
@@ -289,7 +290,7 @@ class ControlConnectionManager:
     def _handle_accept_connection_attach_key_to_client(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
         current_final_node_static_public_key = DHT.get_static_public_key(self._my_route.route[-1].connection_token.address.ip)
         my_static_private_key, my_static_public_key = KeyPair().import_("./_keys/me", "static").both()
-        their_static_public_key = DHT.get_static_public_key(addr.ip)
+        their_static_public_key = DHT.get_static_public_key(self._pending_node_to_add_to_route.ip)
         signed_e2e_pub_key = pickle.loads(data)
 
         logging.debug(f"\t\tTheir signed e2e public key: {hashlib.md5(signed_e2e_pub_key.signature.raw).hexdigest()}...")
@@ -677,7 +678,7 @@ class ControlConnectionManager:
 
                     nested_command, nested_connection_token, nested_data = self._parse_message(data)
                     assert nested_connection_token == connection_token[0]
-                    next_node = next(relay_nodes)
+                    next_node = next(relay_nodes, None)
 
         elif connection_token and self._node_to_client_tunnel_keys[connection_token[0]].shared_secret:
             two_nodes_with_connection_token = [c.address for c in self._conversations.keys() if c.token == connection_token[0]]
