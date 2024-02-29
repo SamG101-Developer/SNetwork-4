@@ -594,8 +594,9 @@ class ControlConnectionManager:
         # information to self.
         if not (self._my_route and self._my_route.connection_token.token == connection_token):
             data = command.value.to_bytes(1, "big") + connection_token + data
-            client_key = self._node_to_client_tunnel_keys[connection_token].shared_secret.decapsulated_key
-            data = SymmetricEncryption.encrypt(SecureBytes(data), client_key).raw
+            if shared_secret := self._node_to_client_tunnel_keys[connection_token].shared_secret:
+                client_key = shared_secret.decapsulated_key
+                data = SymmetricEncryption.encrypt(SecureBytes(data), client_key).raw
             self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_FWD, data)
 
         else:
