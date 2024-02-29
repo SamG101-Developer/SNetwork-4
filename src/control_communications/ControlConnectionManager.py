@@ -249,9 +249,8 @@ class ControlConnectionManager:
         # Send the signed KEM wrapped shared secret to the requesting node.
         self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_ACC, pickle.dumps(signed_kem_wrapped_shared_secret))
 
-        while True:
-            if self._conversations[conversation_id].state & ControlConnectionState.CONNECTED:
-                break
+        while self._conversations[conversation_id].shared_secret is None:
+            pass
 
         self._tunnel_message_backward(addr, connection_token, ControlConnectionProtocol.CONN_PKT_KEM, pickle.dumps(signed_e2e_key))
 
