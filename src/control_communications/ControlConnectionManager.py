@@ -293,11 +293,7 @@ class ControlConnectionManager:
 
     @LogPre
     def _handle_accept_connection_attach_key_to_client(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
-        if self._my_route:
-            current_final_node = [node for node in self._my_route.route if node.connection_token.address != self._pending_node_to_add_to_route][-1]
-        else:
-            current_final_node = self._pending_node_to_add_to_route
-
+        current_final_node = [node for node in self._my_route.route if node.connection_token.address != self._pending_node_to_add_to_route][-1]
         current_final_node_static_public_key = DHT.get_static_public_key(current_final_node.connection_token.address.ip)
 
         my_static_private_key, my_static_public_key = KeyPair().import_("./_keys/me", "static").both()
@@ -416,11 +412,7 @@ class ControlConnectionManager:
         if self._my_route and self._my_route.connection_token.token == connection_token:
             # Get the signed ephemeral public key from the data, and verify the signature. The key from Node Z was
             # originally sent to Node Y, so the identifier of Node Y is used to verify the signature.
-            if self._my_route:
-                current_final_node = [node for node in self._my_route.route if node.connection_token.address != self._pending_node_to_add_to_route][-1]
-            else:
-                current_final_node = self._pending_node_to_add_to_route
-
+            current_final_node = [node for node in self._my_route.route if node.connection_token.address != self._pending_node_to_add_to_route][-1]
             current_final_node_static_public_key = DHT.get_static_public_key(current_final_node.connection_token.address.ip)
 
             their_static_public_key = DHT.get_static_public_key(self._pending_node_to_add_to_route.ip)
@@ -620,6 +612,7 @@ class ControlConnectionManager:
             if shared_secret := self._node_to_client_tunnel_keys[connection_token].shared_secret:
                 client_key = shared_secret.decapsulated_key
                 data = SymmetricEncryption.encrypt(SecureBytes(data), client_key).raw
+            data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + connection_token + data
             self._send_message_onwards_raw(addr, connection_token, data)
 
         else:
