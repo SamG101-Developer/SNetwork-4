@@ -88,6 +88,10 @@ class ControlConnectionManager:
 
             # Wait for the next node to be added to the route.
             conversation_id = ConnectionToken(token=connection_token.token, address=self._pending_node_to_add_to_route)
+
+            while conversation_id not in self._conversations:
+                pass
+
             while not (self._conversations[conversation_id].state & ControlConnectionState.SECURE):
                 pass
 
