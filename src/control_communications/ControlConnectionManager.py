@@ -317,7 +317,7 @@ class ControlConnectionManager:
         # Wait for the CONN_ACC to register the shared secret in another thread.
         conversation_id = ConnectionToken(token=connection_token, address=addr)
         while True:
-            if conversation_id in self._conversations and self._conversations[conversation_id].state & ControlConnectionState.CONNECTED:
+            if conversation_id in self._conversations.keys() and self._conversations[conversation_id].state & ControlConnectionState.CONNECTED:
                 break
 
         logging.debug(f"\t\t[2] Sending e2e public key to: {target_node.ip}")
@@ -676,18 +676,17 @@ class ControlConnectionManager:
                 # logging.debug(f"\t\tParsed connection token: {nested_connection_token}...")
                 # logging.debug(f"\t\tParsed data: {nested_data[:100]}...")
 
-                nested_data = data
                 while next_node:
-                    data = nested_data
                     logging.debug(f"\t\tUnwrapping layer from {next_node.connection_token.address.ip}")
+                    nested_command, nested_connection_token, nested_data = self._parse_message(data)
+                    assert nested_connection_token == connection_token[0]
+                    data = nested_data
 
                     if next_node.shared_secret:
                         relay_node_key = next_node.shared_secret.decapsulated_key
                         data = SymmetricEncryption.decrypt(SecureBytes(data), relay_node_key).raw
                         logging.debug(f"\t\tDecrypted payload: {data[:100]}...")
 
-                    nested_command, nested_connection_token, nested_data = self._parse_message(data)
-                    assert nested_connection_token == connection_token[0]
                     next_node = next(relay_nodes, None)
 
         elif connection_token and self._node_to_client_tunnel_keys[connection_token[0]].shared_secret:
