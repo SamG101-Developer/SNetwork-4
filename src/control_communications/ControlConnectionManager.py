@@ -532,15 +532,19 @@ class ControlConnectionManager:
 
         if self._my_route and self._my_route.connection_token.token == connection_token:
             print("IN HERE")
-            data = command.value.to_bytes(1, "big") + connection_token + data
+            mut_data = command.value.to_bytes(1, "big") + connection_token + data
             relay_node_position = [n.connection_token.address for n in self._my_route.route].index(addr) if addr in [n.connection_token.address for n in self._my_route.route] else -1
             relay_nodes = iter(reversed(self._my_route.route[:relay_node_position]))
+
+            has_mut = False
             while (next_node := next(relay_nodes, None)) and next_node and next_node.connection_token.address != addr:
                 if next_node.shared_secret:
+                    has_mut = True
                     logging.debug(f"\t\tRelaying to: {next_node.connection_token.address.ip}")
-                    data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + next_node.connection_token.token + data
-                    data = SymmetricEncryption.encrypt(SecureBytes(data), next_node.shared_secret.decapsulated_key).raw
-                    logging.debug(f"\t\tTunnel encrypted payload: {data[:20]}...")
+                    mut_data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + next_node.connection_token.token + mut_data
+                    mut_data = SymmetricEncryption.encrypt(SecureBytes(mut_data), next_node.shared_secret.decapsulated_key).raw
+                    logging.debug(f"\t\tTunnel encrypted payload: {mut_data[:20]}...")
+            data = mut_data if has_mut else data
 
         self._send_message_onwards(self._my_route.route[0].connection_token.address, connection_token, command, data)
 
