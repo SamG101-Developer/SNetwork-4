@@ -628,6 +628,12 @@ class ControlConnectionManager:
     def _send_message_onwards_raw(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
         # Encrypt the connection to the direct neighbour node, if a shared secret has been established.
         conversation_id = ConnectionToken(token=connection_token, address=addr)
+
+        print("-" * 50)
+        print(conversation_id)
+        if conversation_id in self._conversations.keys():
+            print(self._conversations[conversation_id].shared_secret)
+
         if shared_secret := self._conversations[conversation_id].shared_secret:
             data = SymmetricEncryption.encrypt(SecureBytes(data), shared_secret).raw
             logging.debug(f"\t\tE2E encrypted payload: {data[:100]}...")
