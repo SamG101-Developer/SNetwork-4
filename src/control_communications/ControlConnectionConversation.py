@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from enum import IntFlag
 
 from crypto_engines.tools.secure_bytes import SecureBytes
-from my_types import Optional
+from my_types import Bool, Optional
 
 
 class ControlConnectionState(IntFlag):
@@ -18,6 +18,7 @@ class ControlConnectionConversationInfo:
     shared_secret: Optional[SecureBytes]
     my_ephemeral_public_key: Optional[SecureBytes]
     my_ephemeral_secret_key: Optional[SecureBytes]
+    secure: Bool
 
 
 __all__ = ["ControlConnectionConversationInfo", "ControlConnectionState"]

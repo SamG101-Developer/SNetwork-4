@@ -76,7 +76,8 @@ class ControlConnectionManager:
             their_static_public_key=KeyPair().import_("./_keys/me", "static").public_key,
             shared_secret=None,
             my_ephemeral_public_key=None,
-            my_ephemeral_secret_key=None)
+            my_ephemeral_secret_key=None,
+            secure=True)
 
         # Extend the connection (use a while loop so failed connections don't affect the node counter for route length).
         while len(self._my_route.route) < 3:
@@ -169,6 +170,9 @@ class ControlConnectionManager:
                 
             case ControlConnectionProtocol.CONN_FWD:
                 self._forward_message(addr, connection_token, data)
+
+            case ControlConnectionProtocol.CONN_SEC:
+                self._register_connection_as_secure(addr, connection_token, data)
                 
             case ControlConnectionProtocol.CONN_PKT_KEY:
                 self._handle_packet_key(addr, connection_token, data)
@@ -244,10 +248,13 @@ class ControlConnectionManager:
             their_static_public_key=their_static_public_key,
             shared_secret=None,
             my_ephemeral_public_key=None,
-            my_ephemeral_secret_key=None)
+            my_ephemeral_secret_key=None,
+            secure=False)
 
         # Send the signed KEM wrapped shared secret to the requesting node.
         self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_ACC, pickle.dumps(signed_kem_wrapped_shared_secret))
+        while not self._conversations[conversation_id].secure:
+            pass
         self._tunnel_message_backward(addr, connection_token, ControlConnectionProtocol.CONN_PKT_KEM, pickle.dumps(signed_e2e_key))
 
         # Register the key afterwards, otherwise the recipient would need the key to decrypt the same key.
@@ -287,9 +294,11 @@ class ControlConnectionManager:
             their_static_public_key=their_static_public_key,
             shared_secret=KEM.kem_unwrap(my_ephemeral_secret_key, signed_kem_wrapped_shared_secret.message).decapsulated_key,
             my_ephemeral_public_key=my_ephemeral_public_key,
-            my_ephemeral_secret_key=my_ephemeral_secret_key)
+            my_ephemeral_secret_key=my_ephemeral_secret_key,
+            secure=True)
 
         logging.debug(f"\t\tShared secret (CON): {self._conversations[conversation_id].shared_secret.raw[:100]}...")
+        self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_SEC, b"")
 
     @LogPre
     def _handle_accept_connection_attach_key_to_client(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
@@ -378,7 +387,8 @@ class ControlConnectionManager:
             their_static_public_key=target_static_public_key,
             shared_secret=None,
             my_ephemeral_public_key=my_ephemeral_public_key,
-            my_ephemeral_secret_key=my_ephemeral_private_key)
+            my_ephemeral_secret_key=my_ephemeral_private_key,
+            secure=False)
 
         # Send the signed ephemeral public key to the next node, maintaining the connection token. The next node will
         # ultimately send an EXT_ACK command to acknowledge the extension.
@@ -562,6 +572,11 @@ class ControlConnectionManager:
 
         # Send the message to the target node. It will be automatically encrypted.
         self._send_message_onwards_raw(target_node, connection_token, data)
+
+    @LogPre
+    def _register_connection_as_secure(self, addr: Address, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
+        conversation_id = ConnectionToken(token=connection_token, address=addr)
+        self._conversations[conversation_id].secure = True
 
     @LogPre
     def _tunnel_message_forwards(self, addr: Address, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
