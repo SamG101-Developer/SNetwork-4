@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from threading import Thread, Lock
 from argparse import Namespace
 import logging, os, pickle
@@ -231,8 +232,8 @@ class ControlConnectionManager:
             my_static_private_key=my_static_private_key,
             their_id=their_static_public_key)
 
-        logging.debug(f"\t\tE2E public key: {self._node_to_client_tunnel_keys[connection_token].ephemeral_key_pair.public_key.raw[:100]}...")
-        logging.debug(f"\t\tSigned E2E public key: {signed_e2e_key.signature.raw[:100]}...")
+        logging.debug(f"\t\tE2E public key: {hashlib.md5(signed_e2e_key.message.raw).hexdigest()}...")
+        logging.debug(f"\t\tSigned E2E public key: {hashlib.md5(signed_e2e_key.signature.raw).hexdigest()}...")
 
         # Save the connection information for the requesting node.
         self._conversations[conversation_id] = ControlConnectionConversationInfo(
@@ -291,8 +292,8 @@ class ControlConnectionManager:
         their_static_public_key = DHT.get_static_public_key(addr.ip)
         signed_e2e_pub_key = pickle.loads(data)
 
-        logging.debug(f"\t\tTheir signed e2e public key: {signed_e2e_pub_key.signature.raw[:100]}...")
-        logging.debug(f"\t\tTheir e2e public key: {signed_e2e_pub_key.message.raw[:100]}...")
+        logging.debug(f"\t\tTheir signed e2e public key: {hashlib.md5(signed_e2e_pub_key.signature.raw).hexdigest()}...")
+        logging.debug(f"\t\tTheir e2e public key: {hashlib.md5(signed_e2e_pub_key.message.raw).hexdigest()}...")
 
         DigitalSigning.verify(
             their_static_public_key=their_static_public_key,
