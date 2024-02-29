@@ -289,6 +289,7 @@ class ControlConnectionManager:
         my_ephemeral_public_key = self._conversations[conversation_id].my_ephemeral_public_key
         my_ephemeral_secret_key = self._conversations[conversation_id].my_ephemeral_secret_key
 
+        self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_SEC, b"")
         self._conversations[conversation_id] = ControlConnectionConversationInfo(
             state=ControlConnectionState.CONNECTED,
             their_static_public_key=their_static_public_key,
@@ -298,7 +299,7 @@ class ControlConnectionManager:
             secure=True)
 
         logging.debug(f"\t\tShared secret (CON): {self._conversations[conversation_id].shared_secret.raw[:100]}...")
-        self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_SEC, b"")
+
 
     @LogPre
     def _handle_accept_connection_attach_key_to_client(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
