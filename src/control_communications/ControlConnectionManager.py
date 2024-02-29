@@ -293,7 +293,7 @@ class ControlConnectionManager:
 
     @LogPre
     def _handle_accept_connection_attach_key_to_client(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
-        current_final_node = [node for node in self._my_route.route if node.connection_token.address != self._pending_node_to_add_to_route][-1]
+        current_final_node = [node for node in self._my_route.route if self._my_route and node.connection_token.address != self._pending_node_to_add_to_route][-1]
         current_final_node_static_public_key = DHT.get_static_public_key(current_final_node.connection_token.address.ip)
 
         my_static_private_key, my_static_public_key = KeyPair().import_("./_keys/me", "static").both()
@@ -412,7 +412,7 @@ class ControlConnectionManager:
         if self._my_route and self._my_route.connection_token.token == connection_token:
             # Get the signed ephemeral public key from the data, and verify the signature. The key from Node Z was
             # originally sent to Node Y, so the identifier of Node Y is used to verify the signature.
-            current_final_node = [node for node in self._my_route.route if node.connection_token.address != self._pending_node_to_add_to_route][-1]
+            current_final_node = [node for node in self._my_route.route if self._my_route and node.connection_token.address != self._pending_node_to_add_to_route][-1]
             current_final_node_static_public_key = DHT.get_static_public_key(current_final_node.connection_token.address.ip)
 
             their_static_public_key = DHT.get_static_public_key(self._pending_node_to_add_to_route.ip)
@@ -668,16 +668,16 @@ class ControlConnectionManager:
         # todo : just call "self._handle_message directly(...)", and remove the "addr != Address.me()"?
         if self._my_route and self._my_route.connection_token.token == connection_token[0]:
             if addr != Address.me():
-                nested_command, nested_connection_token, nested_data = self._parse_message(data)
                 relay_nodes = iter(self._my_route.route[1:])
                 next_node = next(relay_nodes, None)
 
                 logging.debug(f"\t\tUnwrapping layers")
-                logging.debug(f"\t\tParsed command: {nested_command}")
-                logging.debug(f"\t\tParsed connection token: {nested_connection_token}...")
-                logging.debug(f"\t\tParsed data: {nested_data[:100]}...")
+                # logging.debug(f"\t\tParsed command: {nested_command}")
+                # logging.debug(f"\t\tParsed connection token: {nested_connection_token}...")
+                # logging.debug(f"\t\tParsed data: {nested_data[:100]}...")
 
-                while next_node and nested_command == ControlConnectionProtocol.CONN_FWD:
+                nested_data = data
+                while next_node:
                     data = nested_data
                     logging.debug(f"\t\tUnwrapping layer from {next_node.connection_token.address.ip}")
 
