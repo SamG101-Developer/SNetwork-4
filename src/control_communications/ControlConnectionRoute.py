@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+import platform
 from dataclasses import dataclass
 import socket
 
@@ -29,7 +31,9 @@ class Address:
 
     @staticmethod
     def me() -> Address:
-        return Address(ip=socket.gethostbyname(socket.gethostname()), port=12345)
+        my_name = socket.gethostname() + (".local" if platform.machine() == "armv7l" else "")
+        my_ip = socket.gethostbyname(my_name)
+        return Address(ip=my_ip, port=12345)
 
     def __hash__(self):
         from hashlib import md5
