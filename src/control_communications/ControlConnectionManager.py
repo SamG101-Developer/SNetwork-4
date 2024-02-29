@@ -64,7 +64,8 @@ class ControlConnectionManager:
         # To create the route, the client will tell itself to extend the connection to the first node in the route. Each
         # time a new node is added, the communication flows via every node in the existing network, so only the first
         # node in the route knows the client node.
-        connection_token = ConnectionToken(token=os.urandom(32), address=Address.me())
+        FIXED_TOKEN = bytes.fromhex("0000000000000000000000000000000000000000000000000000000000000000")  # temp
+        connection_token = ConnectionToken(token=FIXED_TOKEN, address=Address.me())
         route_node = ControlConnectionRouteNode(connection_token=connection_token, ephemeral_key_pair=None, shared_secret=None)
         self._my_route = ControlConnectionRoute(route=[route_node], connection_token=connection_token)
 
@@ -629,37 +630,38 @@ class ControlConnectionManager:
 
         # Decrypt all layers (this node is the client node)
         if self._my_route and self._my_route.connection_token.token == connection_token[0]:
-            nested_command, nested_connection_token, nested_data = self._parse_message(data)
-            relay_nodes = iter(self._my_route.route[:])
-
-            logging.debug(f"\t\tUnwrapping layers")
-            logging.debug(f"\t\tParsed command: {nested_command}")
-            logging.debug(f"\t\tParsed connection token: {nested_connection_token}...")
-            logging.debug(f"\t\tParsed data: {nested_data[:100]}...")
-
-            while nested_command == ControlConnectionProtocol.CONN_FWD:
-                data = nested_data
-                next_node = next(relay_nodes)
-
-                logging.debug(f"\t\tUnwrapping layer from {next_node.connection_token.address.ip}")
-
-                if next_node.shared_secret:
-                    relay_node_key = next_node.shared_secret.decapsulated_key
-                    data = SymmetricEncryption.decrypt(SecureBytes(data), relay_node_key).raw
-                    logging.debug(f"\t\tDecrypted payload: {data[:100]}...")
-
+            if addr != Address.me():
                 nested_command, nested_connection_token, nested_data = self._parse_message(data)
-                assert nested_connection_token == connection_token[0]
+                relay_nodes = iter(self._my_route.route[:])
 
+                logging.debug(f"\t\tUnwrapping layers")
                 logging.debug(f"\t\tParsed command: {nested_command}")
                 logging.debug(f"\t\tParsed connection token: {nested_connection_token}...")
                 logging.debug(f"\t\tParsed data: {nested_data[:100]}...")
 
-                if nested_command != ControlConnectionProtocol.CONN_FWD:
-                    logging.debug(f"\t\tUnwrapped to: {nested_command}")
-                    break
-                    # self._handle_message(addr, nested_command, nested_connection_token, nested_data)
-                    # return
+                while nested_command == ControlConnectionProtocol.CONN_FWD:
+                    data = nested_data
+                    next_node = next(relay_nodes)
+
+                    logging.debug(f"\t\tUnwrapping layer from {next_node.connection_token.address.ip}")
+
+                    if next_node.shared_secret:
+                        relay_node_key = next_node.shared_secret.decapsulated_key
+                        data = SymmetricEncryption.decrypt(SecureBytes(data), relay_node_key).raw
+                        logging.debug(f"\t\tDecrypted payload: {data[:100]}...")
+
+                    nested_command, nested_connection_token, nested_data = self._parse_message(data)
+                    assert nested_connection_token == connection_token[0]
+
+                    logging.debug(f"\t\tParsed command: {nested_command}")
+                    logging.debug(f"\t\tParsed connection token: {nested_connection_token}...")
+                    logging.debug(f"\t\tParsed data: {nested_data[:100]}...")
+
+                    if nested_command != ControlConnectionProtocol.CONN_FWD:
+                        logging.debug(f"\t\tUnwrapped to: {nested_command}")
+                        break
+                        # self._handle_message(addr, nested_command, nested_connection_token, nested_data)
+                        # return
 
         elif connection_token and self._node_to_client_tunnel_keys[connection_token[0]].shared_secret:
             client_key = self._node_to_client_tunnel_keys[connection_token[0]].shared_secret.decapsulated_key
