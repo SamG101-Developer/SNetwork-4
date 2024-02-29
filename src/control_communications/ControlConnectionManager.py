@@ -42,7 +42,6 @@ class ControlConnectionManager:
     _my_route: Optional[ControlConnectionRoute]
     _node_to_client_tunnel_keys: Dict[Bytes, ControlConnectionRouteNode]
     _pending_node_to_add_to_route: Optional[Address]
-    _server_socket_thread: Thread
     _mutex: Lock
 
     def __init__(self):
@@ -289,13 +288,14 @@ class ControlConnectionManager:
         assert len(candidates) == 1, f"There should be exactly one candidate, but there are {len(candidates)}: {candidates}"
         target_node = candidates[0]
 
-        logging.debug(f"\t\tSending e2e public key to: {target_node.ip}")
+        logging.debug(f"\t\t[1] Sending e2e public key to: {target_node.ip}")
 
         # Wait for the CONN_ACC to register the shared secret in another thread.
         conversation_id = ConnectionToken(token=connection_token, address=addr)
         while conversation_id not in self._conversations:
             pass
 
+        logging.debug(f"\t\t[2] Sending e2e public key to: {target_node.ip}")
         self._tunnel_message_backward(target_node, connection_token, ControlConnectionProtocol.CONN_EXT_ACC, pickle.dumps(signed_e2e_pub_key))
 
     @LogPre
@@ -505,9 +505,6 @@ class ControlConnectionManager:
 
         # Get the address of the other node in the conversation list who has the same connection token.
         candidates = [c.address for c in self._conversations.keys() if c.token == connection_token and c.address != addr]
-        if len(candidates) == 0 and addr == Address.me():
-            candidates = [Address.me()]
-
         assert len(candidates) == 1, f"There should be exactly one candidate, but there are {len(candidates)}: {candidates}"
         target_node = candidates[0]
 
@@ -550,7 +547,7 @@ class ControlConnectionManager:
 
             # For each node in the path until the target node, apply a layer of encryption.
             for next_node in relay_nodes:
-                logging.debug(f"\t\tLayering through: {next_node.connection_token.address.ip}")
+                logging.debug(f"\t\tLayering through & including: {next_node.connection_token.address.ip}")
                 if next_node.shared_secret:
                     data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + next_node.connection_token.token + data
                     data = SymmetricEncryption.encrypt(SecureBytes(data), next_node.shared_secret.decapsulated_key).raw
@@ -615,19 +612,26 @@ class ControlConnectionManager:
         connection_token = [c.token for c in self._conversations.keys() if c.address == addr]
 
         # Decrypt all layers (this node is the client node)
+        # todo: this is broken. the issue is:
+        #   - relay_node = [node for node in self._my_route.route if node.connection_token.address == addr][0]
+        #   - this needs to instead be each node in the list
+        #   - need to allow a way to know which node it came from
+        #   - just decrypt the 1st then 2nd etc until error / different command
         if self._my_route and self._my_route.connection_token.token == connection_token[0]:
             nested_command, nested_connection_token, nested_data = self._parse_message(data)
 
             while nested_command == ControlConnectionProtocol.CONN_FWD:
                 data = nested_data
-                nested_command, nested_connection_token, nested_data = self._parse_message(data)
-                assert nested_connection_token == connection_token[0]
-
+                print(self._my_route.route)
                 relay_node = [node for node in self._my_route.route if node.connection_token.address == addr][0]
+                print(relay_node)
                 if relay_node.shared_secret:
                     relay_node_key = relay_node.shared_secret.decapsulated_key
                     data = SymmetricEncryption.decrypt(SecureBytes(data), relay_node_key).raw
                     logging.debug(f"\t\tDecrypted payload: {data[:20]}...")
+
+                nested_command, nested_connection_token, nested_data = self._parse_message(data)
+                assert nested_connection_token == connection_token[0]
 
         elif connection_token and self._node_to_client_tunnel_keys[connection_token[0]].shared_secret:
             client_key = self._node_to_client_tunnel_keys[connection_token[0]].shared_secret.decapsulated_key
