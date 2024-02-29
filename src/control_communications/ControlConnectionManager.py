@@ -601,7 +601,8 @@ class ControlConnectionManager:
             nested_command, nested_data = command, data
             relay_nodes = iter(self._my_route.route[1:])
             while nested_command == ControlConnectionProtocol.CONN_FWD:
-                data = SymmetricEncryption.decrypt(SecureBytes(nested_data), next(relay_nodes).shared_secret.decapsulated_key).raw
+                relay_node_key = next(relay_nodes).shared_secret.decapsulated_key
+                data = SymmetricEncryption.decrypt(SecureBytes(nested_data), relay_node_key).raw
                 nested_command, nested_connection_token, nested_data = self._parse_message(data)
                 assert nested_connection_token == connection_token
 
@@ -672,16 +673,6 @@ class ControlConnectionManager:
                     nested_command, nested_connection_token, nested_data = self._parse_message(data)
                     assert nested_connection_token == connection_token[0]
 
-                    logging.debug(f"\t\tParsed command: {nested_command}")
-                    logging.debug(f"\t\tParsed connection token: {nested_connection_token}...")
-                    logging.debug(f"\t\tParsed data: {nested_data[:100]}...")
-
-                    if nested_command != ControlConnectionProtocol.CONN_FWD:
-                        logging.debug(f"\t\tUnwrapped to: {nested_command}")
-                        break
-                        # self._handle_message(addr, nested_command, nested_connection_token, nested_data)
-                        # return
-
         elif connection_token and self._node_to_client_tunnel_keys[connection_token[0]].shared_secret:
             two_nodes_with_connection_token = [c.address for c in self._conversations.keys() if c.token == connection_token[0]]
             from_previous_node = addr == two_nodes_with_connection_token[0]
@@ -695,9 +686,9 @@ class ControlConnectionManager:
             # Relay node receiving a message from the next node in the route => add a layer of encryption
             else:
                 client_key = self._node_to_client_tunnel_keys[connection_token[0]].shared_secret.decapsulated_key
+                data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + connection_token[0] + data
                 data = SymmetricEncryption.encrypt(SecureBytes(data), client_key).raw
                 logging.debug(f"\t\tEncrypted payload: {data[:100]}...")
-                data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + connection_token[0] + data
 
         # Parse and handle the message
         command, connection_token, data = self._parse_message(data)
