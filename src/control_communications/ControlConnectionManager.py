@@ -434,7 +434,6 @@ class ControlConnectionManager:
 
             # The shared secret is added here. If added before, the recipient would need the key to decrypt the key.
             self._my_route.route[-1].shared_secret = kem_wrapped_packet_key
-            self._pending_node_to_add_to_route = None
 
             logging.debug(f"\t\tShared secret (PKT) {self._my_route.route[-1].shared_secret.decapsulated_key.raw[:100]}...")
 
@@ -503,8 +502,9 @@ class ControlConnectionManager:
         logging.debug(f"\t\tReceived packet key ACK from: {addr.ip}")
         logging.debug(f"\t\tConnection token: {connection_token}")
 
-        conversation_id = ConnectionToken(token=connection_token, address=addr)
+        conversation_id = ConnectionToken(token=connection_token, address=self._pending_node_to_add_to_route)
         self._conversations[conversation_id].state |= ControlConnectionState.SECURE
+        self._pending_node_to_add_to_route = None
 
     @LogPre
     # @ReplayErrorBackToUser
@@ -527,7 +527,7 @@ class ControlConnectionManager:
         target_node = candidates[0]
 
         logging.debug(f"\t\t[F] Connection token: {connection_token}")
-        logging.debug(f"\t\t[F] Raw payload: {data[:100]}...")
+        logging.debug(f"\t\t[F] Raw payload ({len(data)}): {data[:100]}...")
 
         # Get the next command and data from the message, and send it to the target node. The "next_data" may still be
         # ciphertext if the intended target isn't the next node (could be the node after that), with multiple nested
@@ -540,7 +540,7 @@ class ControlConnectionManager:
         # logging.debug(f"\t\t[F] Forwarding message to: {target_node.ip}")
 
         # Send the message to the target node. It will be automatically encrypted.
-        self._send_message_onwards_raw(target_node, connection_token, data[1 + 32:])
+        self._send_message_onwards_raw(target_node, connection_token, data)
 
     @LogPre
     def _tunnel_message_forwards(self, addr: Address, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
@@ -570,24 +570,15 @@ class ControlConnectionManager:
                 data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + next_node.connection_token.token + data
                 logging.debug(f"\t\tForward-wrapped encrypted payload: {data[:100]}...")
 
-                # No shared secret when exchanging the KEM for the shared secret
+                # No shared secret when exchanging the KEM for the shared secret.
                 if next_node.shared_secret:
                     data = SymmetricEncryption.encrypt(SecureBytes(data), next_node.shared_secret.decapsulated_key).raw
                     logging.debug(f"\t\tTunnel encrypted payload: {data[:100]}...")
 
-            # command, connection_token, data = self._parse_message(data)
-            command, data = ControlConnectionProtocol.CONN_FWD, data
-            # target = self._pending_node_to_add_to_route if len(self._my_route.route) == 1 else self._my_route.route[1].connection_token.address
-            # self._send_message_onwards(target, connection_token, command, data)
-            # return
-
-            # if len(self._my_route.route) == 1:
-            #     logging.debug(f"\t\tSending to 'self': {self._my_route.route[0].connection_token.address.ip}")
-            #     self._send_message_onwards(self._my_route.route[0].connection_token.address, connection_token, command, data)
-            # else:
-            #     logging.debug(f"\t\tSending to 'node': {self._my_route.route[1].connection_token.address.ip}")
-            #     command, connection_token, data = self._parse_message(data)
-            #     self._send_message_onwards(self._my_route.route[1].connection_token.address, connection_token, command, data)
+            if relay_nodes:
+                command, _, data = self._parse_message(data)
+            else:
+                command, data = ControlConnectionProtocol.CONN_FWD, data
 
         self._send_message_onwards(self._my_route.route[0].connection_token.address, connection_token, command, data)
 
@@ -615,7 +606,7 @@ class ControlConnectionManager:
     def _send_message_onwards(self, addr: Address, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
         logging.debug(f"\t\tSending {command} to: {addr.ip}")
         logging.debug(f"\t\tConnection token: {connection_token}")
-        logging.debug(f"\t\tRaw payload: {data[:100]}...")
+        logging.debug(f"\t\tRaw payload ({len(data)}): {data[:100]}...")
 
         data = command.value.to_bytes(1, "big") + connection_token + data
         self._send_message_onwards_raw(addr, connection_token, data)
