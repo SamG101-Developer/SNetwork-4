@@ -612,7 +612,7 @@ class ControlConnectionManager:
             if shared_secret := self._node_to_client_tunnel_keys[connection_token].shared_secret:
                 client_key = shared_secret.decapsulated_key
                 data = SymmetricEncryption.encrypt(SecureBytes(data), client_key).raw
-            data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + connection_token + data
+                data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + connection_token + data
             self._send_message_onwards_raw(addr, connection_token, data)
 
         else:
