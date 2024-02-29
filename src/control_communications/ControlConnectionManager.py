@@ -549,8 +549,8 @@ class ControlConnectionManager:
             for next_node in relay_nodes:
                 logging.debug(f"\t\tLayering through & including: {next_node.connection_token.address.ip}")
                 if next_node.shared_secret:
-                    data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + next_node.connection_token.token + data
                     data = SymmetricEncryption.encrypt(SecureBytes(data), next_node.shared_secret.decapsulated_key).raw
+                    data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + next_node.connection_token.token + data
                     logging.debug(f"\t\tTunnel encrypted payload: {data[:20]}...")
 
             self._send_message_onwards(self._my_route.route[0].connection_token.address, connection_token, ControlConnectionProtocol.CONN_FWD, data)
@@ -619,19 +619,23 @@ class ControlConnectionManager:
         #   - just decrypt the 1st then 2nd etc until error / different command
         if self._my_route and self._my_route.connection_token.token == connection_token[0]:
             nested_command, nested_connection_token, nested_data = self._parse_message(data)
+            relay_nodes = iter(self._my_route.route[:])
 
             while nested_command == ControlConnectionProtocol.CONN_FWD:
                 data = nested_data
-                print(self._my_route.route)
-                relay_node = [node for node in self._my_route.route if node.connection_token.address == addr][0]
-                print(relay_node)
-                if relay_node.shared_secret:
-                    relay_node_key = relay_node.shared_secret.decapsulated_key
+                next_node = next(relay_nodes)
+                if next_node.shared_secret:
+                    relay_node_key = next_node.shared_secret.decapsulated_key
                     data = SymmetricEncryption.decrypt(SecureBytes(data), relay_node_key).raw
                     logging.debug(f"\t\tDecrypted payload: {data[:20]}...")
 
                 nested_command, nested_connection_token, nested_data = self._parse_message(data)
                 assert nested_connection_token == connection_token[0]
+
+                if nested_command != ControlConnectionProtocol.CONN_FWD:
+                    break
+                    # self._handle_message(addr, nested_command, nested_connection_token, nested_data)
+                    # return
 
         elif connection_token and self._node_to_client_tunnel_keys[connection_token[0]].shared_secret:
             client_key = self._node_to_client_tunnel_keys[connection_token[0]].shared_secret.decapsulated_key
