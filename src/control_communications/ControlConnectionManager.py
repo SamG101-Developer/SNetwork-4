@@ -613,10 +613,31 @@ class ControlConnectionManager:
 
         # Decrypt any layered encryption (if the command is CONN_FWD).
         connection_token = [c.token for c in self._conversations.keys() if c.address == addr]
-        if connection_token and connection_token[0] in self._node_to_client_tunnel_keys.keys() and self._node_to_client_tunnel_keys[connection_token[0]].shared_secret:
+
+        # Decrypt all layers (this node is the client node)
+        if self._my_route and self._my_route.connection_token.token == connection_token[0]:
+            nested_command, nested_connection_token, nested_data = self._parse_message(data)
+
+            while nested_command == ControlConnectionProtocol.CONN_FWD:
+                data = nested_data
+                nested_command, nested_connection_token, nested_data = self._parse_message(data)
+                assert nested_connection_token == connection_token[0]
+
+                relay_node_key = self._node_to_client_tunnel_keys[connection_token[0]].shared_secret.decapsulated_key
+                data = SymmetricEncryption.decrypt(SecureBytes(data), relay_node_key).raw
+                logging.debug(f"\t\tDecrypted payload: {data[:20]}...")
+
+        elif self._node_to_client_tunnel_keys[connection_token[0]].shared_secret:
             client_key = self._node_to_client_tunnel_keys[connection_token[0]].shared_secret.decapsulated_key
             data = data[1:]
             data = SymmetricEncryption.decrypt(SecureBytes(data), client_key).raw
+            logging.debug(f"\t\tDecrypted payload: {data[:20]}...")
+
+        # if self._my_route and self._my_route.connection_token.token == connection_token[0]:
+        #     client_key = [node.shared_secret.decapsulated_key for node in self._my_route.route if node.connection_token.address == addr][0]
+        #     data = data[1:]
+        #     data = SymmetricEncryption.decrypt(SecureBytes(data), client_key).raw
+        #     logging.debug(f"\t\tDecrypted payload: {data[:20]}...")
 
         # Parse and handle the message
         command, connection_token, data = self._parse_message(data)
