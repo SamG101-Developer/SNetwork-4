@@ -628,7 +628,7 @@ class ControlConnectionManager:
                 data = SymmetricEncryption.encrypt(SecureBytes(data), client_key).raw
                 logging.debug(f"\t\tTunnel backward encrypted payload: {data[:100]}...")
 
-            data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + connection_token[0] + data
+            data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + connection_token + data
             self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_FWD, data)
 
         else:
