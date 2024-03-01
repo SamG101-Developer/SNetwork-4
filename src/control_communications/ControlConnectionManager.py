@@ -299,7 +299,6 @@ class ControlConnectionManager:
 
         logging.debug(f"\t\tShared secret (CON): {self._conversations[conversation_id].shared_secret.raw[:100]}...")
 
-
     @LogPre
     def _handle_accept_connection_attach_key_to_client(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
         current_final_node = [node for node in self._my_route.route if node.connection_token.address != self._pending_node_to_add_to_route][-1]
@@ -627,6 +626,8 @@ class ControlConnectionManager:
             if shared_secret := self._node_to_client_tunnel_keys[connection_token].shared_secret:
                 client_key = shared_secret.decapsulated_key
                 data = SymmetricEncryption.encrypt(SecureBytes(data), client_key).raw
+                logging.debug(f"\t\tTunnel backward encrypted payload: {data[:100]}...")
+
             self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_FWD, data)
 
         else:
