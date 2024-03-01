@@ -716,7 +716,7 @@ class ControlConnectionManager:
                 logging.debug(f"\t\tDecrypted payload: {data[:100]}...")
 
             # Relay node receiving a message from the next node in the route => add a layer of encryption
-            elif self._parse_message(data)[0] == ControlConnectionProtocol.CONN_FWD.value:
+            elif self._parse_message(data)[0] == ControlConnectionProtocol.CONN_FWD:
                 client_key = self._node_to_client_tunnel_keys[connection_token[0]].shared_secret.decapsulated_key
                 data = SymmetricEncryption.encrypt(SecureBytes(data), client_key).raw
                 data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + connection_token[0] + data
