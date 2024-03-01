@@ -723,6 +723,7 @@ class ControlConnectionManager:
 
                 prev_node = two_nodes_with_connection_token[0]
                 self._send_message_onwards_raw(prev_node, connection_token[0], data)
+                return
 
                 # logging.debug(f"\t\tEncrypted payload: {data[:100]}...")
 
