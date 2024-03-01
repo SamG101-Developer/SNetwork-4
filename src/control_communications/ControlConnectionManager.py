@@ -692,9 +692,10 @@ class ControlConnectionManager:
                 # logging.debug(f"\t\tParsed connection token: {nested_connection_token}...")
                 # logging.debug(f"\t\tParsed data: {nested_data[:100]}...")
 
-                nested_data = data
                 while next_node:
                     logging.debug(f"\t\tUnwrapping layer from {next_node.connection_token.address.ip}")
+                    nested_command, nested_connection_token, nested_data = self._parse_message(data)
+                    assert nested_connection_token == connection_token[0]
                     data = nested_data
 
                     if next_node.shared_secret:
@@ -702,8 +703,6 @@ class ControlConnectionManager:
                         data = SymmetricEncryption.decrypt(SecureBytes(data), relay_node_key).raw
                         logging.debug(f"\t\tDecrypted payload: {data[:100]}...")
 
-                    nested_command, nested_connection_token, nested_data = self._parse_message(data)
-                    assert nested_connection_token == connection_token[0]
                     next_node = next(relay_nodes, None)
 
         elif connection_token and self._node_to_client_tunnel_keys[connection_token[0]].shared_secret:
@@ -717,7 +716,7 @@ class ControlConnectionManager:
                 logging.debug(f"\t\tDecrypted payload: {data[:100]}...")
 
             # Relay node receiving a message from the next node in the route => add a layer of encryption
-            else:
+            elif self._parse_message(data)[0] == ControlConnectionProtocol.CONN_FWD.value:
                 client_key = self._node_to_client_tunnel_keys[connection_token[0]].shared_secret.decapsulated_key
                 data = SymmetricEncryption.encrypt(SecureBytes(data), client_key).raw
                 data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + connection_token[0] + data
