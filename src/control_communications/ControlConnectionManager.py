@@ -629,7 +629,9 @@ class ControlConnectionManager:
                 logging.debug(f"\t\tTunnel backward encrypted payload: {data[:100]}...")
 
             data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + connection_token + data
-            self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_FWD, data)
+            data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + connection_token + data
+            self._handle_message(addr, *self._parse_message(data))
+            # self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_FWD, data)
 
         else:
             nested_command, nested_data = command, data
