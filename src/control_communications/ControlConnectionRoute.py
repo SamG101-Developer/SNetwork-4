@@ -13,6 +13,7 @@ class ControlConnectionRouteNode:
     connection_token: ConnectionToken
     ephemeral_key_pair: Optional[KeyPair]
     shared_secret: Optional[KEMKeyPair]
+    secure: Bool
 
 
 @dataclass(kw_only=True)

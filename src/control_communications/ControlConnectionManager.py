@@ -67,7 +67,7 @@ class ControlConnectionManager:
         # node in the route knows the client node.
         FIXED_TOKEN = bytes.fromhex("0000000000000000000000000000000000000000000000000000000000000000")  # temp
         connection_token = ConnectionToken(token=FIXED_TOKEN, address=Address.me())
-        route_node = ControlConnectionRouteNode(connection_token=connection_token, ephemeral_key_pair=None, shared_secret=None)
+        route_node = ControlConnectionRouteNode(connection_token=connection_token, ephemeral_key_pair=None, shared_secret=None, secure=False)
         self._my_route = ControlConnectionRoute(route=[route_node], connection_token=connection_token)
 
         # Add the conversation to myself
@@ -80,7 +80,7 @@ class ControlConnectionManager:
             secure=True)
 
         # Extend the connection (use a while loop so failed connections don't affect the node counter for route length).
-        while len(self._my_route.route) < 3:
+        while len(self._my_route.route) < 4:
             # Extend the connection to the next node in the route.
             current_ips_in_route = [node.connection_token.address.ip for node in self._my_route.route]
             self._pending_node_to_add_to_route = Address(ip=DHT.get_random_node(current_ips_in_route), port=12345)
@@ -95,9 +95,9 @@ class ControlConnectionManager:
                 pass
 
             while True:
-                if not (self._conversations[conversation_id].state & ControlConnectionState.SECURE): continue
-                if not (self._conversations[conversation_id].state & ControlConnectionState.CONNECTED): continue
-                break
+                addresses = [node.connection_token.address for node in self._my_route.route]
+                if self._pending_node_to_add_to_route in addresses and self._my_route.route[-1].secure:
+                    break
 
         # Log the route.
         logging.info(f"\t\tCreated route: {' -> '.join([node.connection_token.address.ip for node in self._my_route.route])}")
@@ -232,7 +232,8 @@ class ControlConnectionManager:
         self._node_to_client_tunnel_keys[connection_token] = ControlConnectionRouteNode(
             connection_token=conversation_id,
             ephemeral_key_pair=KEM.generate_key_pair(),
-            shared_secret=None)
+            shared_secret=None,
+            secure=False)
 
         signed_e2e_key = DigitalSigning.sign(
             message=self._node_to_client_tunnel_keys[connection_token].ephemeral_key_pair.public_key,
@@ -455,7 +456,8 @@ class ControlConnectionManager:
             self._my_route.route.append(ControlConnectionRouteNode(
                 connection_token=ConnectionToken(token=connection_token, address=self._pending_node_to_add_to_route),
                 ephemeral_key_pair=KeyPair(public_key=signed_ephemeral_public_key.message),
-                shared_secret=None))
+                shared_secret=None,
+                secure=False))
             kem_wrapped_packet_key = KEM.kem_wrap(signed_ephemeral_public_key.message)
 
             # Note: vulnerable to MITM, so use unilateral authentication later. TODO
@@ -531,10 +533,7 @@ class ControlConnectionManager:
     def _handle_packet_key_ack(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
         logging.debug(f"\t\tReceived packet key ACK from: {addr.ip}")
         logging.debug(f"\t\tConnection token: {connection_token}")
-
-        conversation_id = ConnectionToken(token=connection_token, address=self._pending_node_to_add_to_route)
-        self._conversations[conversation_id].state |= ControlConnectionState.SECURE
-        logging.debug(f"\t\tConnection flags: {self._conversations[conversation_id].state}")
+        self._my_route.route[-1].secure = True
 
     @LogPre
     # @ReplayErrorBackToUser
