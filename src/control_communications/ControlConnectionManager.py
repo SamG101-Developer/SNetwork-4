@@ -720,7 +720,11 @@ class ControlConnectionManager:
                 client_key = self._node_to_client_tunnel_keys[connection_token[0]].shared_secret.decapsulated_key
                 data = SymmetricEncryption.encrypt(SecureBytes(data), client_key).raw
                 data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + connection_token[0] + data
-                logging.debug(f"\t\tEncrypted payload: {data[:100]}...")
+
+                prev_node = two_nodes_with_connection_token[0]
+                self._send_message_onwards_raw(prev_node, connection_token[0], data)
+
+                # logging.debug(f"\t\tEncrypted payload: {data[:100]}...")
 
         # Parse and handle the message
         command, connection_token, data = self._parse_message(data)
