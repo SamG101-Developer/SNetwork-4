@@ -88,12 +88,6 @@ class ControlConnectionManager:
 
             self._tunnel_message_forwards(self._pending_node_to_add_to_route, connection_token.token, ControlConnectionProtocol.CONN_EXT, pickle.dumps(self._pending_node_to_add_to_route))
 
-            # Wait for the next node to be added to the route.
-            conversation_id = ConnectionToken(token=connection_token.token, address=self._pending_node_to_add_to_route)
-
-            while conversation_id not in self._conversations:
-                pass
-
             while True:
                 addresses = [node.connection_token.address for node in self._my_route.route]
                 if self._pending_node_to_add_to_route in addresses and self._my_route.route[-1].secure:
@@ -323,12 +317,6 @@ class ControlConnectionManager:
 
         logging.debug(f"\t\t[1] Sending e2e public key to: {target_node.ip}")
 
-        # Wait for the CONN_ACC to register the shared secret in another thread.
-        conversation_id = current_final_node.connection_token
-        while True:
-            if self._conversations[conversation_id].state & ControlConnectionState.CONNECTED:
-                break
-
         logging.debug(f"\t\t[2] Sending e2e public key to: {target_node.ip}")
         self._tunnel_message_backward(target_node, connection_token, ControlConnectionProtocol.CONN_EXT_ACC, pickle.dumps(signed_e2e_pub_key))
 
@@ -531,7 +519,7 @@ class ControlConnectionManager:
 
     @LogPre
     def _handle_packet_key_ack(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
-        logging.debug(f"\t\tReceived packet key ACK from: {addr.ip}")
+        logging.debug(f"\t\tReceived packet key ACK from: {self._pending_node_to_add_to_route}")
         logging.debug(f"\t\tConnection token: {connection_token}")
         self._my_route.route[-1].secure = True
 
