@@ -38,6 +38,18 @@ def LogPre(function):
 
 
 class ControlConnectionManager:
+    """
+    The ControlConnectionManager handles all communications between this node and any other node in the network. It
+    manages the creation of the route, the extension of the route, and the sending of messages to other nodes.
+
+    Attributes
+    - _udp_server: The UDP server for the control connection manager (wraps a socket).
+    - _conversations: A list of conversations with neighbouring nodes, used for relay node connections.
+    - _my_route: The list of nodes in the route from this client node.
+    - _node_to_client_tunnel_keys: The tunnel keys from this node to client nodes that own routes this node is in.
+    - _pending_node_to_add_to_route: The node that is pending to be added to the route.
+    """
+
     _udp_server: ControlConnectionServer
     _conversations: Dict[ConnectionToken, ControlConnectionConversationInfo]
     _my_route: Optional[ControlConnectionRoute]
@@ -59,6 +71,12 @@ class ControlConnectionManager:
 
     @LogPre
     def create_route(self, _arguments: Namespace) -> None:
+        """
+        Create a route where this node is the client node. This node will select nodes from the DHT and communicate to
+        them via the exisiting route, maintaining anonymity. Only the entry node (node 1) knows who the client is.
+        @param _arguments:
+        @return:
+        """
         if self._my_route:
             return
 
