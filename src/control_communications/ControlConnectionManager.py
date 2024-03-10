@@ -162,6 +162,9 @@ class ControlConnectionManager:
         self._send_message_onwards(target_address, connection_token.token, DirectoryConnectionProtocol.DIR_LST_REQ, b"")
 
     def _open_connection_to(self, addr: Address) -> ConnectionToken:
+        my_static_private_key = KeyPair().import_("./_keys/me", "static").secret_key
+        my_ephemeral_private_key, my_ephemeral_public_key = KEM.generate_key_pair().both()
+
         connection_token = ConnectionToken(token=os.urandom(32), address=addr)
         self._conversations[connection_token] = ControlConnectionConversationInfo(
             state=ControlConnectionState.WAITING_FOR_ACK,
@@ -171,7 +174,14 @@ class ControlConnectionManager:
             my_ephemeral_secret_key=None,
             secure=False)
 
-        self._send_message_onwards(addr, connection_token.token, ControlConnectionProtocol.CONN_REQ, b"")
+        signed_my_ephemeral_public_key = DigitalSigning.sign(
+            my_static_private_key=my_static_private_key,
+            message=my_ephemeral_public_key,
+            their_id=DHT.DIRECTORY_NODES[addr.ip])
+
+        sending_data = pickle.dumps(signed_my_ephemeral_public_key)
+
+        self._send_message_onwards(addr, connection_token.token, ControlConnectionProtocol.CONN_REQ, sending_data)
         while not self._conversations[connection_token].shared_secret:
             pass
 
