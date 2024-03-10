@@ -277,7 +277,7 @@ class ControlConnectionManager:
 
             # Handle the directory node sending a certificate to this node, allowing trusted authentication to other
             # nodes in the network.
-            case DirectoryConnectionProtocol.DIR_CER if self._waiting_for_cert and connected and they_are_directory_node:
+            case DirectoryConnectionProtocol.DIR_CER if self._waiting_for_cert and they_are_directory_node:
                 self._handle_certificate_from_directory_node(addr, connection_token, data)
 
             # Handle registering a new node to the network when this node is a directory node.
