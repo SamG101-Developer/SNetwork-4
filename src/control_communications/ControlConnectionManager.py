@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import math
 import os.path
 import random
@@ -76,6 +77,9 @@ class ControlConnectionManager:
         if not self._is_directory_node and not os.path.exists("./_cert/certificate.ctf"):
             self.obtain_certificate()
 
+        if not self._is_directory_node and len(json.loads(open("./_cache/dht_cache.json").read())) == 0:
+            self.obtain_first_nodes()
+
     @LogPre
     def create_route(self, _arguments: Namespace) -> None:
         """
@@ -135,6 +139,22 @@ class ControlConnectionManager:
             connection_token=connection_token.token,
             command=DirectoryConnectionProtocol.DIR_REG,
             data=pickle.dumps(static_asymmetric_key_pair.public_key))
+
+    def obtain_first_nodes(self):
+        connection_token = ConnectionToken(token=os.urandom(32), address=Address.me())
+        target_address = Address(ip=DHT.get_random_directory_node())
+
+        self._send_message_onwards(
+            addr=connection_token.address,
+            connection_token=connection_token.token,
+            command=ControlConnectionProtocol.CONN_EXT,
+            data=pickle.dumps(target_address))
+
+        self._send_message_onwards(
+            addr=target_address,
+            connection_token=connection_token.token,
+            command=DirectoryConnectionProtocol.DIR_LST_REQ,
+            data=b"")
 
     # @LogPre
     def _parse_message(self, data: Bytes) -> Tuple[ControlConnectionProtocol, Bytes, Bytes]:
@@ -600,6 +620,9 @@ class ControlConnectionManager:
         @return:
         """
 
+        logging.debug(f"\t\tReceived certificate from directory node: {addr.ip}")
+        logging.debug(f"\t\tConnection token: {connection_token}")
+
         # Extra (unnecessary) verification of the directory node's signature on the certificate.
         certificate: SignedMessage = pickle.loads(data)
         directory_node_static_public_key = DHT.DIRECTORY_NODES[addr.ip]
@@ -624,6 +647,10 @@ class ControlConnectionManager:
         @param data: The static public key of the node to register.
         @return:
         """
+
+        logging.debug(f"\t\tRegistering new node to directory node: {addr.ip}")
+        logging.debug(f"\t\tConnection token: {connection_token}")
+        logging.debug(f"\t\tTheir static public key: {data[:100]}...")
 
         # Save the new node's public key to the DHT, and generate a certificate for the new node.
         node_id = Hashing.hash(SecureBytes(data))
