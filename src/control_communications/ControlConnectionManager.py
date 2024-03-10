@@ -154,35 +154,25 @@ class ControlConnectionManager:
         del self._conversations[connection_token]
 
     def obtain_first_nodes(self):
-        connection_token = ConnectionToken(token=os.urandom(32), address=Address.me())
         target_address = Address(ip=DHT.get_random_directory_node())
+        connection_token = self._open_connection_to(target_address)
+        self._send_message_onwards(target_address, connection_token.token, DirectoryConnectionProtocol.DIR_LST_REQ, b"")
 
-        # Add the conversation to myself
+    def _open_connection_to(self, addr: Address) -> ConnectionToken:
+        connection_token = ConnectionToken(token=os.urandom(32), address=addr)
         self._conversations[connection_token] = ControlConnectionConversationInfo(
-            state=ControlConnectionState.CONNECTED,
-            their_static_public_key=KeyPair().import_("./_keys/me", "static").public_key,
+            state=ControlConnectionState.WAITING_FOR_ACK,
+            their_static_public_key=DHT.get_static_public_key(addr.ip),
             shared_secret=None,
             my_ephemeral_public_key=None,
             my_ephemeral_secret_key=None,
-            secure=True)
+            secure=False)
 
-        self._tunnel_message_forwards(
-            addr=connection_token.address,
-            connection_token=connection_token.token,
-            command=ControlConnectionProtocol.CONN_EXT,
-            data=pickle.dumps(target_address))
-
-        target_connection_token = ConnectionToken(address=target_address, token=connection_token.token)
-        while target_connection_token not in self._conversations.keys():
+        self._send_message_onwards(addr, connection_token.token, ControlConnectionProtocol.CONN_REQ, b"")
+        while connection_token not in self._conversations.keys():
             pass
 
-        self._tunnel_message_forwards(
-            addr=target_address,
-            connection_token=connection_token.token,
-            command=DirectoryConnectionProtocol.DIR_LST_REQ,
-            data=b"")
-
-        del self._conversations[connection_token]
+        return connection_token
 
     # @LogPre
     def _parse_message(self, data: Bytes) -> Tuple[ConnectionProtocol, Bytes, Bytes]:
@@ -685,11 +675,11 @@ class ControlConnectionManager:
         logging.debug(f"\t\tConnection token: {connection_token}")
         logging.debug(f"\t\tTheir static public key: {data[:100]}...")
 
-        their_static_public_key = pickle.loads(data)
+        their_static_public_key: SecureBytes = pickle.loads(data)
 
         # Save the new node's public key to the DHT, and generate a certificate for the new node.
         node_id = Hashing.hash(their_static_public_key)
-        DirectoryNodeFileManager.add_record(node_id.raw, their_static_public_key)
+        DirectoryNodeFileManager.add_record(node_id.raw, their_static_public_key.raw)
 
         # Temporary conversation
         target_connection_token = ConnectionToken(address=addr, token=connection_token)
