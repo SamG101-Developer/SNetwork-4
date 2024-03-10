@@ -75,5 +75,9 @@ def main():
     args = parser.parse_args(sys.argv[1:])
     CmdHandler(args.command, args)
 
-    while args.command in ["join", "route"]:
+    while args.command in ["join", "route", "directory"]:
         pass
+
+
+if __name__ == "__main__":
+    main()
