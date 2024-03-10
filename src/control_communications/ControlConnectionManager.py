@@ -169,7 +169,7 @@ class ControlConnectionManager:
             secure=False)
 
         self._send_message_onwards(addr, connection_token.token, ControlConnectionProtocol.CONN_REQ, b"")
-        while connection_token not in self._conversations.keys():
+        while not self._conversations[connection_token].shared_secret:
             pass
 
         return connection_token
