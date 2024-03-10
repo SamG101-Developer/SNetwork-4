@@ -151,7 +151,7 @@ class ControlConnectionManager:
             command=DirectoryConnectionProtocol.DIR_REG,
             data=pickle.dumps(static_asymmetric_key_pair.public_key))
 
-        while not self._waiting_for_cert:
+        while self._waiting_for_cert:
             pass
 
         del self._conversations[connection_token]
