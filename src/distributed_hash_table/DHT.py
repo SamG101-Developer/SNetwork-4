@@ -1,5 +1,5 @@
 from crypto_engines.tools.secure_bytes import SecureBytes
-from my_types import Str, List
+from my_types import Str, List, Bytes
 import base58, json, random
 
 
@@ -35,3 +35,9 @@ class DHT:
     @staticmethod
     def get_random_directory_node() -> Str:
         return random.choice(list(DHT.DIRECTORY_NODES.keys()))
+
+    @staticmethod
+    def cache_node_information(node_id: Bytes, node_public_key: Bytes, ip_address: Str) -> None:
+        cache = json.load(open("./_cache/dht_cache.json"))
+        cache.append({"id": base58.b58encode(node_id).decode(), "key": base58.b58encode(node_public_key).decode(), "ip": ip_address})
+        json.dump(cache, open("./_cache/dht_cache.json", "w"))

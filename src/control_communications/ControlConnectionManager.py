@@ -699,6 +699,9 @@ class ControlConnectionManager:
             my_static_private_key=my_static_private_key,
             their_id=node_id)
 
+        # Cache the key for the node
+        DHT.cache_node_information(node_id.raw, their_static_public_key.raw, addr.ip)
+
         # Send the certificate to the new node.
         self._send_message_onwards(addr, connection_token, DirectoryConnectionProtocol.DIR_CER, pickle.dumps(certificate))
 
