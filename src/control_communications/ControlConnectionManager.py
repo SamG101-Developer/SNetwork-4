@@ -281,7 +281,7 @@ class ControlConnectionManager:
                 self._handle_certificate_from_directory_node(addr, connection_token, data)
 
             # Handle registering a new node to the network when this node is a directory node.
-            case DirectoryConnectionProtocol.DIR_REG if self._is_directory_node and connected:
+            case DirectoryConnectionProtocol.DIR_REG if self._is_directory_node:
                 self._handle_register_node_to_directory_node(addr, connection_token, data)
 
             # Handle a node requesting a list of nodes to bootstrap from when this node is a directory node.
