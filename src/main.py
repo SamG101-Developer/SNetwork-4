@@ -58,6 +58,9 @@ def create_argument_parser() -> ArgumentParser:
     storage_rename_parser = storage_subparsers.add_parser("rename", help="Rename a file in the storage system")
     storage_rename_parser.add_argument("--old-path", type=str, required=True, help="The old path to the file")
 
+    # Directory node subparser
+    directory_node_parser = subparsers.add_parser("directory", help="Start a directory node")
+
     # Return the parser
     return parser
 
@@ -77,4 +80,5 @@ def main():
 
 
 if __name__ == "__main__":
+    sys.argv = ["snetwork", "route"]
     main()
