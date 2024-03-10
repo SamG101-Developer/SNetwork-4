@@ -132,6 +132,15 @@ class ControlConnectionManager:
         # Create the connection to the directory node.
         connection_token = ConnectionToken(token=os.urandom(32), address=Address(ip=DHT.get_random_directory_node()))
 
+        # Dummy conversation to allow the directory node to send a certificate.
+        self._conversations[connection_token] = ControlConnectionConversationInfo(
+            state=ControlConnectionState.WAITING_FOR_ACK,
+            their_static_public_key=DHT.get_static_public_key(connection_token.address.ip),
+            shared_secret=None,
+            my_ephemeral_public_key=None,
+            my_ephemeral_secret_key=None,
+            secure=False)
+
         # Mark this node as waiting for a certificate, and send the request for a certificate to the directory node.
         self._waiting_for_cert = True
         self._send_message_onwards(
@@ -139,6 +148,8 @@ class ControlConnectionManager:
             connection_token=connection_token.token,
             command=DirectoryConnectionProtocol.DIR_REG,
             data=pickle.dumps(static_asymmetric_key_pair.public_key))
+
+        del self._conversations[connection_token]
 
     def obtain_first_nodes(self):
         connection_token = ConnectionToken(token=os.urandom(32), address=Address.me())
