@@ -700,7 +700,7 @@ class ControlConnectionManager:
         certificate = DigitalSigning.sign(
             message=previous_certificate_hash + node_id + their_static_public_key,
             my_static_private_key=my_static_private_key,
-            their_id=node_id)
+            their_id=their_static_public_key)
 
         # Cache the key for the node
         DHT.cache_node_information(node_id.raw, their_static_public_key.raw, addr.ip)
@@ -751,7 +751,7 @@ class ControlConnectionManager:
         DigitalSigning.verify(
             their_static_public_key=their_static_public_key,
             signed_message=old_certificate,
-            my_id=node_id)
+            my_id=DHT.get_static_public_key(addr.ip))
 
         # Ensure the node ID on the old certificate matches the node ID of the node.
         assert old_certificate.message[Hashing.ALGORITHM.digest_size:2 * Hashing.ALGORITHM.digest_size] == node_id
@@ -762,7 +762,7 @@ class ControlConnectionManager:
         refreshed_certificate = DigitalSigning.sign(
             message=node_id + SecureBytes(data),
             my_static_private_key=my_static_private_key,
-            their_id=node_id)
+            their_id=DHT.get_static_public_key(addr.ip))
 
         # Send the refreshed certificate to the node.
         self._send_message_onwards(addr, connection_token, DirectoryConnectionProtocol.DIR_CER, pickle.dumps(refreshed_certificate))
