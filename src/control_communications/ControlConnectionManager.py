@@ -34,9 +34,9 @@ def ReplayErrorBackToUser(error_command):
 
 
 def LogPre(function):
-    def inner(self, *args):
+    def inner(self, *args, **kwargs):
         logging.info(f"ConnectionControlManager::{function.__name__}")
-        return function(self, *args)
+        return function(self, *args, **kwargs)
     return inner
 
 
