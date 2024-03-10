@@ -688,7 +688,7 @@ class ControlConnectionManager:
         their_static_public_key = pickle.loads(data)
 
         # Save the new node's public key to the DHT, and generate a certificate for the new node.
-        node_id = Hashing.hash(SecureBytes(their_static_public_key))
+        node_id = Hashing.hash(their_static_public_key)
         DirectoryNodeFileManager.add_record(node_id.raw, their_static_public_key)
 
         # Temporary conversation
@@ -705,7 +705,7 @@ class ControlConnectionManager:
         previous_certificate_hash = SecureBytes(b"\x00" * Hashing.ALGORITHM.digest_size)
         my_static_private_key = KeyPair().import_("./_keys/me", "static").secret_key
         certificate = DigitalSigning.sign(
-            message=previous_certificate_hash + node_id + SecureBytes(their_static_public_key),
+            message=previous_certificate_hash + node_id + their_static_public_key,
             my_static_private_key=my_static_private_key,
             their_id=node_id)
 
