@@ -936,7 +936,11 @@ class ControlConnectionManager:
 
                     next_node = next(relay_nodes, None)
 
-        elif not self._is_directory_node and connection_token and self._node_to_client_tunnel_keys[connection_token[0]].shared_secret:
+        elif (not self._is_directory_node
+              and connection_token
+              and connection_token[0] in self._node_to_client_tunnel_keys.keys()
+              and self._node_to_client_tunnel_keys[connection_token[0]].shared_secret):
+
             two_nodes_with_connection_token = [c.address for c in self._conversations.keys() if c.token == connection_token[0]]
             from_previous_node = addr == two_nodes_with_connection_token[0]
 
