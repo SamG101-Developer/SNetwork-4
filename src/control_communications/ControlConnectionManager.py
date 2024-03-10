@@ -164,7 +164,7 @@ class ControlConnectionManager:
             my_ephemeral_secret_key=None,
             secure=True)
 
-        self._send_message_onwards(
+        self._tunnel_message_forwards(
             addr=connection_token.address,
             connection_token=connection_token.token,
             command=ControlConnectionProtocol.CONN_EXT,
@@ -174,7 +174,7 @@ class ControlConnectionManager:
         while target_connection_token not in self._conversations.keys():
             pass
 
-        self._send_message_onwards(
+        self._tunnel_message_forwards(
             addr=target_address,
             connection_token=connection_token.token,
             command=DirectoryConnectionProtocol.DIR_LST_REQ,
