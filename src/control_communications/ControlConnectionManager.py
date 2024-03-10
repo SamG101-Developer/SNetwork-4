@@ -686,8 +686,18 @@ class ControlConnectionManager:
         node_id = Hashing.hash(SecureBytes(data))
         DirectoryNodeFileManager.add_record(node_id.raw, data)
 
+        # Temporary conversation
+        target_connection_token = ConnectionToken(address=addr, token=connection_token)
+        self._conversations[target_connection_token] = ControlConnectionConversationInfo(
+            state=ControlConnectionState.CONNECTED,
+            their_static_public_key=SecureBytes(),
+            shared_secret=None,
+            my_ephemeral_public_key=None,
+            my_ephemeral_secret_key=None,
+            secure=False)
+
         # Generate the certificate for the new node, signing it with the directory node's private key.
-        previous_certificate_hash = b"\x00" * Hashing.ALGORITHM.digest_size
+        previous_certificate_hash = SecureBytes(b"\x00" * Hashing.ALGORITHM.digest_size)
         my_static_private_key = KeyPair().import_("./_keys/me", "static").secret_key
         certificate = DigitalSigning.sign(
             message=previous_certificate_hash + node_id + SecureBytes(data),
@@ -696,6 +706,8 @@ class ControlConnectionManager:
 
         # Send the certificate to the new node.
         self._send_message_onwards(addr, connection_token, DirectoryConnectionProtocol.DIR_CER, pickle.dumps(certificate))
+
+        del self._conversations[target_connection_token]
 
     @LogPre
     def _handle_request_for_nodes_from_directory_node(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
@@ -900,7 +912,7 @@ class ControlConnectionManager:
         # Decrypt all layers (this node is the client node). The exception is when this node has send this node data, as
         # at this point, the idea is to just execute the command on this node.
         # todo : just call "self._handle_message directly(...)", and remove the "addr != Address.me()"?
-        if self._my_route and self._my_route.connection_token.token == connection_token[0]:
+        if not self._is_directory_node and self._my_route and self._my_route.connection_token.token == connection_token[0]:
             if addr != Address.me():
                 relay_nodes = iter(self._my_route.route[1:])
                 next_node = next(relay_nodes, None)
@@ -923,7 +935,7 @@ class ControlConnectionManager:
 
                     next_node = next(relay_nodes, None)
 
-        elif connection_token and self._node_to_client_tunnel_keys[connection_token[0]].shared_secret:
+        elif not self._is_directory_node and connection_token and self._node_to_client_tunnel_keys[connection_token[0]].shared_secret:
             two_nodes_with_connection_token = [c.address for c in self._conversations.keys() if c.token == connection_token[0]]
             from_previous_node = addr == two_nodes_with_connection_token[0]
 
