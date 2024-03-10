@@ -16,7 +16,7 @@ class DHT:
             return SecureBytes(DHT.DIRECTORY_NODES[address])
 
         cache = json.load(open("./_cache/dht_cache.json"))
-        public_key = [node["key"] for node in cache if base58.b58decode(node["id"]).decode() == address]
+        public_key = [node["key"] for node in cache if node["ip"] == address]
         if not public_key:
             raise NodeNotInNetworkException
 
@@ -25,8 +25,7 @@ class DHT:
 
     @staticmethod
     def get_random_node(block_list: List[Str]) -> Str:
-        block_list = [base58.b58encode(node.encode()).decode() for node in block_list]
-        cache = [entry["id"] for entry in json.load(open("./_cache/dht_cache.json"))]
+        cache = [entry["ip"] for entry in json.load(open("./_cache/dht_cache.json"))]
         cache = list(set(cache) - set(block_list))
         random_id = random.choices(cache, k=1)[0]
         random_id = base58.b58decode(random_id).decode()
