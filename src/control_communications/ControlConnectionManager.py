@@ -155,6 +155,15 @@ class ControlConnectionManager:
         connection_token = ConnectionToken(token=os.urandom(32), address=Address.me())
         target_address = Address(ip=DHT.get_random_directory_node())
 
+        # Add the conversation to myself
+        self._conversations[connection_token] = ControlConnectionConversationInfo(
+            state=ControlConnectionState.CONNECTED,
+            their_static_public_key=KeyPair().import_("./_keys/me", "static").public_key,
+            shared_secret=None,
+            my_ephemeral_public_key=None,
+            my_ephemeral_secret_key=None,
+            secure=True)
+
         self._send_message_onwards(
             addr=connection_token.address,
             connection_token=connection_token.token,
@@ -166,6 +175,8 @@ class ControlConnectionManager:
             connection_token=connection_token.token,
             command=DirectoryConnectionProtocol.DIR_LST_REQ,
             data=b"")
+
+        del self._conversations[connection_token]
 
     # @LogPre
     def _parse_message(self, data: Bytes) -> Tuple[ControlConnectionProtocol, Bytes, Bytes]:
