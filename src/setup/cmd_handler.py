@@ -50,6 +50,4 @@ class CmdHandler:
 
     @staticmethod
     def _handle_directory(arguments: Namespace) -> None:
-        CmdHandler.CONTROLLER = ControlConnectionManager()
-
-
+        CmdHandler.CONTROLLER = ControlConnectionManager(is_directory_node=True)
