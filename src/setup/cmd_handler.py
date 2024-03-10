@@ -1,8 +1,6 @@
 from crypto_engines.tools.secure_bytes import SecureBytes
 from crypto_engines.crypto.digital_signing import DigitalSigning
-from crypto_engines.crypto.hashing import Hashing
 from control_communications.ControlConnectionManager import ControlConnectionManager
-from control_communications.ControlConnectionServer import ControlConnectionServer
 from my_types import Str, List
 
 from argparse import Namespace
@@ -49,3 +47,9 @@ class CmdHandler:
         if not CmdHandler.CONTROLLER:
             CmdHandler.CONTROLLER = ControlConnectionManager()
         CmdHandler.CONTROLLER.create_route(arguments)
+
+    @staticmethod
+    def _handle_directory(arguments: Namespace) -> None:
+        CmdHandler.CONTROLLER = ControlConnectionManager()
+
+
