@@ -77,8 +77,3 @@ def main():
 
     while args.command in ["join", "route"]:
         pass
-
-
-if __name__ == "__main__":
-    sys.argv = ["snetwork", "route"]
-    main()
