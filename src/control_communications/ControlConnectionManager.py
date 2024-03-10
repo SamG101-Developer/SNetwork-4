@@ -653,6 +653,7 @@ class ControlConnectionManager:
         certificate: SignedMessage = pickle.loads(data)
         directory_node_static_public_key = DHT.DIRECTORY_NODES[addr.ip]
 
+        print("HELLO", my_static_public_key)
         DigitalSigning.verify(
             their_static_public_key=directory_node_static_public_key,
             signed_message=certificate,
