@@ -654,13 +654,14 @@ class ControlConnectionManager:
         logging.debug(f"\t\tConnection token: {connection_token}")
 
         # Extra (unnecessary) verification of the directory node's signature on the certificate.
+        my_static_public_key = KeyPair().import_("./_keys/me", "static").public_key
         certificate: SignedMessage = pickle.loads(data)
         directory_node_static_public_key = DHT.DIRECTORY_NODES[addr.ip]
 
         DigitalSigning.verify(
             their_static_public_key=directory_node_static_public_key,
             signed_message=certificate,
-            my_id=directory_node_static_public_key)
+            my_id=my_static_public_key)
 
         # Export the certificate to a file, and set the "waiting for certificate flag" to False.
         SecureBytes(data).export(f"./_certs", "certificate", ".ctf")
