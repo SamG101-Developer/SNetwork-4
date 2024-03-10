@@ -183,7 +183,7 @@ class ControlConnectionManager:
         del self._conversations[connection_token]
 
     # @LogPre
-    def _parse_message(self, data: Bytes) -> Tuple[ControlConnectionProtocol, Bytes, Bytes]:
+    def _parse_message(self, data: Bytes) -> Tuple[ConnectionProtocol, Bytes, Bytes]:
         """
         Parse the message into a command, connection token, and data. The command is always 1-byte long (first byte),
         the connection token is always 32 bytes, and the rest of the bytes will be the message data, so get each part by
@@ -193,7 +193,11 @@ class ControlConnectionManager:
         """
 
         # Split the data into the command, connection token and the rest of the data.
-        command = ControlConnectionProtocol(data[0])
+        try:
+            command = ControlConnectionProtocol(data[0])
+        except ValueError:
+            command = DirectoryConnectionProtocol(data[0])
+
         connection_token = data[1:33]
         data = data[33:]
 
