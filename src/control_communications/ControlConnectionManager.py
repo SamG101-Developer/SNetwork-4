@@ -1,22 +1,24 @@
 from __future__ import annotations
 
-import hashlib
-from threading import Thread, Lock
+import math
+import os.path
+import random
 from argparse import Namespace
-import logging, os, pickle
+import csv, hashlib, logging, pickle, threading
 
-from control_communications.ControlConnectionServer import ControlConnectionServer
-from control_communications.ControlConnectionProtocol import ControlConnectionProtocol
-from control_communications.ControlConnectionRoute import ControlConnectionRoute, ControlConnectionRouteNode, Address, ConnectionToken
-from control_communications.ControlConnectionConversation import ControlConnectionConversationInfo, ControlConnectionState
+from control_communications.ControlConnectionServer import *
+from control_communications.ControlConnectionProtocol import *
+from control_communications.ControlConnectionRoute import *
+from control_communications.ControlConnectionConversation import *
 
 from crypto_engines.crypto.digital_signing import DigitalSigning, SignedMessage
 from crypto_engines.crypto.key_encapsulation import KEM
 from crypto_engines.crypto.symmetric_encryption import SymmetricEncryption
+from crypto_engines.crypto.hashing import Hashing
 from crypto_engines.keys.key_pair import KeyPair
 from crypto_engines.tools.secure_bytes import SecureBytes
 from distributed_hash_table.DHT import DHT
-from my_types import Bytes, Tuple, Str, Int, Dict, Optional
+from my_types import Bytes, Tuple, Str, Int, Dict, Optional, List
 
 
 def ReplayErrorBackToUser(error_command):
@@ -55,9 +57,10 @@ class ControlConnectionManager:
     _my_route: Optional[ControlConnectionRoute]
     _node_to_client_tunnel_keys: Dict[Bytes, ControlConnectionRouteNode]
     _pending_node_to_add_to_route: Optional[Address]
-    _mutex: Lock
+    _is_directory_node: bool
+    _waiting_for_cert: bool
 
-    def __init__(self):
+    def __init__(self, is_directory_node: bool = False):
         # Setup the attributes of the control connection manager
         self._udp_server = ControlConnectionServer()
         self._udp_server.on_message_received = self._recv_message
@@ -67,15 +70,19 @@ class ControlConnectionManager:
         self._node_to_client_tunnel_keys = {}
         self._pending_node_to_add_to_route = None
 
-        self._mutex = Lock()
+        self._is_directory_node = is_directory_node
+        self._waiting_for_cert = False
+
+        if not self._is_directory_node and not os.path.exists("./_cert/certificate.ctf"):
+            self.obtain_certificate()
 
     @LogPre
     def create_route(self, _arguments: Namespace) -> None:
         """
         Create a route where this node is the client node. This node will select nodes from the DHT and communicate to
-        them via the exisiting route, maintaining anonymity. Only the entry node (node 1) knows who the client is.
-        @param _arguments:
-        @return:
+        them via the existing route, maintaining anonymity. Only the entry node (node 1) knows who the client is.
+        @param _arguments: The arguments from the command line.
+        @return: None.
         """
         if self._my_route:
             return
@@ -83,8 +90,7 @@ class ControlConnectionManager:
         # To create the route, the client will tell itself to extend the connection to the first node in the route. Each
         # time a new node is added, the communication flows via every node in the existing network, so only the first
         # node in the route knows the client node.
-        FIXED_TOKEN = bytes.fromhex("0000000000000000000000000000000000000000000000000000000000000000")  # temp
-        connection_token = ConnectionToken(token=FIXED_TOKEN, address=Address.me())
+        connection_token = ConnectionToken(token=os.urandom(32), address=Address.me())
         route_node = ControlConnectionRouteNode(connection_token=connection_token, ephemeral_key_pair=None, shared_secret=None, secure=False)
         self._my_route = ControlConnectionRoute(route=[route_node], connection_token=connection_token)
 
@@ -114,13 +120,30 @@ class ControlConnectionManager:
         # Log the route.
         logging.info(f"\t\tCreated route: {' -> '.join([node.connection_token.address.ip for node in self._my_route.route])}")
 
+    def obtain_certificate(self):
+        # This is a new node, so generate a static asymmetric key pair for signing.
+        static_asymmetric_key_pair = DigitalSigning.generate_key_pair()
+        static_asymmetric_key_pair.export("./_keys/me", "static")
+
+        # Create the connection to the directory node.
+        connection_token = ConnectionToken(token=os.urandom(32), address=Address(ip=DHT.get_random_directory_node()))
+
+        # Mark this node as waiting for a certificate, and send the request for a certificate to the directory node.
+        self._waiting_for_cert = True
+        self._send_message_onwards(
+            addr=connection_token.address,
+            connection_token=connection_token.token,
+            command=DirectoryConnectionProtocol.DIR_REG,
+            data=pickle.dumps(static_asymmetric_key_pair.public_key))
+
     # @LogPre
     def _parse_message(self, data: Bytes) -> Tuple[ControlConnectionProtocol, Bytes, Bytes]:
         """
-        Parse the message into a command, connection token and data. The command is the first byte, the connection token
-        is the next 32 bytes, and the rest of the data is the accompanying data.
-        :param data:
-        :return:
+        Parse the message into a command, connection token, and data. The command is always 1-byte long (first byte),
+        the connection token is always 32 bytes, and the rest of the bytes will be the message data, so get each part by
+        splitting at fixed indexes.
+        @param data: The message to parse.
+        @return: The command, connection token and data.
         """
 
         # Split the data into the command, connection token and the rest of the data.
@@ -128,91 +151,115 @@ class ControlConnectionManager:
         connection_token = data[1:33]
         data = data[33:]
 
-        # logging.debug(f"\t\tParsed command: {command}")
-        # logging.debug(f"\t\tParsed connection token: {connection_token}...")
-        # logging.debug(f"\t\tParsed data: {data[:100]}...")
-
         # Return the command, connection token and data.
         return command, connection_token, data
 
     @LogPre
-    def _handle_message(self, addr: Address, command: ControlConnectionProtocol, connection_token: Bytes, data: Bytes) -> None:
+    def _handle_message(self, addr: Address, command: ConnectionProtocol, connection_token: Bytes, data: Bytes) -> None:
         """
-        Handle a message from a node. The message will have already been split into the command, connection token and
-        the accompanying data. The message will be handled based on the command. After the function for the command has
-        executed, the current thread is joined and removed from the list of message threads.
-        :param addr:
-        :param command:
-        :param connection_token:
-        :param data:
-        :return:
+        Handle a message from a node. The message is handled by the command, and conditions based on the connection
+        status for a conversation matching the connection token.
+        @param addr: The address of the node that sent the message.
+        @param command: The command of the message.
+        @param connection_token: The connection token of the message.
+        @param data: The data of the message.
+        @return: None.
         """
 
         waiting_for_ack = self._waiting_for_ack_from(addr, connection_token)
         connected = self._is_connected_to(addr, connection_token)
-        in_route = self._is_in_route(addr, connection_token)
+        they_are_directory_node = addr.ip in DHT.DIRECTORY_NODES.keys()
 
-        # Decide on the function to call based on the command, and call it. The mutex is used to lock the conversation
-        # list, so that only one thread can access it at a time.
-        # self._mutex.acquire()
+        # Decide on the function to call based on the command, and call it.
         match command:
-            case ControlConnectionProtocol.CONN_REQ:
+
+            # Handle a connection request from another node, and prevent double requests from the same conversation.
+            case ControlConnectionProtocol.CONN_REQ if not connected and not waiting_for_ack:
                 self._handle_request_to_connect(addr, connection_token, data)
-                
+
+            # Handle a connection acceptance from a node that this node is waiting for an ACK from.
             case ControlConnectionProtocol.CONN_ACC if waiting_for_ack:
                 self._handle_accept_connection(addr, connection_token, data)
-                
-            case ControlConnectionProtocol.CONN_PKT_KEM if connected or waiting_for_ack:
-                self._handle_accept_connection_attach_key_to_client(addr, connection_token, data)
-                
+
+            # Handle a connection rejection from a node that this node is waiting for an ACK from.
             case ControlConnectionProtocol.CONN_REJ if waiting_for_ack:
                 self._handle_reject_connection(addr, connection_token, data)
-                
+
+            # Handle a connection close from a node that this node is waiting for an ACK from, or is connected to.
             case ControlConnectionProtocol.CONN_CLS if waiting_for_ack or connected:
                 self._cleanup_connection(addr, connection_token)
-                
+
+            # Handle a connection extension command from a node that this node is connected to.
             case ControlConnectionProtocol.CONN_EXT if connected:
                 self._handle_extend_connection(addr, connection_token, data)
-                
+
+            # Handle a connection extension acceptance from a node that this node has extended to (and therefore already
+            # connected to).
             case ControlConnectionProtocol.CONN_EXT_ACC if connected:
                 self._handle_accept_extended_connection(addr, connection_token, data)
-                
+
+            # Handle a connection extension rejection from a node that this node has extended to (and therefore already
+            # connected to).
             case ControlConnectionProtocol.CONN_EXT_REJ if connected:
                 self._handle_reject_extended_connection(addr, connection_token, data)
-                
+
+            # Handle a forwarding command, where the data is sent to other node with the same connection token as the
+            # sending node.
             case ControlConnectionProtocol.CONN_FWD:
                 self._forward_message(addr, connection_token, data)
 
+            # Handle a confirmation that a connection is node secure from a node. REQ -> ACC -> SEC.
             case ControlConnectionProtocol.CONN_SEC:
                 self._register_connection_as_secure(addr, connection_token, data)
-                
+
+            # Handle a KEM key being tunnelled backwards from a relay node to the route owner.
+            case ControlConnectionProtocol.CONN_PKT_KEM if connected or waiting_for_ack:
+                self._handle_accept_connection_attach_key_to_client(addr, connection_token, data)
+
+            # Handle a KEM-wrapped symmetric key being tunnelled forwards to a relay node from the route owner.
             case ControlConnectionProtocol.CONN_PKT_KEY:
                 self._handle_packet_key(addr, connection_token, data)
 
+            # Handle a KEM-wrapped symmetric key acknowledgement being tunnelled backwards from a relay node to the
+            # route owner.
             case ControlConnectionProtocol.CONN_PKT_ACK if connected:
                 self._handle_packet_key_ack(addr, connection_token, data)
-                
+
+            # Handle the directory node sending a certificate to this node, allowing trusted authentication to other
+            # nodes in the network.
+            case DirectoryConnectionProtocol.DIR_CER if self._waiting_for_cert and connected and they_are_directory_node:
+                self._handle_certificate_from_directory_node(addr, connection_token, data)
+
+            # Handle registering a new node to the network when this node is a directory node.
+            case DirectoryConnectionProtocol.DIR_REG if self._is_directory_node and connected:
+                self._handle_register_node_to_directory_node(addr, connection_token, data)
+
+            # Handle a node requesting a list of nodes to bootstrap from when this node is a directory node.
+            case DirectoryConnectionProtocol.DIR_LST_REQ if self._is_directory_node and connected:
+                self._handle_request_for_nodes_from_directory_node(addr, connection_token, data)
+
+            # Handle a node requesting a new certificate from a directory node.
+            case DirectoryConnectionProtocol.DIR_CER_REQ if self._is_directory_node and connected:
+                self._handle_request_for_certificate_from_directory_node(addr, connection_token, data)
+
+            # Otherwise, log an error, ignore the message, and do nothing.
             case _:
                 logging.error(f"\t\tUnknown command or invalid state: {command}")
                 logging.error(f"\t\t{addr.ip} {self._pending_node_to_add_to_route.ip}")
                 logging.error(f"\t\tWaiting for ack?: {waiting_for_ack}")
                 logging.error(f"\t\tConnected?: {connected}")
 
-        # self._mutex.release()
-
-        # End this handler thread, and remove it from the list of message threads.
-        # current_thread = threading.current_thread()
-        # self._msg_threads.remove(current_thread)
-        # current_thread.join()  # TODO
-
     @LogPre
     # @ReplayErrorBackToUser(ControlConnectionProtocol.CONN_REJ)
     def _handle_request_to_connect(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
         """
-        Handle a request from a Node to connect to this Node, and establish an encrypted tunnel for UDP traffic. The
-        request will always come from a node that will be behind this node in the route.
-        :param addr: Address of a node requesting this node to partake in a connection.
-        :param data: Accompanying data with the request.
+        Handle a request from a node to connect to this node, forming an end to end UDP connection. The request will
+        either be for DHT maintenance, or for a new connection to be formed in a route, in which case the node will
+        always be from a node that will be before this node in the route.
+        @param addr: The address of the node requesting this node to partake in a connection.
+        @param connection_token: The connection token of the request.
+        @param data: The data of the request (their signed ephemeral public key).
+        @return: None.
         """
 
         # Get their static public key from the DHT, and the parse the signed message.
@@ -542,6 +589,115 @@ class ControlConnectionManager:
         self._my_route.route[-1].secure = True
 
     @LogPre
+    def _handle_certificate_from_directory_node(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
+        """
+        The certificate is a SignedMessage from the directory node. The connection is already e2e encrypted &
+        authenticated at this point, but the extra signature is needed, so it can be sent to other nodes to prove
+        authenticity from the directory node.
+        @param addr:
+        @param connection_token:
+        @param data:
+        @return:
+        """
+
+        # Extra (unnecessary) verification of the directory node's signature on the certificate.
+        certificate: SignedMessage = pickle.loads(data)
+        directory_node_static_public_key = DHT.DIRECTORY_NODES[addr.ip]
+
+        DigitalSigning.verify(
+            their_static_public_key=directory_node_static_public_key,
+            signed_message=certificate,
+            my_id=directory_node_static_public_key)
+
+        # Export the certificate to a file, and set the "waiting for certificate flag" to False.
+        SecureBytes(data).export(f"./_certs", "certificate", ".ctf")
+        self._waiting_for_cert = False
+
+    @LogPre
+    def _handle_register_node_to_directory_node(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
+        """
+        This directory node will generate a certificate for the new node, and send it to the new node. The certificate
+        will be signed by the directory node, and will be used to authenticate the new node to other nodes in the
+        network.
+        @param addr: The address of the new node to register.
+        @param connection_token:
+        @param data: The static public key of the node to register.
+        @return:
+        """
+
+        # Save the new node's public key to the DHT, and generate a certificate for the new node.
+        node_id = Hashing.hash(SecureBytes(data))
+        DirectoryNodeFileManager.add_record(node_id.raw, data)
+
+        # Generate the certificate for the new node, signing it with the directory node's private key.
+        previous_certificate_hash = b"\x00" * Hashing.ALGORITHM.digest_size
+        my_static_private_key = KeyPair().import_("./_keys/me", "static").secret_key
+        certificate = DigitalSigning.sign(
+            message=previous_certificate_hash + node_id + SecureBytes(data),
+            my_static_private_key=my_static_private_key,
+            their_id=node_id)
+
+        # Send the certificate to the new node.
+        self._send_message_onwards(addr, connection_token, DirectoryConnectionProtocol.DIR_CER, pickle.dumps(certificate))
+
+    @LogPre
+    def _handle_request_for_nodes_from_directory_node(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
+        """
+        Send a list of nodes to the requesting node. The list will be a list of the node IDs, and the static public
+        keys of the nodes. At this point, an authenticated e2e connection will have been setup, so no extra signature is
+        needed.
+
+        @param addr:
+        @param connection_token:
+        @param data:
+        @return:
+        """
+
+        # Get the list of nodes from the DHT, and send it to the requesting node.
+        nodes = DirectoryNodeFileManager.get_random_records()
+        self._send_message_onwards(addr, connection_token, DirectoryConnectionProtocol.DIR_LST_RES, pickle.dumps(nodes))
+
+    @LogPre
+    def _handle_request_for_certificate_from_directory_node(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
+        """
+        This is used to generate a new certificate for a node that is already on the network. This is used for
+        refreshing old certificates. All that's required is that a new certificate is generated normally, because
+        timestamps are embedded into signatures. At this point, the connection is already e2e encrypted & authenticated,
+        meaning that the authenticity of the given node ID is valid.
+
+        Each new certificate also embeds the hash of the previous certificate, creating a chain of trust.
+
+        @param addr:
+        @param connection_token:
+        @param data: Contains the ID of the node to generate a new certificate for.
+        @return: None.
+        """
+
+        node_id, old_certificate = pickle.loads(data)
+
+        # Verify that the old certificate is valid, and that the node ID matches the old certificate. Note that the ID
+        # is the ID of the node, because that's where the certificate was sent originally.
+        their_static_public_key = DHT.get_static_public_key(addr.ip)
+        DigitalSigning.verify(
+            their_static_public_key=their_static_public_key,
+            signed_message=old_certificate,
+            my_id=node_id)
+
+        # Ensure the node ID on the old certificate matches the node ID of the node.
+        assert old_certificate.message[Hashing.ALGORITHM.digest_size:2 * Hashing.ALGORITHM.digest_size] == node_id
+
+        # Generate a new certificate for the node, and send it to the node.
+        previous_certificate_hash = Hashing.hash(old_certificate.message[:Hashing.ALGORITHM.digest_size])
+        my_static_private_key = KeyPair().import_("./_keys/me", "static").secret_key
+        refreshed_certificate = DigitalSigning.sign(
+            message=node_id + SecureBytes(data),
+            my_static_private_key=my_static_private_key,
+            their_id=node_id)
+
+        # Send the refreshed certificate to the node.
+        self._send_message_onwards(addr, connection_token, DirectoryConnectionProtocol.DIR_CER, pickle.dumps(refreshed_certificate))
+
+    @LogPre
     # @ReplayErrorBackToUser
     def _forward_message(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:  # TODO: bug in here (address)
         """
@@ -583,7 +739,7 @@ class ControlConnectionManager:
         self._conversations[conversation_id].secure = True
 
     @LogPre
-    def _tunnel_message_forwards(self, addr: Address, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
+    def _tunnel_message_forwards(self, addr: Address, connection_token: Bytes, command: ConnectionProtocol, data: Bytes) -> None:
         logging.debug(f"\t\tTunneling {command} to: {addr.ip}")
         logging.debug(f"\t\tConnection token: {connection_token}")
         logging.debug(f"\t\tRaw payload: {data[:100]}...")
@@ -623,7 +779,7 @@ class ControlConnectionManager:
         self._send_message_onwards(self._my_route.route[0].connection_token.address, connection_token, command, data)
 
     @LogPre
-    def _tunnel_message_backward(self, addr: Address, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
+    def _tunnel_message_backward(self, addr: Address, connection_token: Bytes, command: ConnectionProtocol, data: Bytes) -> None:
         # Encrypt with 1 layer as this message is travelling backwards to the client node. Don't do this for sending
         # information to self.
         if not (self._my_route and self._my_route.connection_token.token == connection_token):
@@ -647,7 +803,7 @@ class ControlConnectionManager:
             self._handle_message(addr, nested_command, connection_token, nested_data)
 
     @LogPre
-    def _send_message_onwards(self, addr: Address, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
+    def _send_message_onwards(self, addr: Address, connection_token: Bytes, command: ConnectionProtocol, data: Bytes) -> None:
         logging.debug(f"\t\tSending {command} to: {addr.ip}")
         logging.debug(f"\t\tConnection token: {connection_token}")
         logging.debug(f"\t\tRaw payload ({len(data)}): {data[:100]}...")
@@ -763,9 +919,51 @@ class ControlConnectionManager:
         conversation_id = ConnectionToken(token=connection_token, address=addr)
         return conversation_id in self._conversations.keys() and self._conversations[conversation_id].state & ControlConnectionState.CONNECTED
 
-    def _is_in_route(self, addr: Address, connection_token: Bytes) -> bool:
-        conversation_id = ConnectionToken(token=connection_token, address=addr)
-        return self._my_route and conversation_id in [n.connection_token for n in self._my_route.route]
+
+class DirectoryNodeFileManager:
+    LOCK = threading.Lock()
+
+    @staticmethod
+    def add_record(identifier: Bytes, static_public_key: Bytes) -> None:
+        with DirectoryNodeFileManager.LOCK:
+            with open("./_dir/registry.csv", "ab") as file:
+                file.write(identifier + b"," + static_public_key + b"\n")
+
+    @staticmethod
+    def get_record(identifier: Bytes) -> Bytes:
+        with DirectoryNodeFileManager.LOCK:
+            with open("./_dir/registry.csv", "rb") as file:
+                rows = csv.reader(file)
+                return next((row[1] for row in rows if row[0] == identifier), b"")
+
+    @staticmethod
+    def del_record(identifier: Bytes) -> None:
+        with DirectoryNodeFileManager.LOCK:
+            with open("./_dir/registry.csv", "rb") as file:
+                rows = csv.reader(file)
+                rows = [row for row in rows if row[0] != identifier]
+
+            with open("./_dir/registry.csv", "wb") as file:
+                writer = csv.writer(file)
+                writer.writerows(rows)
+
+    @staticmethod
+    def num_records() -> int:
+        with DirectoryNodeFileManager.LOCK:
+            with open("./_dir/registry.csv", "rb") as file:
+                return sum(1 for _ in file)
+
+    @staticmethod
+    def get_random_records() -> List[Bytes]:
+        current_number_of_records = DirectoryNodeFileManager.num_records()
+        number_of_records = min(current_number_of_records, int(math.log2(current_number_of_records)))
+
+        with DirectoryNodeFileManager.LOCK:
+            with open("./_dir/registry.csv", "rb") as file:
+                rows = csv.reader(file)
+                rows = [row for row in rows]
+                random.shuffle(rows)
+                return rows[:int(number_of_records)]
 
 
 __all__ = ["ControlConnectionManager"]
