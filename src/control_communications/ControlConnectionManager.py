@@ -170,6 +170,10 @@ class ControlConnectionManager:
             command=ControlConnectionProtocol.CONN_EXT,
             data=pickle.dumps(target_address))
 
+        target_connection_token = ConnectionToken(address=target_address, token=connection_token.token)
+        while target_connection_token not in self._conversations.keys():
+            pass
+
         self._send_message_onwards(
             addr=target_address,
             connection_token=connection_token.token,
