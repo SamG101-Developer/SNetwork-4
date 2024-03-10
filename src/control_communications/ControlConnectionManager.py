@@ -7,6 +7,8 @@ import random
 from argparse import Namespace
 import csv, hashlib, logging, pickle, threading
 
+import base58
+
 from control_communications.ControlConnectionServer import *
 from control_communications.ControlConnectionProtocol import *
 from control_communications.ControlConnectionRoute import *
@@ -997,21 +999,21 @@ class DirectoryNodeFileManager:
     def add_record(identifier: Bytes, static_public_key: Bytes) -> None:
         with DirectoryNodeFileManager.LOCK:
             with open("./_dir/registry.csv", "ab") as file:
-                file.write(identifier + b"," + static_public_key + b"\n")
+                file.write(base58.b58encode(identifier) + b"," + base58.b58encode(static_public_key) + b"\n")
 
     @staticmethod
     def get_record(identifier: Bytes) -> Bytes:
         with DirectoryNodeFileManager.LOCK:
             with open("./_dir/registry.csv", "rb") as file:
                 rows = csv.reader(file)
-                return next((row[1] for row in rows if row[0] == identifier), b"")
+                return base58.b58decode(next((row[1] for row in rows if row[0] == identifier), b""))
 
     @staticmethod
     def del_record(identifier: Bytes) -> None:
         with DirectoryNodeFileManager.LOCK:
             with open("./_dir/registry.csv", "rb") as file:
                 rows = csv.reader(file)
-                rows = [row for row in rows if row[0] != identifier]
+                rows = [row for row in rows if row[0] != base58.b58encode(identifier)]
 
             with open("./_dir/registry.csv", "wb") as file:
                 writer = csv.writer(file)
