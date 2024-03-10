@@ -135,7 +135,7 @@ class ControlConnectionManager:
         # Dummy conversation to allow the directory node to send a certificate.
         self._conversations[connection_token] = ControlConnectionConversationInfo(
             state=ControlConnectionState.WAITING_FOR_ACK,
-            their_static_public_key=DHT.get_static_public_key(connection_token.address.ip),
+            their_static_public_key=SecureBytes(),
             shared_secret=None,
             my_ephemeral_public_key=None,
             my_ephemeral_secret_key=None,
