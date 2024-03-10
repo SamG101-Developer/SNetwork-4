@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import platform
 from dataclasses import dataclass
 import socket
@@ -25,7 +26,7 @@ class ControlConnectionRoute:
 @dataclass(kw_only=True)
 class Address:
     ip: Str
-    port: Int
+    port: Int = dataclasses.field(default=12345)
 
     def socket_format(self) -> Tuple[Str, Int]:
         return self.ip, self.port
