@@ -12,6 +12,9 @@ class DHT:
 
     @staticmethod
     def get_static_public_key(address: Str) -> SecureBytes:
+        if address in DHT.DIRECTORY_NODES.keys():
+            return SecureBytes(DHT.DIRECTORY_NODES[address])
+
         cache = json.load(open("./_cache/dht_cache.json"))
         public_key = [node["key"] for node in cache if base58.b58decode(node["id"]).decode() == address]
         if not public_key:
