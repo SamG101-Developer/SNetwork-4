@@ -745,7 +745,9 @@ class ControlConnectionManager:
         # Get the list of nodes from the DHT, and send it to the requesting node.
         nodes = []
         for x in range(3):
-            nodes.append(DHT.get_random_node(block_list=[node["ip"] for node in nodes]))
+            next_node = DHT.get_random_node(block_list=[node["ip"] for node in nodes])
+            if not next_node: break
+            nodes.append(next_node)
         self._send_message_onwards(addr, connection_token, DirectoryConnectionProtocol.DIR_LST_RES, pickle.dumps(nodes))
 
     @LogPre
