@@ -22,7 +22,7 @@ class DHT:
         if not public_key:
             raise NodeNotInNetworkException
 
-        public_key = base58.b58decode(public_key[0].replace("\n", ""))
+        public_key = base58.b58decode(public_key[-1].replace("\n", ""))
         return SecureBytes(public_key)
 
     @staticmethod

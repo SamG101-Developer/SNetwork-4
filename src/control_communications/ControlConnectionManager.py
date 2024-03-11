@@ -698,7 +698,7 @@ class ControlConnectionManager:
 
         # Save the new node's public key to the DHT, and generate a certificate for the new node.
         node_id = Hashing.hash(their_static_public_key)
-        DirectoryNodeFileManager.add_record(node_id.raw, their_static_public_key.raw)
+        # DirectoryNodeFileManager.add_record(node_id.raw, their_static_public_key.raw)
 
         # Temporary conversation
         target_connection_token = ConnectionToken(address=addr, token=connection_token)
@@ -740,7 +740,9 @@ class ControlConnectionManager:
         """
 
         # Get the list of nodes from the DHT, and send it to the requesting node.
-        nodes = DirectoryNodeFileManager.get_random_records()
+        nodes = []
+        for x in range(3):
+            nodes = DHT.get_random_node(block_list=nodes)
         self._send_message_onwards(addr, connection_token, DirectoryConnectionProtocol.DIR_LST_RES, pickle.dumps(nodes))
 
     @LogPre
@@ -1012,50 +1014,53 @@ class ControlConnectionManager:
         return conversation_id in self._conversations.keys() and self._conversations[conversation_id].state & ControlConnectionState.CONNECTED
 
 
-class DirectoryNodeFileManager:
-    LOCK = threading.Lock()
-
-    @staticmethod
-    def add_record(identifier: Bytes, static_public_key: Bytes) -> None:
-        with DirectoryNodeFileManager.LOCK:
-            with open("./_dir/registry.csv", "ab") as file:
-                file.write(base58.b58encode(identifier) + b"," + base58.b58encode(static_public_key) + b"\n")
-
-    @staticmethod
-    def get_record(identifier: Bytes) -> Bytes:
-        with DirectoryNodeFileManager.LOCK:
-            with open("./_dir/registry.csv", "rb") as file:
-                rows = csv.reader(file)
-                return base58.b58decode(next((row[1] for row in rows if row[0] == identifier), b""))
-
-    @staticmethod
-    def del_record(identifier: Bytes) -> None:
-        with DirectoryNodeFileManager.LOCK:
-            with open("./_dir/registry.csv", "rb") as file:
-                rows = csv.reader(file)
-                rows = [row for row in rows if row[0] != base58.b58encode(identifier)]
-
-            with open("./_dir/registry.csv", "wb") as file:
-                writer = csv.writer(file)
-                writer.writerows(rows)
-
-    @staticmethod
-    def num_records() -> int:
-        with DirectoryNodeFileManager.LOCK:
-            with open("./_dir/registry.csv", "rb") as file:
-                return sum(1 for _ in file)
-
-    @staticmethod
-    def get_random_records() -> List[Bytes]:
-        current_number_of_records = DirectoryNodeFileManager.num_records()
-        number_of_records = min(current_number_of_records, int(math.log2(current_number_of_records)))
-
-        with DirectoryNodeFileManager.LOCK:
-            with open("./_dir/registry.csv", "rb") as file:
-                rows = csv.reader(file)
-                rows = [row for row in rows]
-                random.shuffle(rows)
-                return rows[:int(number_of_records)]
+# class DirectoryNodeFileManager:
+#     LOCK = threading.Lock()
+#
+#     @staticmethod
+#     def add_record(identifier: Bytes, static_public_key: Bytes) -> None:
+#         with DirectoryNodeFileManager.LOCK:
+#             with open("./_dir/registry.csv", "a") as file:
+#                 contents = base58.b58encode(identifier) + b"," + base58.b58encode(static_public_key) + b"\n"
+#                 file.write(contents.decode())
+#
+#     @staticmethod
+#     def get_record(identifier: Bytes) -> Bytes:
+#         with DirectoryNodeFileManager.LOCK:
+#             with open("./_dir/registry.csv", "r") as file:
+#                 rows = csv.reader(file)
+#                 return base58.b58decode(next((row[1] for row in rows if row[0] == identifier), b""))
+#
+#     @staticmethod
+#     def del_record(identifier: Bytes) -> None:
+#         with DirectoryNodeFileManager.LOCK:
+#             with open("./_dir/registry.csv", "r") as file:
+#                 rows = csv.reader(file)
+#                 rows = [row for row in rows if row[0] != base58.b58encode(identifier).decode()]
+#
+#             with open("./_dir/registry.csv", "w") as file:
+#                 writer = csv.writer(file)
+#                 writer.writerows(rows)
+#
+#     @staticmethod
+#     def num_records() -> int:
+#         with DirectoryNodeFileManager.LOCK:
+#             with open("./_dir/registry.csv", "r") as file:
+#                 return sum(1 for _ in file)
+#
+#     @staticmethod
+#     def get_random_records() -> List[Bytes]:
+#         current_number_of_records = DirectoryNodeFileManager.num_records()
+#         number_of_records = min(current_number_of_records, int(math.log2(current_number_of_records)))
+#
+#         with DirectoryNodeFileManager.LOCK:
+#             with open("./_dir/registry.csv", "r") as file:
+#                 rows = csv.reader(file)
+#                 rows = [row for row in rows]
+#                 random.shuffle(rows)
+#                 subset = rows[:int(number_of_records)]
+#                 subset = [(base58.b58decode(row[0]), base58.b58decode(row[1])) for row in subset]
+#                 return subset
 
 
 __all__ = ["ControlConnectionManager"]
