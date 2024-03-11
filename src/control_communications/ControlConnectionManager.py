@@ -113,7 +113,7 @@ class ControlConnectionManager:
         while len(self._my_route.route) < 4:
             # Extend the connection to the next node in the route.
             current_ips_in_route = [node.connection_token.address.ip for node in self._my_route.route]
-            self._pending_node_to_add_to_route = Address(ip=DHT.get_random_node(current_ips_in_route), port=12345)
+            self._pending_node_to_add_to_route = Address(ip=DHT.get_random_node(current_ips_in_route)["ip"], port=12345)
             logging.info(f"\t\t\033[32mExtending route to: {self._pending_node_to_add_to_route.ip}\033[0m")
 
             self._tunnel_message_forwards(self._pending_node_to_add_to_route, connection_token.token, ControlConnectionProtocol.CONN_EXT, pickle.dumps(self._pending_node_to_add_to_route))
@@ -296,6 +296,9 @@ class ControlConnectionManager:
             # Handle a node requesting a new certificate from a directory node.
             case DirectoryConnectionProtocol.DIR_CER_REQ if self._is_directory_node and connected:
                 self._handle_request_for_certificate_from_directory_node(addr, connection_token, data)
+
+            case DirectoryConnectionProtocol.DIR_LST_RES if they_are_directory_node and connected:
+                self._handle_response_for_nodes_from_directory_node(addr, connection_token, data)
 
             # Otherwise, log an error, ignore the message, and do nothing.
             case _:
@@ -742,7 +745,7 @@ class ControlConnectionManager:
         # Get the list of nodes from the DHT, and send it to the requesting node.
         nodes = []
         for x in range(3):
-            nodes = DHT.get_random_node(block_list=nodes)
+            nodes.append(DHT.get_random_node(block_list=[node["ip"] for node in nodes]))
         self._send_message_onwards(addr, connection_token, DirectoryConnectionProtocol.DIR_LST_RES, pickle.dumps(nodes))
 
     @LogPre
@@ -784,6 +787,20 @@ class ControlConnectionManager:
 
         # Send the refreshed certificate to the node.
         self._send_message_onwards(addr, connection_token, DirectoryConnectionProtocol.DIR_CER, pickle.dumps(refreshed_certificate))
+
+    @LogPre
+    def _handle_response_for_nodes_from_directory_node(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
+        """
+
+        @param addr:
+        @param connection_token:
+        @param data:
+        @return:
+        """
+
+        nodes = pickle.loads(data)
+        for node in nodes:
+            DHT.cache_node_information(node[0], node[1], addr.ip)
 
     @LogPre
     # @ReplayErrorBackToUser
