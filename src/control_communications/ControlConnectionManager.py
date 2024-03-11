@@ -179,7 +179,7 @@ class ControlConnectionManager:
             message=my_ephemeral_public_key,
             their_id=DHT.DIRECTORY_NODES[addr.ip])
 
-        sending_data = pickle.dumps(signed_my_ephemeral_public_key)
+        sending_data = pickle.dumps((signed_my_ephemeral_public_key, False))
 
         self._send_message_onwards(addr, connection_token.token, ControlConnectionProtocol.CONN_REQ, sending_data)
         while not self._conversations[connection_token].shared_secret:
@@ -320,7 +320,7 @@ class ControlConnectionManager:
         # Get their static public key from the DHT, and the parse the signed message.
         my_static_private_key, my_static_public_key = KeyPair().import_("./_keys/me", "static").both()
         their_static_public_key = DHT.get_static_public_key(addr.ip)
-        their_signed_ephemeral_public_key: SignedMessage = pickle.loads(data)
+        their_signed_ephemeral_public_key, for_route = pickle.loads(data)
 
         # Verify the signature of the ephemeral public key being sent from the requesting node.
         DigitalSigning.verify(
@@ -372,7 +372,9 @@ class ControlConnectionManager:
             pass
 
         self._conversations[conversation_id].shared_secret = kem_wrapped_shared_secret.decapsulated_key
-        self._tunnel_message_backward(addr, connection_token, ControlConnectionProtocol.CONN_PKT_KEM, pickle.dumps(signed_e2e_key))
+
+        if for_route:
+            self._tunnel_message_backward(addr, connection_token, ControlConnectionProtocol.CONN_PKT_KEM, pickle.dumps(signed_e2e_key))
 
     @LogPre
     # @ReplayErrorBackToUser
@@ -507,7 +509,7 @@ class ControlConnectionManager:
 
         logging.debug(f"\t\tSigned ephemeral public key: {signed_my_ephemeral_public_key.signature.raw[:100]}...")
 
-        sending_data = pickle.dumps(signed_my_ephemeral_public_key)
+        sending_data = pickle.dumps((signed_my_ephemeral_public_key, True))
         self._send_message_onwards(target_addr, connection_token, ControlConnectionProtocol.CONN_REQ, sending_data)
 
     @LogPre
