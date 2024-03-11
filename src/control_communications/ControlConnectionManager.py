@@ -361,17 +361,18 @@ class ControlConnectionManager:
         self._conversations[conversation_id] = ControlConnectionConversationInfo(
             state=ControlConnectionState.CONNECTED,
             their_static_public_key=their_static_public_key,
-            shared_secret=kem_wrapped_shared_secret.decapsulated_key,
+            shared_secret=None,
             my_ephemeral_public_key=None,
             my_ephemeral_secret_key=None,
-            secure=True)
+            secure=False)
 
         # Send the signed KEM wrapped shared secret to the requesting node.
         self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_ACC, pickle.dumps(signed_kem_wrapped_shared_secret))
         # while not self._conversations[conversation_id].secure:
         #     pass
 
-        # self._conversations[conversation_id].shared_secret = kem_wrapped_shared_secret.decapsulated_key
+        self._conversations[conversation_id].shared_secret = kem_wrapped_shared_secret.decapsulated_key
+        self._conversations[conversation_id].secure = True
 
         if for_route:
             self._tunnel_message_backward(addr, connection_token, ControlConnectionProtocol.CONN_PKT_KEM, pickle.dumps(signed_e2e_key))
