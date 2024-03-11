@@ -182,7 +182,7 @@ class ControlConnectionManager:
         sending_data = pickle.dumps((signed_my_ephemeral_public_key, False))
 
         self._send_message_onwards(addr, connection_token.token, ControlConnectionProtocol.CONN_REQ, sending_data)
-        while not self._conversations[connection_token].shared_secret:
+        while not self._conversations[connection_token].secure:
             pass
 
         return connection_token
@@ -405,7 +405,10 @@ class ControlConnectionManager:
         my_ephemeral_public_key = self._conversations[conversation_id].my_ephemeral_public_key
         my_ephemeral_secret_key = self._conversations[conversation_id].my_ephemeral_secret_key
 
+        # Confirm to the other node that the connection is now secure, and from now on to use E2E encryption.
         self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_SEC, b"")
+
+        # Save the "shared secret", so E2E encryption is now available in the send/recv functions.
         self._conversations[conversation_id] = ControlConnectionConversationInfo(
             state=ControlConnectionState.CONNECTED,
             their_static_public_key=their_static_public_key,
@@ -817,6 +820,8 @@ class ControlConnectionManager:
 
     @LogPre
     def _register_connection_as_secure(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
+        logging.debug(f"Marking connection to {addr.ip} as secure")
+
         conversation_id = ConnectionToken(token=connection_token, address=addr)
         self._conversations[conversation_id].secure = True
 
@@ -914,7 +919,7 @@ class ControlConnectionManager:
         # Decrypt the e2e connection if its encrypted (not encrypted when initiating a connection).
         if addr in [c.address for c in self._conversations.keys()]:
             connection_token = [c.token for c in self._conversations.keys() if c.address == addr][0]
-            conversation_id = ConnectionToken(token=connection_token, address=addr)
+            conversation_id  = ConnectionToken(token=connection_token, address=addr)
             if shared_secret := self._conversations[conversation_id].shared_secret:
                 data = SymmetricEncryption.decrypt(SecureBytes(data), shared_secret).raw
                 logging.debug(f"\t\tE2E decrypted payload: {data[:100]}...")
