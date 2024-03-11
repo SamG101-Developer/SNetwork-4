@@ -800,9 +800,13 @@ class ControlConnectionManager:
         @return:
         """
 
+        logging.debug(f"\t\tReceived list of nodes from directory node: {addr.ip}")
+        logging.debug(f"\t\tConnection token: {connection_token}")
+
         nodes = pickle.loads(data)
         for node in nodes:
-            DHT.cache_node_information(node[0], node[1], addr.ip)
+            logging.debug(f"\t\tNode: {node['ip']}")
+            DHT.cache_node_information(node["id"], node["public_key"], node["ip"])
 
     @LogPre
     # @ReplayErrorBackToUser
