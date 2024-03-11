@@ -806,7 +806,7 @@ class ControlConnectionManager:
         nodes = pickle.loads(data)
         for node in nodes:
             logging.debug(f"\t\tNode: {node['ip']}")
-            DHT.cache_node_information(node["id"], node["public_key"], node["ip"])
+            DHT.cache_node_information(node["id"], node["key"], node["ip"])
 
     @LogPre
     # @ReplayErrorBackToUser
