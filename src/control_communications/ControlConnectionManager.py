@@ -170,8 +170,8 @@ class ControlConnectionManager:
             state=ControlConnectionState.WAITING_FOR_ACK,
             their_static_public_key=DHT.get_static_public_key(addr.ip),
             shared_secret=None,
-            my_ephemeral_public_key=None,
-            my_ephemeral_secret_key=None,
+            my_ephemeral_public_key=my_ephemeral_public_key,
+            my_ephemeral_secret_key=my_ephemeral_private_key,
             secure=False)
 
         signed_my_ephemeral_public_key = DigitalSigning.sign(
