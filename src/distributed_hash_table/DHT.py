@@ -30,7 +30,6 @@ class DHT:
         cache = [entry["ip"] for entry in json.load(open("./_cache/dht_cache.json"))]
         cache = list(set(cache) - set(block_list))
         random_id = random.choices(cache, k=1)[0]
-        random_id = base58.b58decode(random_id).decode()
         return random_id
 
     @staticmethod
