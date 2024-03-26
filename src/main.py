@@ -69,6 +69,7 @@ def main():
     if not os.path.exists("./_keys"): os.mkdir("./_keys")
     if not os.path.exists("./_cache"):
         os.mkdir("./_cache")
+    if not os.path.exists("./_cache/dht_cache.json"):
         open("./_cache/dht_cache.json", "w").write("[]")
 
     parser = create_argument_parser()
