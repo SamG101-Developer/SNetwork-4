@@ -22,14 +22,13 @@ class ControlConnectionProtocol(ConnectionProtocol):
     CONN_PKT_KEY = 0b01100  # Packet key: send KEM-wrapped key
     CONN_PKT_ACK = 0b01101  # Packet key: acknowledge key receipt
 
-
-# Interacting with the directory nodes
-class DirectoryConnectionProtocol(ConnectionProtocol):
     DIR_REG     = 0b01110  # Register a new node to the directory node + first certificate
     DIR_CER_REQ = 0b01111  # Request a new time-updated certificate for a node from a directory node
     DIR_CER     = 0b10000  # Certificate for a node from a directory node
     DIR_LST_REQ = 0b10001  # Request a directory node for a list of nodes
     DIR_LST_RES = 0b10010  # Response to a list request
 
+    DHT_EXCH_IP = 0b10011  # Exchange IP addresses for DHT with another node
 
-__all__ = ["ConnectionProtocol", "ControlConnectionProtocol", "DirectoryConnectionProtocol"]
+
+__all__ = ["ConnectionProtocol", "ControlConnectionProtocol"]
