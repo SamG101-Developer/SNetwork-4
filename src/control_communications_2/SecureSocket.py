@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import json
+import pickle
 from socket import socket as Socket
 from threading import Thread
 from typing import Callable, Self
@@ -28,7 +28,7 @@ class SecureSocket:
         thread.start()
 
     def send(self, plain_text: ConnectionDataPackage) -> None:
-        data = SecureBytes(plain_text.to_bytes())
+        data = SecureBytes(pickle.dumps(plain_text))
         data = SymmetricEncryption.encrypt(data, self._e2e_key)
         self._socket.send(data.raw)
 
@@ -48,5 +48,5 @@ class SecureSocket:
             while not self._handling:
                 pass
             data = self.recv(1024)
-            thread = Thread(target=self._auto_handler, args=(self, json.loads(data.decode())))
+            thread = Thread(target=self._auto_handler, args=(self, pickle.loads(data)))
             thread.start()

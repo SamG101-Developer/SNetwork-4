@@ -59,15 +59,17 @@ class ConnectionHub:
         static_asymmetric_key_pair = DigitalSigning.generate_key_pair()
         static_asymmetric_key_pair.export("./_keys/me", "static")
         request = ConnectionDataPackage(command=ConnectionProtocol.DIR_CER_REQ, data=static_asymmetric_key_pair.public_key.raw)
-        print("created request", request)
 
         # Send the request to the directory node for a certificate.
+        logging.debug("Requesting a certificate from a directory node...")
         conn = CreateRawConnection((DHT.get_random_directory_node(), 12345))
         conn.send(_DumpData(request))
 
         # Receive the certificate and save it. todo: verify
         response = conn.recv(4096)
         response = _VerifyResponseIntegrity(response, ConnectionProtocol.DIR_CER_RES)
+        logging.debug("Received a certificate from a directory node.")
+
         SecureBytes(response.data).export("./_certs", "certificate", ".ctf")
 
     def _bootstrap_from_directory_node(self):
@@ -114,9 +116,9 @@ def CreateSecConnection(address: str) -> SecureSocket:
     response = _VerifyResponseIntegrity(response, ConnectionProtocol.CON_CON_ACC, ConnectionProtocol.CON_CON_REJ, ConnectionProtocol.DHT_CER_REQ)
 
     # Send the certificate to prove identity.
-    if response.command == ConnectionProtocol.DIR_CER_REQ:
+    if response.command == ConnectionProtocol.DHT_CER_REQ:
         my_certificate = SecureBytes().import_(f"./_certs/me", "certificate", ".ctf")
-        conn.send(_DumpData(ConnectionDataPackage(command=ConnectionProtocol.DIR_CER_RES, data=my_certificate.raw)))
+        conn.send(_DumpData(ConnectionDataPackage(command=ConnectionProtocol.DHT_CER_RES, data=_DumpData(my_certificate))))
 
         # The next response will be a CON_CON_[ACC|REJ].
         response = conn.recv(4096)
@@ -213,14 +215,14 @@ def _DirectoryNodeHandlesNewClient(client_socket: Socket, address: IPv4Address, 
                 their_id=their_id))
 
         # Send the certificate to the node.
-        client_socket.send(_DumpData(ConnectionDataPackage(command=ConnectionProtocol.DHT_CER_RES, data=_DumpData(certificate))))
+        client_socket.send(_DumpData(ConnectionDataPackage(command=ConnectionProtocol.DIR_CER_RES, data=_DumpData(certificate))))
 
     else:
         return _HandleNewClient(client_socket, address, auto_handler)
 
 
 def _VerifyResponseIntegrity(response: bytes, *expected_commands: ConnectionProtocol) -> ConnectionDataPackage:
-    response = pickle.loads(response)
+    response: ConnectionDataPackage = pickle.loads(response)
     if response.command not in expected_commands:
         raise Exception(f"Invalid command in response. Got {response.command}, expected 1 from {[*expected_commands]}")
     return response
