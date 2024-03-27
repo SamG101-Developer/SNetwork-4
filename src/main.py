@@ -76,8 +76,12 @@ def main():
     args = parser.parse_args(sys.argv[1:])
     CmdHandler(args.command, args)
 
-    while args.command in ["join", "route", "directory"]:
-        pass
+    try:
+        while args.command in ["join", "route", "directory"]:
+            pass
+    except KeyboardInterrupt:
+        print("\nExiting...")
+        sys.exit(0)
 
 
 if __name__ == "__main__":

@@ -1,3 +1,5 @@
+import logging
+
 from crypto_engines.tools.secure_bytes import SecureBytes
 from crypto_engines.crypto.digital_signing import DigitalSigning
 # from control_communications.ControlConnectionManager import ControlConnectionManager
@@ -39,6 +41,7 @@ class CmdHandler:
 
     @staticmethod
     def _handle_join(_arguments: Namespace) -> None:
+        logging.debug(f"Joining network as a node.")
         # Setup the control connection server
         if not CmdHandler.CONTROLLER:
             CmdHandler.CONTROLLER = ConnectionHub()
@@ -51,4 +54,5 @@ class CmdHandler:
 
     @staticmethod
     def _handle_directory(arguments: Namespace) -> None:
+        logging.debug(f"Joining network as a directory.")
         CmdHandler.CONTROLLER = DirectoryHub()
