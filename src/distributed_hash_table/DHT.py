@@ -40,15 +40,14 @@ class DHT:
         block_list = block_list or []
         cache = json.load(open("./_cache/dht_cache.json"))
 
-        print("cached ips:", [node["ip"] for node in cache])
-        print("block list:", block_list)
-
         valid_ips = [node for node in cache if node["ip"] not in block_list]
         random_node = random.choice(valid_ips) if valid_ips else None
 
-        print("random choice:", random_node)
-
         return random_node
+
+    @staticmethod
+    def total_nodes_known() -> int:
+        return len(json.load(open("./_cache/dht_cache.json")))
 
     @staticmethod
     def get_random_directory_node() -> Str:

@@ -278,6 +278,7 @@ class DirectoryHub:
 
         # Get a list of random nodes from the DHT cache.
         random_nodes = []
+        number_of_nodes_to_send_back = min(3, DHT.total_nodes_known())
         for i in range(3):
             random_node = DHT.get_random_node([node["ip"] for node in random_nodes])
             random_nodes.append(random_node)
