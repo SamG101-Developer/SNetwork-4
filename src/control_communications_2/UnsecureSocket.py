@@ -1,6 +1,8 @@
 import pickle
 from socket import socket as Socket
 
+from control_communications_2.ConnectionDataPackage import ConnectionDataPackage
+
 
 class UnsecureSocket:
     _socket: Socket
