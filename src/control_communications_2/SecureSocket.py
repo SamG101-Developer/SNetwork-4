@@ -28,6 +28,7 @@ class SecureSocket:
         thread.start()
 
     def send(self, plain_text: ConnectionDataPackage) -> None:
+        print(f"SENDING PLAINTEXT DATA: {plain_text}")
         data = SecureBytes(pickle.dumps(plain_text))
         data = SymmetricEncryption.encrypt(data, self._e2e_key)
         print(f"SENDING ENCRYPTED DATA: {data.raw}")
