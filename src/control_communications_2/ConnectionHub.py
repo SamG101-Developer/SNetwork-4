@@ -54,7 +54,7 @@ class ConnectionHub:
         self._connections.append(secure_connection)
 
     def _handle_command(self, socket: SecureSocket, data: ConnectionDataPackage) -> None:
-        ...
+        print(f"Unknown command: {data.command}.")
 
     def _obtain_certificate_from_directory_node(self):
         # Create a static asymmetric key pair and export it.
@@ -286,4 +286,4 @@ class DirectoryHub:
             case ConnectionProtocol.DIR_LST_REQ:
                 self._handle_list_request(socket, data)
             case _:
-                ...
+                print(f"Unknown command: {data.command}.")
