@@ -76,7 +76,7 @@ class ControlConnectionManager:
         self._is_directory_node = is_directory_node
         self._waiting_for_cert = False
 
-        if not self._is_directory_node and not os.path.exists("./_cert/certificate.ctf"):
+        if not self._is_directory_node and not os.path.exists("./_certs/certificate.ctf"):
             self.obtain_certificate()
 
         if not self._is_directory_node and len(json.loads(open("./_cache/dht_cache.json").read())) == 0:
