@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 from socket import socket as Socket
 from threading import Thread
@@ -9,7 +11,7 @@ from control_communications_2.ConnectionDataPackage import ConnectionDataPackage
 
 
 class SecureSocket:
-    type Handler = Callable[[SecureSocket, ConnectionDataPackage], None]
+    Handler = Callable[[SecureSocket, ConnectionDataPackage], None]
 
     _socket: Socket
     _e2e_key: SecureBytes

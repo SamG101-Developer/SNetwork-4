@@ -7,7 +7,7 @@ from typing import Callable
 
 
 class ConnectionServer:
-    type Handler = Callable[[Socket, IPv4Address], None]
+    Handler = Callable[[Socket, IPv4Address], None]
 
     _handle_client: ConnectionServer.Handler
     _socket: Socket

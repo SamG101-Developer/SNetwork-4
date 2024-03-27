@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json, os
 import pickle
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 from ipaddress import IPv4Address
 from socket import socket as Socket, create_connection as CreateRawConnection
 
@@ -201,7 +201,7 @@ def _DumpData(obj: object) -> SecureBytes:
     return SecureBytes(pickled)
 
 
-def _LoadData[T](data: SecureBytes) -> T:
+def _LoadData(data: SecureBytes) -> Any:
     data = data.raw
     return pickle.loads(data)
 
