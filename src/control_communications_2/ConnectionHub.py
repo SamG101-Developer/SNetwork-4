@@ -60,7 +60,7 @@ class ConnectionHub:
         request = ConnectionDataPackage(command=ConnectionProtocol.DIR_CER_REQ, data=static_asymmetric_key_pair.public_key)
 
         # Send the request to the directory node for a certificate.
-        conn = CreateRawConnection(DHT.DIRECTORY_NODES.keys()[0])
+        conn = CreateRawConnection((DHT.get_random_directory_node(), 12345))
         conn.send(request.to_bytes())
 
         # Receive the certificate and save it. todo: verify
