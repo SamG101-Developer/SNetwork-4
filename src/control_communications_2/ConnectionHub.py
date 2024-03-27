@@ -77,7 +77,7 @@ class ConnectionHub:
     def _bootstrap_from_directory_node(self):
         # Create a request for bootstrap nodes, and send it to the directory node.
         request = ConnectionDataPackage(command=ConnectionProtocol.DIR_LST_REQ, data=b"")
-        conn = CreateSecureConnection(DHT.DIRECTORY_NODES.keys()[0])
+        conn = CreateSecureConnection(DHT.get_random_directory_node())
         conn.send(request)
 
         # Receive the IP addresses of the bootstrap nodes.
