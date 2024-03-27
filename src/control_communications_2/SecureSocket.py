@@ -32,7 +32,7 @@ class SecureSocket:
         data = SecureBytes(pickle.dumps(plain_text))
         data = SymmetricEncryption.encrypt(data, self._e2e_key)
         print(f"SENDING ENCRYPTED DATA: {data.raw}")
-        self._socket.send(data.raw + b"\r\n")
+        self._socket.sendall(data.raw + b"\r\n")
 
     def recv(self) -> bytes:
         data = b""
