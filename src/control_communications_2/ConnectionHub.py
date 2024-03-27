@@ -74,14 +74,16 @@ class ConnectionHub:
         SecureBytes(_DumpData(response.data)).export("./_certs", "certificate", ".ctf")
 
     def _bootstrap_from_directory_node(self):
-        # Create a request for bootstrap nodes, and send it to the directory node.
+        # Create a request for bootstrap nodes.
         logging.debug("Requesting bootstrap nodes from a directory node...")
         request = ConnectionDataPackage(command=ConnectionProtocol.DIR_LST_REQ, data=b"")
         conn = CreateSecureConnection(DHT.get_random_directory_node())
+
+        # Send it to the directory node.
+        conn.pause_handler()
         conn.send(request)
 
         # Receive the IP addresses of the bootstrap nodes.
-        conn.pause_handler()
         response = conn.recv(10000)
         response = _VerifyResponseIntegrity(response, ConnectionProtocol.DIR_LST_RES)
         logging.debug("Received bootstrap nodes from a directory node.")
@@ -271,6 +273,8 @@ class DirectoryHub:
         self._connections.append(secure_connection)
 
     def _handle_list_request(self, client: SecureSocket, data: ConnectionDataPackage):
+        logging.debug(f"Received a list request from {client._socket.getpeername()}.")
+
         # Get a list of random nodes from the DHT cache.
         random_nodes = []
         for i in range(3):
