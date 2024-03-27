@@ -76,6 +76,7 @@ class ConnectionHub:
 
     def _bootstrap_from_directory_node(self):
         # Create a request for bootstrap nodes, and send it to the directory node.
+        logging.debug("Requesting bootstrap nodes from a directory node...")
         request = ConnectionDataPackage(command=ConnectionProtocol.DIR_LST_REQ, data=b"")
         conn = CreateSecureConnection(DHT.get_random_directory_node())
         conn.send(request)
@@ -84,6 +85,7 @@ class ConnectionHub:
         conn.pause_handler()
         response = conn.recv(10000)
         response = _VerifyResponseIntegrity(response, ConnectionProtocol.DIR_LST_RES)
+        logging.debug("Received bootstrap nodes from a directory node.")
         conn.resume_handler()
 
         bootstrap_nodes: List[Tuple[IPv4Address, SecureBytes]] = _LoadData(response.data)
@@ -146,6 +148,8 @@ def CreateSecureConnection(address: str) -> SecureSocket:
         my_ephemeral_secret_key=my_ephemeral_secret_key,
         encapsulated_key=kem_wrapped_shared_secret_signed.message).decapsulated_key
 
+    logging.debug(f"Encrypted connection established to {address}.")
+
     # Create a secure connection with the key.
     return SecureSocket(conn._socket, shared_secret)
 
@@ -198,6 +202,7 @@ def _HandleNewClient(client_socket: UnsecureSocket, address: IPv4Address, auto_h
     # Create a secure connection with the key.
     shared_secret = kem_wrapped_shared_secret.decapsulated_key
     secure_connection = SecureSocket(client_socket._socket, shared_secret, auto_handler)
+    logging.debug(f"Encrypted connection established to {address}.")
     return secure_connection
 
 
