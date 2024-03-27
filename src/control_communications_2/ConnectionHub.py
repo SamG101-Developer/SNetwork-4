@@ -108,7 +108,7 @@ def CreateSecConnection(address: str) -> SecureSocket:
 
     # Create the socket and send the connection request.
     conn = CreateRawConnection((address, 12345))
-    request = ConnectionDataPackage(command=ConnectionProtocol.CON_CON_REQ, data=_DumpData(my_ephemeral_public_key_signed))
+    request = ConnectionDataPackage(command=ConnectionProtocol.CON_CON_REQ, data=my_ephemeral_public_key_signed)
     conn.send(_DumpData(request))
 
     # Receive either a CON_CON_[ACC|REJ], or a DHT_CER_REQ.
@@ -118,7 +118,7 @@ def CreateSecConnection(address: str) -> SecureSocket:
     # Send the certificate to prove identity.
     if response.command == ConnectionProtocol.DHT_CER_REQ:
         my_certificate = SecureBytes().import_(f"./_certs/me", "certificate", ".ctf")
-        conn.send(_DumpData(ConnectionDataPackage(command=ConnectionProtocol.DHT_CER_RES, data=_DumpData(my_certificate))))
+        conn.send(_DumpData(ConnectionDataPackage(command=ConnectionProtocol.DHT_CER_RES, data=my_certificate)))
 
         # The next response will be a CON_CON_[ACC|REJ].
         response = conn.recv(4096)
@@ -184,7 +184,7 @@ def _HandleNewClient(client_socket: Socket, address: IPv4Address, auto_handler: 
         their_id=DHT.get_id(address.compressed))
 
     # Send the signed shared secret to the client.
-    client_socket.send(_DumpData(ConnectionDataPackage(command=ConnectionProtocol.CON_CON_ACC, data=_DumpData(kem_wrapped_shared_secret_signed))))
+    client_socket.send(_DumpData(ConnectionDataPackage(command=ConnectionProtocol.CON_CON_ACC, data=kem_wrapped_shared_secret_signed)))
 
     # Create a secure connection with the key.
     shared_secret = kem_wrapped_shared_secret.decapsulated_key
@@ -215,7 +215,7 @@ def _DirectoryNodeHandlesNewClient(client_socket: Socket, address: IPv4Address, 
                 their_id=their_id))
 
         # Send the certificate to the node.
-        client_socket.send(_DumpData(ConnectionDataPackage(command=ConnectionProtocol.DIR_CER_RES, data=_DumpData(certificate))))
+        client_socket.send(_DumpData(ConnectionDataPackage(command=ConnectionProtocol.DIR_CER_RES, data=certificate)))
 
     else:
         return _HandleNewClient(client_socket, address, auto_handler)
