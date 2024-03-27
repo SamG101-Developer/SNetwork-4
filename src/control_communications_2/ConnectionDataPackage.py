@@ -13,6 +13,6 @@ class ConnectionDataPackage:
     def to_bytes(self) -> bytes:
         # Convert the data package to bytes.
         return json.dumps({
-            "command": self.command.value,
-            "data": self.data.raw.decode()
+            "command": self.command.value.to_bytes(1),
+            "data": self.data.raw
         }).encode()
