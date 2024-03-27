@@ -177,7 +177,7 @@ class ControlConnectionManager:
         signed_my_ephemeral_public_key = DigitalSigning.sign(
             my_static_private_key=my_static_private_key,
             message=my_ephemeral_public_key,
-            their_id=DHT.DIRECTORY_NODES[addr.ip])
+            their_id=DHT.get_static_public_key(addr.ip))
 
         sending_data = pickle.dumps((signed_my_ephemeral_public_key, False))
 
