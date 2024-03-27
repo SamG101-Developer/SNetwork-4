@@ -63,12 +63,12 @@ class ConnectionHub:
 
         # Send the request to the directory node for a certificate.
         conn = CreateRawConnection((DHT.get_random_directory_node(), 12345))
-        conn.send(request.to_bytes())
+        conn.send(_DumpData(request))
 
         # Receive the certificate and save it. todo: verify
         response = conn.recv(4096)
         response = _VerifyResponseIntegrity(response, ConnectionProtocol.DIR_CER_RES)
-        response.data.export("./_certs", "certificate", ".ctf")
+        SecureBytes(response.data).export("./_certs", "certificate", ".ctf")
 
     def _bootstrap_from_directory_node(self):
         # Create a request for bootstrap nodes, and send it to the directory node.
@@ -107,7 +107,7 @@ def CreateSecConnection(address: str) -> SecureSocket:
     # Create the socket and send the connection request.
     conn = CreateRawConnection((address, 12345))
     request = ConnectionDataPackage(command=ConnectionProtocol.CON_CON_REQ, data=_DumpData(my_ephemeral_public_key_signed))
-    conn.send(request.to_bytes())
+    conn.send(_DumpData(request))
 
     # Receive either a CON_CON_[ACC|REJ], or a DHT_CER_REQ.
     response = conn.recv(4096)
@@ -116,7 +116,7 @@ def CreateSecConnection(address: str) -> SecureSocket:
     # Send the certificate to prove identity.
     if response.command == ConnectionProtocol.DIR_CER_REQ:
         my_certificate = SecureBytes().import_(f"./_certs/me", "certificate", ".ctf")
-        conn.send(ConnectionDataPackage(command=ConnectionProtocol.DIR_CER_RES, data=my_certificate).to_bytes())
+        conn.send(_DumpData(ConnectionDataPackage(command=ConnectionProtocol.DIR_CER_RES, data=my_certificate.raw)))
 
         # The next response will be a CON_CON_[ACC|REJ].
         response = conn.recv(4096)
@@ -148,7 +148,7 @@ def _HandleNewClient(client_socket: Socket, address: IPv4Address, auto_handler: 
     # Check if this node is known (is it in the DHT cache?)
     if DHT.get_static_public_key(address.compressed) is None:
         # Request a certificate from the DHT node.
-        client_socket.send(ConnectionDataPackage(command=ConnectionProtocol.DHT_CER_REQ, data=SecureBytes(b"")).to_bytes())
+        client_socket.send(_DumpData(ConnectionDataPackage(command=ConnectionProtocol.DHT_CER_REQ, data=b"")))
 
         # Get the certificate from the node.
         response = client_socket.recv(4096)
@@ -182,7 +182,7 @@ def _HandleNewClient(client_socket: Socket, address: IPv4Address, auto_handler: 
         their_id=DHT.get_id(address.compressed))
 
     # Send the signed shared secret to the client.
-    client_socket.send(ConnectionDataPackage(command=ConnectionProtocol.CON_CON_ACC, data=_DumpData(kem_wrapped_shared_secret_signed)).to_bytes())
+    client_socket.send(_DumpData(ConnectionDataPackage(command=ConnectionProtocol.CON_CON_ACC, data=_DumpData(kem_wrapped_shared_secret_signed))))
 
     # Create a secure connection with the key.
     shared_secret = kem_wrapped_shared_secret.decapsulated_key
@@ -198,7 +198,7 @@ def _DirectoryNodeHandlesNewClient(client_socket: Socket, address: IPv4Address, 
         logging.debug(f"Generating certificate for {address}")
 
         # Determine the requesting node's static public key and id.
-        their_static_public_key = request.data
+        their_static_public_key = SecureBytes(request.data)
         their_id = Hashing.hash(their_static_public_key)
 
         # Create a certificate for the node.
@@ -213,9 +213,10 @@ def _DirectoryNodeHandlesNewClient(client_socket: Socket, address: IPv4Address, 
                 their_id=their_id))
 
         # Send the certificate to the node.
-        client_socket.send(_DumpData(ConnectionDataPackage(command=ConnectionProtocol.DHT_CER_RES, data=_DumpData(certificate))).raw)
+        client_socket.send(_DumpData(ConnectionDataPackage(command=ConnectionProtocol.DHT_CER_RES, data=_DumpData(certificate))))
 
-    _HandleNewClient(client_socket, address, auto_handler)
+    else:
+        return _HandleNewClient(client_socket, address, auto_handler)
 
 
 def _VerifyResponseIntegrity(response: bytes, *expected_commands: ConnectionProtocol) -> ConnectionDataPackage:
@@ -225,14 +226,14 @@ def _VerifyResponseIntegrity(response: bytes, *expected_commands: ConnectionProt
     return response
 
 
-def _DumpData(obj: object) -> SecureBytes:
+def _DumpData(obj: object) -> bytes:
     pickled = pickle.dumps(obj)
-    return SecureBytes(pickled)
+    return pickled
 
 
-def _LoadData(data: SecureBytes) -> Any:
-    data = data.raw
-    return pickle.loads(data)
+def _LoadData(data: bytes) -> Any:
+    obj = pickle.loads(data)
+    return obj
 
 
 class DirectoryHub:
