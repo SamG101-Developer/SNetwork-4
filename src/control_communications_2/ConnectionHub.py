@@ -90,7 +90,7 @@ class ConnectionHub:
         logging.debug("Received bootstrap nodes from a directory node.")
         conn.resume_handler()
 
-        bootstrap_nodes: List[Tuple[IPv4Address, SecureBytes]] = _LoadData(response.data)
+        bootstrap_nodes: List[Tuple[IPv4Address, SecureBytes]] = response.data
 
         # Cache the bootstrap nodes in the DHT cache.
         for ip_address, public_key in bootstrap_nodes:
@@ -284,7 +284,7 @@ class DirectoryHub:
             random_nodes.append(random_node)
 
         # Send the list of nodes to the requesting node.
-        response = ConnectionDataPackage(command=ConnectionProtocol.DIR_LST_RES, data=_DumpData(random_nodes))
+        response = ConnectionDataPackage(command=ConnectionProtocol.DIR_LST_RES, data=random_nodes)
         client.send(response)
 
     def _handle_command(self, socket: SecureSocket, data: ConnectionDataPackage) -> None:
