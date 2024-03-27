@@ -138,7 +138,7 @@ def CreateSecureConnection(address: str) -> SecureSocket:
         raise Exception("Connection rejected.")
 
     # Verify the signed encapsulated shared secret.
-    kem_wrapped_shared_secret_signed = _LoadData(response.data)
+    kem_wrapped_shared_secret_signed = response.data
     DigitalSigning.verify(
         signed_message=kem_wrapped_shared_secret_signed,
         their_static_public_key=DHT.get_static_public_key(address),
