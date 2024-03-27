@@ -3,9 +3,9 @@ from socket import socket as Socket
 from threading import Thread
 from typing import Callable
 
-from src.crypto_engines.tools.secure_bytes import SecureBytes
-from src.crypto_engines.crypto.symmetric_encryption import SymmetricEncryption
-from src.control_communications_2.ConnectionDataPackage import ConnectionDataPackage
+from crypto_engines.tools.secure_bytes import SecureBytes
+from crypto_engines.crypto.symmetric_encryption import SymmetricEncryption
+from control_communications_2.ConnectionDataPackage import ConnectionDataPackage
 
 
 class SecureSocket:

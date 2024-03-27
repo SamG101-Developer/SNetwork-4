@@ -1,8 +1,8 @@
 import dataclasses
 from ipaddress import IPv4Address
 
-from src.crypto_engines.crypto.digital_signing import SignedMessage
-from src.crypto_engines.tools.secure_bytes import SecureBytes
+from crypto_engines.crypto.digital_signing import SignedMessage
+from crypto_engines.tools.secure_bytes import SecureBytes
 
 
 @dataclasses.dataclass

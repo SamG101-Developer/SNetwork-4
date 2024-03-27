@@ -1,7 +1,7 @@
 import dataclasses, json
 
-from src.control_communications_2.ConnectionProtocol import ConnectionProtocol
-from src.crypto_engines.tools.secure_bytes import SecureBytes
+from control_communications_2.ConnectionProtocol import ConnectionProtocol
+from crypto_engines.tools.secure_bytes import SecureBytes
 
 
 @dataclasses.dataclass(kw_only=True)

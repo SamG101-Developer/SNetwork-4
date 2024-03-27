@@ -7,17 +7,17 @@ from ipaddress import IPv4Address
 from socket import socket as Socket, create_connection as CreateRawConnection
 
 from crypto_engines.crypto.hashing import Hashing
-from src.crypto_engines.crypto.digital_signing import DigitalSigning, SignedMessage
-from src.crypto_engines.crypto.key_encapsulation import KEM
-from src.crypto_engines.keys.key_pair import KeyPair
-from src.crypto_engines.tools.secure_bytes import SecureBytes
-from src.crypto_engines.tools.certificate import Certificate
-from src.distributed_hash_table.DHT import DHT
+from crypto_engines.crypto.digital_signing import DigitalSigning, SignedMessage
+from crypto_engines.crypto.key_encapsulation import KEM
+from crypto_engines.keys.key_pair import KeyPair
+from crypto_engines.tools.secure_bytes import SecureBytes
+from crypto_engines.tools.certificate import Certificate
+from distributed_hash_table.DHT import DHT
 
-from src.control_communications_2.ConnectionDataPackage import ConnectionDataPackage
-from src.control_communications_2.ConnectionProtocol import ConnectionProtocol
-from src.control_communications_2.ConnectionServer import ConnectionServer
-from src.control_communications_2.SecureSocket import SecureSocket
+from control_communications_2.ConnectionDataPackage import ConnectionDataPackage
+from control_communications_2.ConnectionProtocol import ConnectionProtocol
+from control_communications_2.ConnectionServer import ConnectionServer
+from control_communications_2.SecureSocket import SecureSocket
 
 
 class ConnectionRoute:
