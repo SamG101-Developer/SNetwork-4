@@ -244,7 +244,8 @@ def _DirectoryNodeHandlesNewClient(client_socket: UnsecureSocket, address: IPv4A
             node_public_key=their_static_public_key.raw)
 
     else:
-        return _HandleNewClient(client_socket, address, auto_handler, request=request)
+        pre_request = _DumpData(request)
+        return _HandleNewClient(client_socket, address, auto_handler, request=pre_request)
 
 
 def _VerifyResponseIntegrity(response: bytes, *expected_commands: ConnectionProtocol) -> ConnectionDataPackage:
