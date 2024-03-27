@@ -214,9 +214,7 @@ def _DirectoryNodeHandlesNewClient(client_socket: UnsecureSocket, address: IPv4A
 
         # Determine the requesting node's static public key and id.
         their_static_public_key = SecureBytes(request.data)
-        print("PUB_KEY", their_static_public_key)
         their_id = Hashing.hash(their_static_public_key)
-        print("ID", their_id)
 
         # Create a certificate for the node.
         my_ip = IPv4Address(client_socket.getpeername()[0])
