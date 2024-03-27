@@ -116,19 +116,13 @@ def CreateSecureConnection(address: str) -> SecureSocket:
         message=my_ephemeral_public_key,
         their_id=DHT.get_id(address))
 
-    print(1)
-
     # Create the socket and send the connection request.
     conn = CreateUnsecureConnection(address)
-    print(2)
     request = ConnectionDataPackage(command=ConnectionProtocol.CON_CON_REQ, data=my_ephemeral_public_key_signed)
-    print(3)
     conn.send(request)
-    print(4)
 
     # Receive either a CON_CON_[ACC|REJ], or a DHT_CER_REQ.
     response = conn.recv()
-    print(5)
     response = _VerifyResponseIntegrity(response, ConnectionProtocol.CON_CON_ACC, ConnectionProtocol.CON_CON_REJ, ConnectionProtocol.DHT_CER_REQ)
 
     # Send the certificate to prove identity.
