@@ -65,7 +65,7 @@ class ConnectionHub:
         # Send the request to the directory node for a certificate.
         logging.debug("Requesting a certificate from a directory node...")
         conn = CreateUnsecureConnection(DHT.get_random_directory_node())
-        conn.send(_DumpData(request))
+        conn.send(request)
 
         # Receive the certificate and save it. todo: verify
         response = conn.recv()
@@ -118,7 +118,7 @@ def CreateSecureConnection(address: str) -> SecureSocket:
     # Create the socket and send the connection request.
     conn = CreateUnsecureConnection(address)
     request = ConnectionDataPackage(command=ConnectionProtocol.CON_CON_REQ, data=my_ephemeral_public_key_signed)
-    conn.send(_DumpData(request))
+    conn.send(request)
 
     # Receive either a CON_CON_[ACC|REJ], or a DHT_CER_REQ.
     response = conn.recv()
@@ -127,7 +127,7 @@ def CreateSecureConnection(address: str) -> SecureSocket:
     # Send the certificate to prove identity.
     if response.command == ConnectionProtocol.DHT_CER_REQ:
         my_certificate = SecureBytes().import_(f"./_certs/me", "certificate", ".ctf")
-        conn.send(_DumpData(ConnectionDataPackage(command=ConnectionProtocol.DHT_CER_RES, data=my_certificate)))
+        conn.send(ConnectionDataPackage(command=ConnectionProtocol.DHT_CER_RES, data=my_certificate))
 
         # The next response will be a CON_CON_[ACC|REJ].
         response = conn.recv()
@@ -159,7 +159,7 @@ def _HandleNewClient(client_socket: UnsecureSocket, address: IPv4Address, auto_h
     # Check if this node is known (is it in the DHT cache?)
     if DHT.get_static_public_key(address.compressed) is None:
         # Request a certificate from the DHT node.
-        client_socket.send(_DumpData(ConnectionDataPackage(command=ConnectionProtocol.DHT_CER_REQ, data=b"")))
+        client_socket.send(ConnectionDataPackage(command=ConnectionProtocol.DHT_CER_REQ, data=b""))
 
         # Get the certificate from the node.
         response = client_socket.recv()
@@ -194,7 +194,7 @@ def _HandleNewClient(client_socket: UnsecureSocket, address: IPv4Address, auto_h
         their_id=DHT.get_id(address.compressed))
 
     # Send the signed shared secret to the client.
-    client_socket.send(_DumpData(ConnectionDataPackage(command=ConnectionProtocol.CON_CON_ACC, data=kem_wrapped_shared_secret_signed)))
+    client_socket.send(ConnectionDataPackage(command=ConnectionProtocol.CON_CON_ACC, data=kem_wrapped_shared_secret_signed))
 
     # Create a secure connection with the key.
     shared_secret = kem_wrapped_shared_secret.decapsulated_key
@@ -225,9 +225,7 @@ def _DirectoryNodeHandlesNewClient(client_socket: UnsecureSocket, address: IPv4A
                 their_id=their_id))
 
         # Send the certificate to the node.
-        data = _DumpData(ConnectionDataPackage(command=ConnectionProtocol.DIR_CER_RES, data=certificate))
-        print(len(data))
-        client_socket.send(data)
+        client_socket.send(ConnectionDataPackage(command=ConnectionProtocol.DIR_CER_RES, data=certificate))
 
     else:
         return _HandleNewClient(client_socket, address, auto_handler)
