@@ -21,7 +21,6 @@ class SecureSocket:
     def __init__(self, socket: Socket, e2e_key: SecureBytes, auto_handler: Handler = lambda *args: None):
         self._socket = socket
         self._e2e_key = e2e_key
-        print("HERERERE", self._e2e_key.raw)
         self._auto_handler = auto_handler
         self._handling = True
 
@@ -31,10 +30,12 @@ class SecureSocket:
     def send(self, plain_text: ConnectionDataPackage) -> None:
         data = SecureBytes(pickle.dumps(plain_text))
         data = SymmetricEncryption.encrypt(data, self._e2e_key)
+        print("HERERERER", data)
         self._socket.send(data.raw)
 
     def recv(self, buffer_size: int) -> bytes:
         data = SecureBytes(self._socket.recv(buffer_size))
+        print("HERERERE", data)
         data = SymmetricEncryption.decrypt(data, self._e2e_key)
         return data.raw
 
