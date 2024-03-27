@@ -144,7 +144,7 @@ def CreateSecConnection(address: str) -> SecureSocket:
 
 def _HandleNewClient(client_socket: Socket, address: IPv4Address, auto_handler: SecureSocket.Handler) -> SecureSocket:
     # Receive the connection request and verify the integrity.
-    request = client_socket.recv(4096)
+    request = client_socket.recv(10000)
     request = _VerifyResponseIntegrity(request, ConnectionProtocol.CON_CON_REQ)
 
     # Check if this node is known (is it in the DHT cache?)
@@ -153,7 +153,7 @@ def _HandleNewClient(client_socket: Socket, address: IPv4Address, auto_handler: 
         client_socket.send(_DumpData(ConnectionDataPackage(command=ConnectionProtocol.DHT_CER_REQ, data=b"")))
 
         # Get the certificate from the node.
-        response = client_socket.recv(4096)
+        response = client_socket.recv(10000)
         response = _VerifyResponseIntegrity(response, ConnectionProtocol.DHT_CER_RES)
 
         # Verify the certificate and cache the node information in the DHT.
@@ -194,7 +194,7 @@ def _HandleNewClient(client_socket: Socket, address: IPv4Address, auto_handler: 
 
 
 def _DirectoryNodeHandlesNewClient(client_socket: Socket, address: IPv4Address, auto_handler: SecureSocket.Handler) -> SecureSocket:
-    request = client_socket.recv(4096)
+    request = client_socket.recv(10000)
     request = _VerifyResponseIntegrity(request, ConnectionProtocol.CON_CON_REQ, ConnectionProtocol.DIR_CER_REQ)
 
     if request.command == ConnectionProtocol.DIR_CER_REQ:
