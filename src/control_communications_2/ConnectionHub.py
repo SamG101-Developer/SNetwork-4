@@ -76,8 +76,8 @@ class ConnectionHub:
     def _bootstrap_from_directory_node(self):
         # Create a request for bootstrap nodes.
         logging.debug("Requesting bootstrap nodes from a directory node...")
-        request = ConnectionDataPackage(command=ConnectionProtocol.DIR_LST_REQ, data=b"")
         conn = CreateSecureConnection(DHT.get_random_directory_node())
+        request = ConnectionDataPackage(command=ConnectionProtocol.DIR_LST_REQ, data=b"")
 
         # Send it to the directory node.
         conn.pause_handler()
