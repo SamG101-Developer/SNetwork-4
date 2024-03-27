@@ -112,7 +112,7 @@ def CreateSecConnection(address: str) -> SecureSocket:
     conn.send(_DumpData(request))
 
     # Receive either a CON_CON_[ACC|REJ], or a DHT_CER_REQ.
-    response = conn.recv(4096)
+    response = conn.recv(10000)
     response = _VerifyResponseIntegrity(response, ConnectionProtocol.CON_CON_ACC, ConnectionProtocol.CON_CON_REJ, ConnectionProtocol.DHT_CER_REQ)
 
     # Send the certificate to prove identity.
@@ -121,7 +121,7 @@ def CreateSecConnection(address: str) -> SecureSocket:
         conn.send(_DumpData(ConnectionDataPackage(command=ConnectionProtocol.DHT_CER_RES, data=my_certificate)))
 
         # The next response will be a CON_CON_[ACC|REJ].
-        response = conn.recv(4096)
+        response = conn.recv(10000)
         response = _VerifyResponseIntegrity(response, ConnectionProtocol.CON_CON_ACC, ConnectionProtocol.CON_CON_REJ)
 
     if response.command == ConnectionProtocol.CON_CON_REJ:
