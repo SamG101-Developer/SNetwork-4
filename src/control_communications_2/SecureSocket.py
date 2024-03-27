@@ -28,19 +28,19 @@ class SecureSocket:
         thread.start()
 
     def send(self, plain_text: ConnectionDataPackage) -> None:
-        data = SecureBytes(pickle.dumps(plain_text) + b"\r\n")
+        data = SecureBytes(pickle.dumps(plain_text))
         data = SymmetricEncryption.encrypt(data, self._e2e_key)
         print(f"SENDING ENCRYPTED DATA: {data}")
-        self._socket.send(data.raw)
+        self._socket.send(data.raw + b"\r\n")
 
     def recv(self) -> bytes:
         data = b""
         while not data.endswith(b"\r\n"):
-            chunk = SecureBytes(self._socket.recv(1024))
-            chunk = SymmetricEncryption.decrypt(chunk, self._e2e_key)
-            data += chunk.raw
+            data += self._socket.recv(1024)
+        data = SecureBytes(data[:-2])
         print(f"RECEIVED ENCRYPTED DATA: {data}")
-        return data
+        data = SymmetricEncryption.decrypt(data, self._e2e_key)
+        return data.raw
 
     def pause_handler(self):
         self._handling = False
