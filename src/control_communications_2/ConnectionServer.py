@@ -28,5 +28,5 @@ class ConnectionServer:
         # Accept connections and handle them through the handler function.
         while True:
             client_socket, address = self._socket.accept()
-            handle_thread = Thread(target=self._handle_client, args=(client_socket, IPv4Address(address)))
+            handle_thread = Thread(target=self._handle_client, args=(client_socket, IPv4Address(address[0])))
             handle_thread.start()
