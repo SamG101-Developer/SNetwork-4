@@ -58,7 +58,7 @@ class ConnectionHub:
         # Create a static asymmetric key pair and export it.
         static_asymmetric_key_pair = DigitalSigning.generate_key_pair()
         static_asymmetric_key_pair.export("./_keys/me", "static")
-        request = ConnectionDataPackage(command=ConnectionProtocol.DIR_CER_REQ, data=static_asymmetric_key_pair.public_key)
+        request = ConnectionDataPackage(command=ConnectionProtocol.DIR_CER_REQ, data=static_asymmetric_key_pair.public_key.raw)
         print("created request", request)
 
         # Send the request to the directory node for a certificate.
@@ -72,7 +72,7 @@ class ConnectionHub:
 
     def _bootstrap_from_directory_node(self):
         # Create a request for bootstrap nodes, and send it to the directory node.
-        request = ConnectionDataPackage(command=ConnectionProtocol.DIR_LST_REQ, data=SecureBytes(b""))
+        request = ConnectionDataPackage(command=ConnectionProtocol.DIR_LST_REQ, data=b"")
         conn = CreateSecConnection(DHT.DIRECTORY_NODES.keys()[0])
         conn.send(request)
 
