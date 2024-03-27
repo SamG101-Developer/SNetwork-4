@@ -142,7 +142,6 @@ def CreateSecConnection(address: str) -> SecureSocket:
 def _HandleNewClient(client_socket: Socket, address: IPv4Address, auto_handler: SecureSocket.Handler) -> SecureSocket:
     # Receive the connection request and verify the integrity.
     request = client_socket.recv(4096)
-    print("got data", request)
     request = _VerifyResponseIntegrity(request, ConnectionProtocol.CON_CON_REQ)
 
     # Check if this node is known (is it in the DHT cache?)
@@ -190,10 +189,35 @@ def _HandleNewClient(client_socket: Socket, address: IPv4Address, auto_handler: 
     return secure_connection
 
 
+def _DirectoryNodeHandlesNewClient(client_socket: Socket, address: IPv4Address, auto_handler: SecureSocket.Handler) -> SecureSocket:
+    request = client_socket.recv(4096)
+    request = _VerifyResponseIntegrity(request, ConnectionProtocol.CON_CON_REQ, ConnectionProtocol.DIR_CER_REQ)
+    if request.command == ConnectionProtocol.DIR_CER_REQ:
+        # Determine the requesting node's static public key and id.
+        their_static_public_key = request.data
+        their_id = Hashing.hash(their_static_public_key)
+
+        # Create a certificate for the node.
+        my_ip = IPv4Address(client_socket.getpeername()[0])
+        certificate = Certificate(
+            authority=my_ip,
+            identifier=their_id,
+            public_key=their_static_public_key,
+            signature=DigitalSigning.sign(
+                my_static_private_key=KeyPair().import_("./_keys/me", "static").secret_key,
+                message=SecureBytes(my_ip.compressed.encode()) + their_id + their_static_public_key,
+                their_id=their_id))
+
+        # Send the certificate to the node.
+        client_socket.send(ConnectionDataPackage(command=ConnectionProtocol.DHT_CER_RES, data=_DumpData(certificate)).to_bytes())
+
+    _HandleNewClient(client_socket, address, auto_handler)
+
+
 def _VerifyResponseIntegrity(response: bytes, *expected_commands: ConnectionProtocol) -> ConnectionDataPackage:
     response = pickle.loads(response)
     if response.command not in expected_commands:
-        raise Exception("Invalid command in response.")
+        raise Exception(f"Invalid command in response. Got {response.command}, expected 1 from {[*expected_commands]}")
     return response
 
 
@@ -209,34 +233,15 @@ def _LoadData(data: SecureBytes) -> Any:
 
 class DirectoryHub:
     _tcp_server: ConnectionServer
-    _connections: List[_HandleNewClient]
+    _connections: List[SecureSocket]
 
     def __init__(self):
         self._tcp_server = ConnectionServer(12345, self._handle_new_client)
         self._connections = []
 
     def _handle_new_client(self, client_socket: Socket, address: IPv4Address) -> None:
-        secure_connection = _HandleNewClient(client_socket, address, lambda *args: None)
+        secure_connection = _HandleNewClient(client_socket, address, self._handle_command)
         self._connections.append(secure_connection)
-
-    def _handle_certificate_request(self, client: Socket, data: ConnectionDataPackage):
-        # Determine the requesting node's static public key and id.
-        their_static_public_key = data.data
-        their_id = Hashing.hash(their_static_public_key)
-
-        # Create a certificate for the node.
-        my_ip = IPv4Address(client.getpeername()[0])
-        certificate = Certificate(
-            authority=my_ip,
-            identifier=their_id,
-            public_key=their_static_public_key,
-            signature=DigitalSigning.sign(
-                my_static_private_key=KeyPair().import_("./_keys/me", "static").secret_key,
-                message=SecureBytes(my_ip.compressed.encode()) + their_id + their_static_public_key,
-                their_id=their_id))
-
-        # Send the certificate to the node.
-        client.send(ConnectionDataPackage(command=ConnectionProtocol.DHT_CER_RES, data=_DumpData(certificate)).to_bytes())
 
     def _handle_list_request(self, client: SecureSocket, data: ConnectionDataPackage):
         # Get a list of random nodes from the DHT cache.
@@ -248,3 +253,10 @@ class DirectoryHub:
         # Send the list of nodes to the requesting node.
         response = ConnectionDataPackage(command=ConnectionProtocol.DIR_LST_RES, data=_DumpData(random_nodes))
         client.send(response)
+
+    def _handle_command(self, socket: SecureSocket, data: ConnectionDataPackage) -> None:
+        match data.command:
+            case ConnectionProtocol.DIR_LST_REQ:
+                self._handle_list_request(socket, data)
+            case _:
+                ...
