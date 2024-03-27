@@ -309,7 +309,7 @@ class ControlConnectionManager:
             # Otherwise, log an error, ignore the message, and do nothing.
             case _:
                 logging.error(f"\t\tUnknown command or invalid state: {command}")
-                logging.error(f"\t\t{addr.ip} {self._pending_node_to_add_to_route.ip}")
+                # logging.error(f"\t\t{addr.ip} {self._pending_node_to_add_to_route.ip}")
                 logging.error(f"\t\tWaiting for ack?: {waiting_for_ack}")
                 logging.error(f"\t\tConnected?: {connected}")
 

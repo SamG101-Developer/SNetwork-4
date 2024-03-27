@@ -34,11 +34,11 @@ class DHT:
         print("block list:", block_list)
 
         valid_ips = [node for node in cache if node["ip"] not in block_list]
-        random_ip = random.choice(valid_ips) if valid_ips else None
+        random_node = random.choice(valid_ips) if valid_ips else None
 
-        print("random choice:", random_ip)
+        print("random choice:", random_node)
 
-        return random_ip
+        return random_node
 
     @staticmethod
     def get_random_directory_node() -> Str:
