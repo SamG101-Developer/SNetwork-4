@@ -12,7 +12,7 @@ from crypto_engines.crypto.digital_signing import DigitalSigning, SignedMessage
 from crypto_engines.crypto.key_encapsulation import KEM
 from crypto_engines.keys.key_pair import KeyPair
 from crypto_engines.tools.secure_bytes import SecureBytes
-from crypto_engines.tools.certificate import Certificate
+from crypto_engines.tools.certificate import Certificate, CertificateData
 from distributed_hash_table.DHT import DHT
 
 from control_communications_2.ConnectionDataPackage import ConnectionDataPackage
@@ -158,9 +158,10 @@ def _HandleNewClient(client_socket: Socket, address: IPv4Address, auto_handler: 
 
         # Verify the certificate and cache the node information in the DHT.
         certificate: Certificate = _LoadData(response.data)
+        authority = _LoadData(certificate.signature.message.raw).authority
         DigitalSigning.verify(
             signed_message=certificate.signature,
-            their_static_public_key=DHT.DIRECTORY_NODES[certificate.authority],
+            their_static_public_key=DHT.DIRECTORY_NODES[authority],
             my_id=Hashing.hash(certificate.signature.message))
 
         DHT.cache_node_information(
@@ -206,16 +207,18 @@ def _DirectoryNodeHandlesNewClient(client_socket: Socket, address: IPv4Address, 
         # Create a certificate for the node.
         my_ip = IPv4Address(client_socket.getpeername()[0])
         certificate = Certificate(
-            authority=my_ip,
-            identifier=their_id,
-            public_key=their_static_public_key,
             signature=DigitalSigning.sign(
                 my_static_private_key=KeyPair().import_("./_keys/me", "static").secret_key,
-                message=SecureBytes(my_ip.compressed.encode()) + their_id + their_static_public_key,
+                message=SecureBytes(_DumpData(CertificateData(
+                    authority=my_ip,
+                    identifier=their_id,
+                    public_key=their_static_public_key))),
                 their_id=their_id))
 
         # Send the certificate to the node.
-        client_socket.send(_DumpData(ConnectionDataPackage(command=ConnectionProtocol.DIR_CER_RES, data=certificate)))
+        data = _DumpData(ConnectionDataPackage(command=ConnectionProtocol.DIR_CER_RES, data=certificate))
+        print(len(data))
+        client_socket.send(data)
 
     else:
         return _HandleNewClient(client_socket, address, auto_handler)
