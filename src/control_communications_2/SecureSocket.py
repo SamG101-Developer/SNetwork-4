@@ -37,7 +37,7 @@ class SecureSocket:
     def recv(self) -> bytes:
         data = b""
         while not data.endswith(b"\r\n"):
-            data += self._socket.recv(1024)
+            data += self._socket.recv(2048)
         data = SecureBytes(data[:-2])
         print(f"RECEIVED ENCRYPTED DATA: {data.raw}")
         data = SymmetricEncryption.decrypt(data, self._e2e_key)
