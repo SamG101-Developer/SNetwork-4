@@ -128,6 +128,7 @@ def CreateSecureConnection(address: str) -> SecureSocket:
 
     # Receive either a CON_CON_[ACC|REJ], or a DHT_CER_REQ.
     response = conn.recv()
+    print(5)
     response = _VerifyResponseIntegrity(response, ConnectionProtocol.CON_CON_ACC, ConnectionProtocol.CON_CON_REJ, ConnectionProtocol.DHT_CER_REQ)
 
     # Send the certificate to prove identity.
