@@ -191,11 +191,10 @@ def _HandleNewClient(client_socket: Socket, address: IPv4Address, auto_handler: 
 
 
 def _VerifyResponseIntegrity(response: bytes, *expected_commands: ConnectionProtocol) -> ConnectionDataPackage:
-    response = json.loads(response)
-    if response["command"] not in expected_commands:
+    response = pickle.loads(response)
+    if response.command not in expected_commands:
         raise Exception("Invalid command in response.")
-
-    return ConnectionDataPackage(**response)
+    return response
 
 
 def _DumpData(obj: object) -> SecureBytes:

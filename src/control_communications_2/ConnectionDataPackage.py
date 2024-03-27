@@ -1,4 +1,5 @@
-import dataclasses, json
+import dataclasses
+import pickle
 
 from control_communications_2.ConnectionProtocol import ConnectionProtocol
 from crypto_engines.tools.secure_bytes import SecureBytes
@@ -12,7 +13,4 @@ class ConnectionDataPackage:
 
     def to_bytes(self) -> bytes:
         # Convert the data package to bytes.
-        return json.dumps({
-            "command": self.command.value.to_bytes(1),
-            "data": self.data.raw
-        }).encode()
+        return pickle.dumps(self)
