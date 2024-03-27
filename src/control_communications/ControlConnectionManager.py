@@ -188,7 +188,7 @@ class ControlConnectionManager:
         return connection_token
 
     def refresh_cache(self):
-        target_address = Address(ip=DHT.get_random_node()[0])
+        target_address = Address(ip=DHT.get_random_node()["ip"])
         connection_token = self._open_connection_to(target_address)
         self._send_message_onwards(target_address, connection_token.token, ControlConnectionProtocol.DHT_EXCH_IP, b"")
 
