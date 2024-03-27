@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json, os
+import logging
 import pickle
 from typing import Any, Dict, List, Tuple
 from ipaddress import IPv4Address
@@ -192,7 +193,10 @@ def _HandleNewClient(client_socket: Socket, address: IPv4Address, auto_handler: 
 def _DirectoryNodeHandlesNewClient(client_socket: Socket, address: IPv4Address, auto_handler: SecureSocket.Handler) -> SecureSocket:
     request = client_socket.recv(4096)
     request = _VerifyResponseIntegrity(request, ConnectionProtocol.CON_CON_REQ, ConnectionProtocol.DIR_CER_REQ)
+
     if request.command == ConnectionProtocol.DIR_CER_REQ:
+        logging.debug(f"Generating certificate for {address}")
+
         # Determine the requesting node's static public key and id.
         their_static_public_key = request.data
         their_id = Hashing.hash(their_static_public_key)
@@ -209,7 +213,7 @@ def _DirectoryNodeHandlesNewClient(client_socket: Socket, address: IPv4Address, 
                 their_id=their_id))
 
         # Send the certificate to the node.
-        client_socket.send(ConnectionDataPackage(command=ConnectionProtocol.DHT_CER_RES, data=_DumpData(certificate)).to_bytes())
+        client_socket.send(_DumpData(ConnectionDataPackage(command=ConnectionProtocol.DHT_CER_RES, data=_DumpData(certificate))).raw)
 
     _HandleNewClient(client_socket, address, auto_handler)
 
@@ -240,7 +244,7 @@ class DirectoryHub:
         self._connections = []
 
     def _handle_new_client(self, client_socket: Socket, address: IPv4Address) -> None:
-        secure_connection = _HandleNewClient(client_socket, address, self._handle_command)
+        secure_connection = _DirectoryNodeHandlesNewClient(client_socket, address, self._handle_command)
         self._connections.append(secure_connection)
 
     def _handle_list_request(self, client: SecureSocket, data: ConnectionDataPackage):
