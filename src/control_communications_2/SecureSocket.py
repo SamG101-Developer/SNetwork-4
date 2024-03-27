@@ -20,6 +20,7 @@ class SecureSocket:
 
     def __init__(self, socket: Socket, e2e_key: SecureBytes, auto_handler: Handler = lambda *args: None):
         self._socket = socket
+        print("HERERERE", self._e2e_key.raw)
         self._e2e_key = e2e_key
         self._auto_handler = auto_handler
         self._handling = True
