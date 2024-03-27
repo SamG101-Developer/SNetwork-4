@@ -1,3 +1,4 @@
+from crypto_engines.crypto.hashing import Hashing
 from crypto_engines.tools.secure_bytes import SecureBytes
 from my_types import Str, List, Bytes, Dict
 import base58, json, random
@@ -13,17 +14,26 @@ class DHT:
     }
 
     @staticmethod
-    def get_static_public_key(address: Str) -> SecureBytes:
+    def get_static_public_key(address: Str, silent: bool = False) -> SecureBytes:
         if address in DHT.DIRECTORY_NODES.keys():
             return DHT.DIRECTORY_NODES[address]
 
         cache = json.load(open("./_cache/dht_cache.json"))
         public_key = [node["key"] for node in cache if node["ip"] == address]
         if not public_key:
-            raise NodeNotInNetworkException
+            if not silent:
+                raise NodeNotInNetworkException
+            return None
 
         public_key = base58.b58decode(public_key[-1].replace("\n", ""))
         return SecureBytes(public_key)
+
+    @staticmethod
+    def get_id(address: str, silent: bool = False) -> SecureBytes:
+        public_key = DHT.get_static_public_key(address, silent)
+        if public_key:
+            node_id = Hashing.hash(public_key)
+            return node_id
 
     @staticmethod
     def get_random_node(block_list: List[Str] = None) -> Dict[Str, Str]:

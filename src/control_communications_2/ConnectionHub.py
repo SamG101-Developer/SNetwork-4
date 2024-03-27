@@ -1,0 +1,249 @@
+from __future__ import annotations
+
+import json, os
+import pickle
+from typing import Dict, List, Tuple
+from ipaddress import IPv4Address
+from socket import socket as Socket, create_connection as CreateRawConnection
+
+from crypto_engines.crypto.hashing import Hashing
+from src.crypto_engines.crypto.digital_signing import DigitalSigning, SignedMessage
+from src.crypto_engines.crypto.key_encapsulation import KEM
+from src.crypto_engines.keys.key_pair import KeyPair
+from src.crypto_engines.tools.secure_bytes import SecureBytes
+from src.crypto_engines.tools.certificate import Certificate
+from src.distributed_hash_table.DHT import DHT
+
+from src.control_communications_2.ConnectionDataPackage import ConnectionDataPackage
+from src.control_communications_2.ConnectionProtocol import ConnectionProtocol
+from src.control_communications_2.ConnectionServer import ConnectionServer
+from src.control_communications_2.SecureSocket import SecureSocket
+
+
+class ConnectionRoute:
+    ...
+
+
+class ConnectionHub:
+    _tcp_server: ConnectionServer
+    _connections: List[SecureSocket]
+    _node_to_client_tunnel_keys: Dict[Socket, SecureBytes]
+
+    def __init__(self):
+        # Setup the connection server for incoming connections.
+        self._tcp_server = ConnectionServer(12345, self._handle_client)
+        self._connections = []
+        self._node_to_client_tunnel_keys = {}
+
+        # Get a certificate if this is a new node on the network.
+        if not os.path.exists("./_certs/certificate.ctf"):
+            self._obtain_certificate_from_directory_node()
+
+        # Get some node IP addresses from the directory node if the cache is empty.
+        if len(json.loads(open("./_cache/dht_cache.json").read())) == 0:
+            self._bootstrap_from_directory_node()
+
+        # Refresh the IP list by exchanging with neighbours.
+        self._refresh_cache()
+
+    def _handle_client(self, client_socket: Socket, address: IPv4Address) -> None:
+        secure_connection = _HandleNewClient(client_socket, address, self._handle_command)
+        self._connections.append(secure_connection)
+
+    def _handle_command(self, socket: SecureSocket, data: ConnectionDataPackage) -> None:
+        ...
+
+    def _obtain_certificate_from_directory_node(self):
+        # Create a static asymmetric key pair and export it.
+        static_asymmetric_key_pair = DigitalSigning.generate_key_pair()
+        static_asymmetric_key_pair.export("./_keys/me", "static")
+        request = ConnectionDataPackage(command=ConnectionProtocol.DIR_CER_REQ, data=static_asymmetric_key_pair.public_key)
+
+        # Send the request to the directory node for a certificate.
+        conn = CreateRawConnection(DHT.DIRECTORY_NODES.keys()[0])
+        conn.send(request.to_bytes())
+
+        # Receive the certificate and save it. todo: verify
+        response = conn.recv(4096)
+        response = _VerifyResponseIntegrity(response, ConnectionProtocol.DIR_CER_RES)
+        response.data.export("./_certs", "certificate", ".ctf")
+
+    def _bootstrap_from_directory_node(self):
+        # Create a request for bootstrap nodes, and send it to the directory node.
+        request = ConnectionDataPackage(command=ConnectionProtocol.DIR_LST_REQ, data=SecureBytes(b""))
+        conn = CreateSecConnection(DHT.DIRECTORY_NODES.keys()[0])
+        conn.send(request)
+
+        # Receive the IP addresses of the bootstrap nodes.
+        conn.pause_handler()
+        response = conn.recv(4096)
+        response = _VerifyResponseIntegrity(response, ConnectionProtocol.DIR_LST_RES)
+        conn.resume_handler()
+
+        bootstrap_nodes: List[Tuple[IPv4Address, SecureBytes]] = _LoadData(response.data)
+
+        # Cache the bootstrap nodes in the DHT cache.
+        for ip_address, public_key in bootstrap_nodes:
+            DHT.cache_node_information(
+                node_id=Hashing.hash(public_key).raw,
+                ip_address=ip_address.compressed,
+                node_public_key=public_key.raw)
+
+    def _refresh_cache(self):
+        ...
+
+
+def CreateSecConnection(address: str) -> SecureSocket:
+    # Generate an ephemeral key pair, and sign the public key with the static secret key.
+    my_static_secret_key = KeyPair().import_("./_keys/me", "static").secret_key
+    my_ephemeral_secret_key, my_ephemeral_public_key = KEM.generate_key_pair().both()
+    my_ephemeral_public_key_signed = DigitalSigning.sign(
+        my_static_private_key=my_static_secret_key,
+        message=my_ephemeral_public_key,
+        their_id=DHT.get_id(address))
+
+    # Create the socket and send the connection request.
+    conn = CreateRawConnection((address, 12345))
+    request = ConnectionDataPackage(command=ConnectionProtocol.CON_CON_REQ, data=_DumpData(my_ephemeral_public_key_signed))
+    conn.send(request.to_bytes())
+
+    # Receive either a CON_CON_[ACC|REJ], or a DHT_CER_REQ.
+    response = conn.recv(4096)
+    response = _VerifyResponseIntegrity(response, ConnectionProtocol.CON_CON_ACC, ConnectionProtocol.CON_CON_REJ, ConnectionProtocol.DHT_CER_REQ)
+
+    # Send the certificate to prove identity.
+    if response.command == ConnectionProtocol.DIR_CER_REQ:
+        my_certificate = SecureBytes().import_(f"./_certs/me", "certificate", ".ctf")
+        conn.send(ConnectionDataPackage(command=ConnectionProtocol.DIR_CER_RES, data=my_certificate).to_bytes())
+
+        # The next response will be a CON_CON_[ACC|REJ].
+        response = conn.recv(4096)
+        response = _VerifyResponseIntegrity(response, ConnectionProtocol.CON_CON_ACC, ConnectionProtocol.CON_CON_REJ)
+
+    if response.command == ConnectionProtocol.CON_CON_REJ:
+        raise Exception("Connection rejected.")
+
+    # Verify the signed encapsulated shared secret.
+    kem_wrapped_shared_secret_signed = _LoadData(response.data)
+    DigitalSigning.verify(
+        signed_message=kem_wrapped_shared_secret_signed,
+        their_static_public_key=DHT.get_static_public_key(address),
+        my_id=SecureBytes().import_("./_keys/me", "identifier", ".txt"))
+
+    shared_secret = KEM.kem_unwrap(
+        my_ephemeral_secret_key=my_ephemeral_secret_key,
+        encapsulated_key=kem_wrapped_shared_secret_signed.message).decapsulated_key
+
+    # Create a secure connection with the key.
+    return SecureSocket(conn, shared_secret)
+
+
+def _HandleNewClient(client_socket: Socket, address: IPv4Address, auto_handler: SecureSocket.Handler) -> SecureSocket:
+    # Receive the connection request and verify the integrity.
+    request = client_socket.recv(4096)
+    request = _VerifyResponseIntegrity(request, ConnectionProtocol.CON_CON_REQ)
+
+    # Check if this node is known (is it in the DHT cache?)
+    if DHT.get_static_public_key(address.compressed) is None:
+        # Request a certificate from the DHT node.
+        client_socket.send(ConnectionDataPackage(command=ConnectionProtocol.DHT_CER_REQ, data=SecureBytes(b"")).to_bytes())
+
+        # Get the certificate from the node.
+        response = client_socket.recv(4096)
+        response = _VerifyResponseIntegrity(response, ConnectionProtocol.DHT_CER_RES)
+
+        # Verify the certificate and cache the node information in the DHT.
+        certificate: Certificate = _LoadData(response.data)
+        DigitalSigning.verify(
+            signed_message=certificate.signature,
+            their_static_public_key=DHT.DIRECTORY_NODES[certificate.authority],
+            my_id=Hashing.hash(certificate.signature.message))
+
+        DHT.cache_node_information(
+            node_id=Hashing.hash(certificate.signature.message).raw,
+            ip_address=address.compressed,
+            node_public_key=certificate.signature.message.raw)
+
+    # Verify their signed ephemeral public key.
+    their_ephemeral_public_key_signed: SignedMessage = _LoadData(request.data)
+    DigitalSigning.verify(
+        signed_message=their_ephemeral_public_key_signed,
+        their_static_public_key=DHT.get_static_public_key(address.compressed),
+        my_id=SecureBytes().import_("./_keys/me", "identifier", ".txt"))
+
+    # Create the symmetric shared secret, wrap in with a KEM, and sign it.
+    their_ephemeral_public_key = their_ephemeral_public_key_signed.message
+    kem_wrapped_shared_secret  = KEM.kem_wrap(their_ephemeral_public_key)
+    kem_wrapped_shared_secret_signed = DigitalSigning.sign(
+        my_static_private_key=KeyPair().import_("./_keys/me", "static").secret_key,
+        message=kem_wrapped_shared_secret.encapsulated_key,
+        their_id=DHT.get_id(address.compressed))
+
+    # Send the signed shared secret to the client.
+    client_socket.send(ConnectionDataPackage(command=ConnectionProtocol.CON_CON_ACC, data=_DumpData(kem_wrapped_shared_secret_signed)).to_bytes())
+
+    # Create a secure connection with the key.
+    shared_secret = kem_wrapped_shared_secret.decapsulated_key
+    secure_connection = SecureSocket(client_socket, shared_secret, auto_handler)
+    return secure_connection
+
+
+def _VerifyResponseIntegrity(response: bytes, *expected_commands: ConnectionProtocol) -> ConnectionDataPackage:
+    response = json.loads(response)
+    if response["command"] not in expected_commands:
+        raise Exception("Invalid command in response.")
+
+    return ConnectionDataPackage(**response)
+
+
+def _DumpData(obj: object) -> SecureBytes:
+    pickled = pickle.dumps(obj)
+    return SecureBytes(pickled)
+
+
+def _LoadData[T](data: SecureBytes) -> T:
+    data = data.raw
+    return pickle.loads(data)
+
+
+class DirectoryHub:
+    _tcp_server: ConnectionServer
+    _connections: List[_HandleNewClient]
+
+    def __init__(self):
+        self._tcp_server = ConnectionServer(12345, self._handle_new_client)
+        self._connections = []
+
+    def _handle_new_client(self, client_socket: Socket, address: IPv4Address) -> None:
+        secure_connection = _HandleNewClient(client_socket, address, lambda *args: None)
+        self._connections.append(secure_connection)
+
+    def _handle_certificate_request(self, client: Socket, data: ConnectionDataPackage):
+        # Determine the requesting node's static public key and id.
+        their_static_public_key = data.data
+        their_id = Hashing.hash(their_static_public_key)
+
+        # Create a certificate for the node.
+        my_ip = IPv4Address(client.getpeername()[0])
+        certificate = Certificate(
+            authority=my_ip,
+            identifier=their_id,
+            public_key=their_static_public_key,
+            signature=DigitalSigning.sign(
+                my_static_private_key=KeyPair().import_("./_keys/me", "static").secret_key,
+                message=SecureBytes(my_ip.compressed.encode()) + their_id + their_static_public_key,
+                their_id=their_id))
+
+        # Send the certificate to the node.
+        client.send(ConnectionDataPackage(command=ConnectionProtocol.DHT_CER_RES, data=_DumpData(certificate)).to_bytes())
+
+    def _handle_list_request(self, client: SecureSocket, data: ConnectionDataPackage):
+        # Get a list of random nodes from the DHT cache.
+        random_nodes = []
+        for i in range(3):
+            random_node = DHT.get_random_node([node["ip"] for node in random_nodes])
+            random_nodes.append(random_node)
+
+        # Send the list of nodes to the requesting node.
+        response = ConnectionDataPackage(command=ConnectionProtocol.DIR_LST_RES, data=_DumpData(random_nodes))
+        client.send(response)

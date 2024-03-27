@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import json
 import os.path
-from argparse import Namespace
+import socket
 import logging, pickle
+from argparse import Namespace
+from ipaddress import IPv4Address
 
 from control_communications.ControlConnectionServer import *
 from control_communications.ControlConnectionProtocol import *
@@ -16,7 +18,7 @@ from crypto_engines.crypto.symmetric_encryption import SymmetricEncryption
 from crypto_engines.crypto.hashing import Hashing
 from crypto_engines.keys.key_pair import KeyPair
 from crypto_engines.tools.secure_bytes import SecureBytes
-from distributed_hash_table.DHT import DHT
+from distributed_hash_table.DHT import DHT, NodeNotInNetworkException
 from my_types import Bytes, Tuple, Str, Int, Dict, Optional
 
 
@@ -190,7 +192,6 @@ class ControlConnectionManager:
     def refresh_cache(self):
         target_address = Address(ip=DHT.get_random_node()["ip"])
         connection_token = self._open_connection_to(target_address)
-        self._send_message_onwards(target_address, connection_token.token, ControlConnectionProtocol.DHT_EXCH_IP, b"")
 
     # @LogPre
     def _parse_message(self, data: Bytes) -> Tuple[ConnectionProtocol, Bytes, Bytes]:
@@ -302,8 +303,16 @@ class ControlConnectionManager:
             case ControlConnectionProtocol.DIR_LST_RES if they_are_directory_node and connected:
                 self._handle_response_for_nodes_from_directory_node(addr, connection_token, data)
 
+            # Handle a DHT request to exchange IP addresses with a neighbouring node.
+            case ControlConnectionProtocol.DHT_EXH_REQ:
+                self._handle_request_for_certificate(addr, connection_token, data)
+
+            # Handle a response to a DHT request for a certificate.
+            case ControlConnectionProtocol.DHT_EXH_RES:
+                self._handle_response_for_certificate(addr, connection_token, data)
+
             # Handle a list of IP addresses from a neighbouring node.
-            case ControlConnectionProtocol.DHT_EXCH_IP if connected:
+            case ControlConnectionProtocol.DHT_EXH_ADR if connected:
                 self._handle_exchange_ip_addresses(addr, connection_token, data)
 
             # Otherwise, log an error, ignore the message, and do nothing.
@@ -328,7 +337,15 @@ class ControlConnectionManager:
 
         # Get their static public key from the DHT, and the parse the signed message.
         my_static_private_key, my_static_public_key = KeyPair().import_("./_keys/me", "static").both()
-        their_static_public_key = DHT.get_static_public_key(addr.ip)
+        try:
+            their_static_public_key = DHT.get_static_public_key(addr.ip)
+
+        # Wait for the certificate to be received from the directory node.
+        except NodeNotInNetworkException:
+            self._send_message_onwards(addr, os.urandom(32), ControlConnectionProtocol.DHT_EXH_REQ, b"")
+            while (their_static_public_key := DHT.get_static_public_key(addr.ip)) is None:
+                pass
+
         their_signed_ephemeral_public_key, for_route = pickle.loads(data)
 
         # Verify the signature of the ephemeral public key being sent from the requesting node.
@@ -722,8 +739,9 @@ class ControlConnectionManager:
         # Generate the certificate for the new node, signing it with the directory node's private key.
         previous_certificate_hash = SecureBytes(b"\x00" * Hashing.ALGORITHM.digest_size)
         my_static_private_key = KeyPair().import_("./_keys/me", "static").secret_key
+        my_ip = SecureBytes(pickle.dumps(IPv4Address(socket.gethostbyname(socket.gethostname()))))
         certificate = DigitalSigning.sign(
-            message=previous_certificate_hash + node_id + their_static_public_key,
+            message=my_ip + previous_certificate_hash + node_id + their_static_public_key,
             my_static_private_key=my_static_private_key,
             their_id=their_static_public_key)
 
@@ -813,6 +831,36 @@ class ControlConnectionManager:
         for node in nodes:
             # logging.debug(f"\t\tNode: {node['ip']}")
             DHT.cache_node_information(node["id"], node["key"], node["ip"])
+
+    @LogPre
+    def _handle_request_for_certificate(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
+        my_certificate = SecureBytes().import_(f"./_certs", "certificate", ".ctf")
+        random_challenge = SecureBytes.from_random(32)
+        signature = DigitalSigning.sign(
+            message=random_challenge,
+            my_static_private_key=KeyPair().import_("./_keys/me", "static").secret_key,
+            their_id=DHT.get_static_public_key(addr.ip))
+
+        sending_data = pickle.dumps((my_certificate, signature))
+        self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.DHT_EXH_RES, sending_data)
+
+    @LogPre
+    def _handle_response_for_certificate(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
+        their_certificate, signed_challenge = pickle.loads(data)
+        my_id = SecureBytes().import_("./_keys/me", "identifier", ".txt")
+
+        their_certificate = pickle.loads(their_certificate)
+        their_id = their_certificate.message[51 + Hashing.ALGORITHM.digest_size:-DigitalSigning.ALGORITHM.PUBLIC_KEY_SIZE]
+        directory_node_ip = pickle.loads(their_certificate.message[:51])
+        DigitalSigning.verify(
+            their_static_public_key=DHT.DIRECTORY_NODES[directory_node_ip],
+            signed_message=their_certificate,
+            my_id=their_id)
+
+        DigitalSigning.verify(
+            their_static_public_key=their_certificate.message[:DigitalSigning.ALGORITHM.PUBLIC_KEY_SIZE],
+            signed_message=signed_challenge,
+            my_id=my_id)
 
     @LogPre
     def _handle_exchange_ip_addresses(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:

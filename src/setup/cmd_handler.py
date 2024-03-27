@@ -1,6 +1,7 @@
 from crypto_engines.tools.secure_bytes import SecureBytes
 from crypto_engines.crypto.digital_signing import DigitalSigning
-from control_communications.ControlConnectionManager import ControlConnectionManager
+# from control_communications.ControlConnectionManager import ControlConnectionManager
+from control_communications_2.ConnectionHub import ConnectionHub, DirectoryHub
 from my_types import Str, List
 
 from argparse import Namespace
@@ -9,7 +10,7 @@ import os, socket
 
 
 class CmdHandler:
-    CONTROLLER: ControlConnectionManager = None
+    CONTROLLER: ConnectionHub = None
     THREADS: List[Thread] = []
 
     def __init__(self, command: Str, arguments: Namespace) -> None:
@@ -40,14 +41,14 @@ class CmdHandler:
     def _handle_join(_arguments: Namespace) -> None:
         # Setup the control connection server
         if not CmdHandler.CONTROLLER:
-            CmdHandler.CONTROLLER = ControlConnectionManager()
+            CmdHandler.CONTROLLER = ConnectionHub()
 
     @staticmethod
     def _handle_route(arguments: Namespace) -> None:
         if not CmdHandler.CONTROLLER:
-            CmdHandler.CONTROLLER = ControlConnectionManager()
+            CmdHandler.CONTROLLER = ConnectionHub()
         CmdHandler.CONTROLLER.create_route(arguments)
 
     @staticmethod
     def _handle_directory(arguments: Namespace) -> None:
-        CmdHandler.CONTROLLER = ControlConnectionManager(is_directory_node=True)
+        CmdHandler.CONTROLLER = DirectoryHub()

@@ -1,0 +1,15 @@
+from enum import Enum
+
+
+class ConnectionProtocol(Enum):
+    DIR_CER_REQ = 0b00000001
+    DIR_CER_RES = 0b00000010
+    DIR_LST_REQ = 0b00000011
+    DIR_LST_RES = 0b00000100
+
+    CON_CON_REQ = 0b00000100
+    CON_CON_ACC = 0b00000101
+    CON_CON_REJ = 0b00000110
+
+    DHT_CER_REQ = 0b00001000
+    DHT_CER_RES = 0b00001001
