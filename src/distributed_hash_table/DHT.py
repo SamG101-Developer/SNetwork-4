@@ -29,7 +29,8 @@ class DHT:
     def get_random_node(block_list: List[Str] = None) -> Dict[Str, Str]:
         block_list = block_list or []
         cache = json.load(open("./_cache/dht_cache.json"))
-        return next((item for item in cache if item["ip"] not in block_list), None)
+        valid_ips = [node for node in cache if node["ip"] not in block_list]
+        return random.choice(valid_ips) if valid_ips else None
 
     @staticmethod
     def get_random_directory_node() -> Str:
