@@ -127,7 +127,7 @@ def CreateSecureConnection(address: str) -> SecureSocket:
 
     # Send the certificate to prove identity.
     if response.command == ConnectionProtocol.DHT_CER_REQ:
-        my_certificate = SecureBytes().import_(f"./_certs/me", "certificate", ".ctf")
+        my_certificate = SecureBytes().import_(f"./_certs", "certificate", ".ctf")
         conn.send(ConnectionDataPackage(command=ConnectionProtocol.DHT_CER_RES, data=my_certificate))
 
         # The next response will be a CON_CON_[ACC|REJ].
