@@ -40,6 +40,10 @@ class CmdHandler:
 
     @staticmethod
     def _handle_join(_arguments: Namespace) -> None:
+        if not all(os.path.exists(f"./_keys/me/{key}") for key in ["static.pk", "static.sk", "identifier.txt"]):
+            logging.error(f"Static keys do not exist. Please generate them first.")
+            return
+
         logging.debug(f"Joining network as a node.")
         # Setup the control connection server
         if not CmdHandler.CONTROLLER:
