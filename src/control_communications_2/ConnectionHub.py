@@ -214,6 +214,7 @@ def _HandleNewClient(client_socket: UnsecureSocket, address: IPv4Address, auto_h
 
 def _DirectoryNodeHandlesNewClient(client_socket: UnsecureSocket, address: IPv4Address, auto_handler: SecureSocket.Handler) -> SecureSocket:
     request = client_socket.recv()
+    print("HELLO", request)
     request = _VerifyResponseIntegrity(request, ConnectionProtocol.CON_CON_REQ, ConnectionProtocol.DIR_CER_REQ)
 
     if request.command == ConnectionProtocol.DIR_CER_REQ:
