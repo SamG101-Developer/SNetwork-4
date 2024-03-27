@@ -150,7 +150,7 @@ def CreateSecureConnection(address: str) -> SecureSocket:
         my_ephemeral_secret_key=my_ephemeral_secret_key,
         encapsulated_key=kem_wrapped_shared_secret_signed.message).decapsulated_key
 
-    logging.debug(f"Encrypted connection established to {address}.")
+    logging.debug(f"Encrypted connection established to {address} {shared_secret}.")
 
     # Create a secure connection with the key.
     return SecureSocket(conn._socket, shared_secret)
@@ -204,7 +204,7 @@ def _HandleNewClient(client_socket: UnsecureSocket, address: IPv4Address, auto_h
     # Create a secure connection with the key.
     shared_secret = kem_wrapped_shared_secret.decapsulated_key
     secure_connection = SecureSocket(client_socket._socket, shared_secret, auto_handler)
-    logging.debug(f"Encrypted connection established to {address}.")
+    logging.debug(f"Encrypted connection established to {address}: {shared_secret}.")
     return secure_connection
 
 
