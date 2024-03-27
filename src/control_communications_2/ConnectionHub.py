@@ -175,7 +175,7 @@ def _HandleNewClient(client_socket: UnsecureSocket, address: IPv4Address, auto_h
         response = _VerifyResponseIntegrity(response, ConnectionProtocol.DHT_CER_RES)
 
         # Verify the certificate and cache the node information in the DHT.
-        certificate: Certificate = _LoadData(response.data)
+        certificate: Certificate = response.data
         authority = _LoadData(certificate.signature.message.raw).authority
         DigitalSigning.verify(
             signed_message=certificate.signature,
@@ -188,7 +188,7 @@ def _HandleNewClient(client_socket: UnsecureSocket, address: IPv4Address, auto_h
             node_public_key=certificate.signature.message.raw)
 
     # Verify their signed ephemeral public key.
-    their_ephemeral_public_key_signed: SignedMessage = _LoadData(request.data)
+    their_ephemeral_public_key_signed: SignedMessage = request.data
     DigitalSigning.verify(
         signed_message=their_ephemeral_public_key_signed,
         their_static_public_key=DHT.get_static_public_key(address.compressed),
