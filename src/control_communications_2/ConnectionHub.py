@@ -85,7 +85,7 @@ class ConnectionHub:
         logging.debug("Sent a request for bootstrap nodes to a directory node.")
 
         # Receive the IP addresses of the bootstrap nodes.
-        response = conn.recv(10000)
+        response = conn.recv()
         response = _VerifyResponseIntegrity(response, ConnectionProtocol.DIR_LST_RES)
         logging.debug("Received bootstrap nodes from a directory node.")
         conn.resume_handler()
@@ -156,7 +156,7 @@ def CreateSecureConnection(address: str) -> SecureSocket:
     return SecureSocket(conn._socket, shared_secret)
 
 
-def _HandleNewClient(client_socket: UnsecureSocket, address: IPv4Address, auto_handler: SecureSocket.Handler, request = None) -> SecureSocket:
+def _HandleNewClient(client_socket: UnsecureSocket, address: IPv4Address, auto_handler: SecureSocket.Handler, request=None) -> SecureSocket:
     # Receive the connection request and verify the integrity.
     request = request or client_socket.recv()
     request = _VerifyResponseIntegrity(request, ConnectionProtocol.CON_CON_REQ)
