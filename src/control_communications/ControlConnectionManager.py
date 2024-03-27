@@ -1,13 +1,9 @@
 from __future__ import annotations
 
 import json
-import math
 import os.path
-import random
 from argparse import Namespace
-import csv, hashlib, logging, pickle, threading
-
-import base58
+import logging, pickle
 
 from control_communications.ControlConnectionServer import *
 from control_communications.ControlConnectionProtocol import *
@@ -21,7 +17,7 @@ from crypto_engines.crypto.hashing import Hashing
 from crypto_engines.keys.key_pair import KeyPair
 from crypto_engines.tools.secure_bytes import SecureBytes
 from distributed_hash_table.DHT import DHT
-from my_types import Bytes, Tuple, Str, Int, Dict, Optional, List
+from my_types import Bytes, Tuple, Str, Int, Dict, Optional
 
 
 def ReplayErrorBackToUser(error_command):
@@ -64,7 +60,7 @@ class ControlConnectionManager:
     _waiting_for_cert: bool
 
     def __init__(self, is_directory_node: bool = False):
-        # Setup the attributes of the control connection manager
+        # Setup the attributes of the control connection manager.
         self._udp_server = ControlConnectionServer()
         self._udp_server.on_message_received = self._recv_message
 
@@ -76,11 +72,15 @@ class ControlConnectionManager:
         self._is_directory_node = is_directory_node
         self._waiting_for_cert = False
 
+        # Setup functions that are optionally run depending on the state of this node.
         if not self._is_directory_node and not os.path.exists("./_certs/certificate.ctf"):
             self.obtain_certificate()
 
         if not self._is_directory_node and len(json.loads(open("./_cache/dht_cache.json").read())) == 0:
             self.obtain_first_nodes()
+
+        if not self._is_directory_node:
+            self.refresh_cache()
 
     @LogPre
     def create_route(self, _arguments: Namespace) -> None:
@@ -148,7 +148,7 @@ class ControlConnectionManager:
         self._send_message_onwards(
             addr=connection_token.address,
             connection_token=connection_token.token,
-            command=DirectoryConnectionProtocol.DIR_REG,
+            command=ControlConnectionProtocol.DIR_REG,
             data=pickle.dumps(static_asymmetric_key_pair.public_key))
 
         while self._waiting_for_cert:
@@ -159,7 +159,7 @@ class ControlConnectionManager:
     def obtain_first_nodes(self):
         target_address = Address(ip=DHT.get_random_directory_node())
         connection_token = self._open_connection_to(target_address)
-        self._send_message_onwards(target_address, connection_token.token, DirectoryConnectionProtocol.DIR_LST_REQ, b"")
+        self._send_message_onwards(target_address, connection_token.token, ControlConnectionProtocol.DIR_LST_REQ, b"")
 
     def _open_connection_to(self, addr: Address) -> ConnectionToken:
         my_static_private_key = KeyPair().import_("./_keys/me", "static").secret_key
@@ -187,6 +187,11 @@ class ControlConnectionManager:
 
         return connection_token
 
+    def refresh_cache(self):
+        target_address = Address(ip=DHT.get_random_directory_node())
+        connection_token = self._open_connection_to(target_address)
+        self._send_message_onwards(target_address, connection_token.token, ControlConnectionProtocol.DHT_EXCH_IP, b"")
+
     # @LogPre
     def _parse_message(self, data: Bytes) -> Tuple[ConnectionProtocol, Bytes, Bytes]:
         """
@@ -198,11 +203,7 @@ class ControlConnectionManager:
         """
 
         # Split the data into the command, connection token and the rest of the data.
-        try:
-            command = ControlConnectionProtocol(data[0])
-        except ValueError:
-            command = DirectoryConnectionProtocol(data[0])
-
+        command = ControlConnectionProtocol(data[0])
         connection_token = data[1:33]
         data = data[33:]
 
@@ -282,23 +283,28 @@ class ControlConnectionManager:
 
             # Handle the directory node sending a certificate to this node, allowing trusted authentication to other
             # nodes in the network.
-            case DirectoryConnectionProtocol.DIR_CER if self._waiting_for_cert and they_are_directory_node:
+            case ControlConnectionProtocol.DIR_CER if self._waiting_for_cert and they_are_directory_node:
                 self._handle_certificate_from_directory_node(addr, connection_token, data)
 
             # Handle registering a new node to the network when this node is a directory node.
-            case DirectoryConnectionProtocol.DIR_REG if self._is_directory_node:
+            case ControlConnectionProtocol.DIR_REG if self._is_directory_node:
                 self._handle_register_node_to_directory_node(addr, connection_token, data)
 
             # Handle a node requesting a list of nodes to bootstrap from when this node is a directory node.
-            case DirectoryConnectionProtocol.DIR_LST_REQ if self._is_directory_node and connected:
+            case ControlConnectionProtocol.DIR_LST_REQ if self._is_directory_node and connected:
                 self._handle_request_for_nodes_from_directory_node(addr, connection_token, data)
 
             # Handle a node requesting a new certificate from a directory node.
-            case DirectoryConnectionProtocol.DIR_CER_REQ if self._is_directory_node and connected:
+            case ControlConnectionProtocol.DIR_CER_REQ if self._is_directory_node and connected:
                 self._handle_request_for_certificate_from_directory_node(addr, connection_token, data)
 
-            case DirectoryConnectionProtocol.DIR_LST_RES if they_are_directory_node and connected:
+            # Handle a response from the directory node with a list of nodes to bootstrap from.
+            case ControlConnectionProtocol.DIR_LST_RES if they_are_directory_node and connected:
                 self._handle_response_for_nodes_from_directory_node(addr, connection_token, data)
+
+            # Handle a list of IP addresses from a neighbouring node.
+            case ControlConnectionProtocol.DHT_EXCH_IP if connected:
+                self._handle_exchange_ip_addresses(addr, connection_token, data)
 
             # Otherwise, log an error, ignore the message, and do nothing.
             case _:
@@ -725,7 +731,7 @@ class ControlConnectionManager:
         DHT.cache_node_information(node_id.raw, their_static_public_key.raw, addr.ip)
 
         # Send the certificate to the new node.
-        self._send_message_onwards(addr, connection_token, DirectoryConnectionProtocol.DIR_CER, pickle.dumps(certificate))
+        self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.DIR_CER, pickle.dumps(certificate))
 
         del self._conversations[target_connection_token]
 
@@ -748,7 +754,7 @@ class ControlConnectionManager:
             next_node = DHT.get_random_node(block_list=[node["ip"] for node in nodes])
             if not next_node: break
             nodes.append(next_node)
-        self._send_message_onwards(addr, connection_token, DirectoryConnectionProtocol.DIR_LST_RES, pickle.dumps(nodes))
+        self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.DIR_LST_RES, pickle.dumps(nodes))
 
     @LogPre
     def _handle_request_for_certificate_from_directory_node(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
@@ -788,7 +794,7 @@ class ControlConnectionManager:
             their_id=DHT.get_static_public_key(addr.ip))
 
         # Send the refreshed certificate to the node.
-        self._send_message_onwards(addr, connection_token, DirectoryConnectionProtocol.DIR_CER, pickle.dumps(refreshed_certificate))
+        self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.DIR_CER, pickle.dumps(refreshed_certificate))
 
     @LogPre
     def _handle_response_for_nodes_from_directory_node(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
@@ -807,6 +813,20 @@ class ControlConnectionManager:
         for node in nodes:
             # logging.debug(f"\t\tNode: {node['ip']}")
             DHT.cache_node_information(node["id"], node["key"], node["ip"])
+
+    @LogPre
+    def _handle_exchange_ip_addresses(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
+        """
+        This command is used to exchange IP addresses with a neighbouring node. The IP addresses are used to bootstrap
+        the DHT, and to find other nodes in the network. The logic is the same as the response from a DIR_LIST_REQ
+        command to the directory node, so just call that handler function.
+        @param addr:
+        @param connection_token:
+        @param data:
+        @return:
+        """
+
+        self._handle_response_for_nodes_from_directory_node(addr, connection_token, data)
 
     @LogPre
     # @ReplayErrorBackToUser
