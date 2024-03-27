@@ -66,7 +66,7 @@ class ConnectionHub:
         conn.send(_DumpData(request))
 
         # Receive the certificate and save it. todo: verify
-        response = conn.recv(4096)
+        response = conn.recv(8192)
         response = _VerifyResponseIntegrity(response, ConnectionProtocol.DIR_CER_RES)
         logging.debug("Received a certificate from a directory node.")
 
@@ -80,7 +80,7 @@ class ConnectionHub:
 
         # Receive the IP addresses of the bootstrap nodes.
         conn.pause_handler()
-        response = conn.recv(4096)
+        response = conn.recv(8192)
         response = _VerifyResponseIntegrity(response, ConnectionProtocol.DIR_LST_RES)
         conn.resume_handler()
 
