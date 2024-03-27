@@ -26,7 +26,8 @@ class DHT:
         return SecureBytes(public_key)
 
     @staticmethod
-    def get_random_node(block_list: List[Str]) -> Dict[Str, Str]:
+    def get_random_node(block_list: List[Str] = None) -> Dict[Str, Str]:
+        block_list = block_list or []
         cache = json.load(open("./_cache/dht_cache.json"))
         return next((item for item in cache if item["ip"] not in block_list), None)
 
