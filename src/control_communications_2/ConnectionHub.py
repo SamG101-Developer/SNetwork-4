@@ -226,6 +226,12 @@ def _DirectoryNodeHandlesNewClient(client_socket: UnsecureSocket, address: IPv4A
         # Send the certificate to the node.
         client_socket.send(ConnectionDataPackage(command=ConnectionProtocol.DIR_CER_RES, data=certificate))
 
+        # Cache the certificate in the directory node.
+        DHT.cache_node_information(
+            node_id=their_id.raw,
+            ip_address=my_ip.compressed,
+            node_public_key=their_static_public_key.raw)
+
     else:
         return _HandleNewClient(client_socket, address, auto_handler)
 
