@@ -12,7 +12,7 @@ class UnsecureSocket:
 
     def send(self, plain_text: ConnectionDataPackage) -> None:
         data = pickle.dumps(plain_text)
-        data += "\r\n"
+        data += b"\r\n"
         self._socket.send(data)
 
     def recv(self) -> bytes:
