@@ -82,6 +82,7 @@ class ConnectionHub:
         # Send it to the directory node.
         conn.pause_handler()
         conn.send(request)
+        logging.debug("Sent a request for bootstrap nodes to a directory node.")
 
         # Receive the IP addresses of the bootstrap nodes.
         response = conn.recv(10000)
