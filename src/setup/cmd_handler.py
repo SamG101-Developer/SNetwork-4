@@ -1,8 +1,7 @@
 import logging
 
-from crypto_engines.tools.secure_bytes import SecureBytes
+from crypto_engines.crypto.hashing import Hashing
 from crypto_engines.crypto.digital_signing import DigitalSigning
-# from control_communications.ControlConnectionManager import ControlConnectionManager
 from control_communications_2.ConnectionHub import ConnectionHub, DirectoryHub
 from my_types import Str, List
 
@@ -33,7 +32,7 @@ class CmdHandler:
 
             # Generate the static key pair for digital signing, and the hash of the public key (identifier)
             my_static_key_pair = DigitalSigning.generate_key_pair()
-            my_identifier = SecureBytes(socket.gethostbyname(socket.gethostname()).encode())  # Hashing.hash(my_static_key_pair.public_key)
+            my_identifier = Hashing.hash(my_static_key_pair.public_key)
 
             # Write the keys to disk
             my_static_key_pair.export("./_keys/me", "static")
