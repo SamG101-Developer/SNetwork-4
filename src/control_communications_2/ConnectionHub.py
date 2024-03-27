@@ -274,7 +274,7 @@ class DirectoryHub:
         self._connections.append(secure_connection)
 
     def _handle_list_request(self, client: SecureSocket, data: ConnectionDataPackage):
-        logging.debug(f"Received a list request from {client._socket.getpeername()}.")
+        logging.debug(f"Received a list request from {client._socket.getpeername()[0]}.")
 
         # Get a list of random nodes from the DHT cache.
         random_nodes = [client._socket.getpeername()[0]]

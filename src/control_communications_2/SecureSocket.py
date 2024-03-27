@@ -51,5 +51,6 @@ class SecureSocket:
             while not self._handling:
                 pass
             data = self.recv()
+            print("raw recv", data)
             thread = Thread(target=self._auto_handler, args=(self, pickle.loads(data)))
             thread.start()
