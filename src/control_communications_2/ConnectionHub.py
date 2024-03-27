@@ -160,9 +160,9 @@ def CreateSecureConnection(address: str) -> SecureSocket:
     return SecureSocket(conn._socket, shared_secret)
 
 
-def _HandleNewClient(client_socket: UnsecureSocket, address: IPv4Address, auto_handler: SecureSocket.Handler) -> SecureSocket:
+def _HandleNewClient(client_socket: UnsecureSocket, address: IPv4Address, auto_handler: SecureSocket.Handler, request = None) -> SecureSocket:
     # Receive the connection request and verify the integrity.
-    request = client_socket.recv()
+    request = request or client_socket.recv()
     request = _VerifyResponseIntegrity(request, ConnectionProtocol.CON_CON_REQ)
 
     # Check if this node is known (is it in the DHT cache?)
@@ -214,7 +214,6 @@ def _HandleNewClient(client_socket: UnsecureSocket, address: IPv4Address, auto_h
 
 def _DirectoryNodeHandlesNewClient(client_socket: UnsecureSocket, address: IPv4Address, auto_handler: SecureSocket.Handler) -> SecureSocket:
     request = client_socket.recv()
-    print("HELLO", request)
     request = _VerifyResponseIntegrity(request, ConnectionProtocol.CON_CON_REQ, ConnectionProtocol.DIR_CER_REQ)
 
     if request.command == ConnectionProtocol.DIR_CER_REQ:
@@ -245,7 +244,7 @@ def _DirectoryNodeHandlesNewClient(client_socket: UnsecureSocket, address: IPv4A
             node_public_key=their_static_public_key.raw)
 
     else:
-        return _HandleNewClient(client_socket, address, auto_handler)
+        return _HandleNewClient(client_socket, address, auto_handler, request=request)
 
 
 def _VerifyResponseIntegrity(response: bytes, *expected_commands: ConnectionProtocol) -> ConnectionDataPackage:
