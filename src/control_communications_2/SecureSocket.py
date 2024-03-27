@@ -44,12 +44,9 @@ class SecureSocket:
         self._handling = True
 
     def _auto_handle(self):
-        print("outer")
         while True:
-            print("looping?")
             while not self._handling:
                 pass
             data = self.recv(1024)
-            print("raw recv: ", data)
             thread = Thread(target=self._auto_handler, args=(self, pickle.loads(data)))
             thread.start()
