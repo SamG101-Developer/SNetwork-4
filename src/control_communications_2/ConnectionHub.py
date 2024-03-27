@@ -278,9 +278,9 @@ class DirectoryHub:
 
         # Get a list of random nodes from the DHT cache.
         random_nodes = [client._socket.getpeername()[0]]
-        number_of_nodes_to_send_back = min(3, DHT.total_nodes_known())
+        number_of_nodes_to_send_back = min(3, DHT.total_nodes_known(block_list=random_nodes))
         for i in range(number_of_nodes_to_send_back):
-            random_node = DHT.get_random_node(random_nodes)
+            random_node = DHT.get_random_node(block_list=random_nodes)
             random_nodes.append(random_node["ip"])
 
         # Send the list of nodes to the requesting node.
