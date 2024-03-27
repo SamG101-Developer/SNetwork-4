@@ -67,6 +67,7 @@ class ConnectionHub:
 
         # Receive the certificate and save it. todo: verify
         response = conn.recv(10000)
+        print(len(response))
         response = _VerifyResponseIntegrity(response, ConnectionProtocol.DIR_CER_RES)
         logging.debug("Received a certificate from a directory node.")
 
