@@ -58,8 +58,7 @@ class ConnectionHub:
 
     def _obtain_certificate_from_directory_node(self):
         # Create a static asymmetric key pair and export it.
-        static_asymmetric_key_pair = DigitalSigning.generate_key_pair()
-        static_asymmetric_key_pair.export("./_keys/me", "static")
+        static_asymmetric_key_pair = KeyPair().import_(f"./_keys/me", "static")
         request = ConnectionDataPackage(command=ConnectionProtocol.DIR_CER_REQ, data=static_asymmetric_key_pair.public_key.raw)
 
         # Send the request to the directory node for a certificate.
