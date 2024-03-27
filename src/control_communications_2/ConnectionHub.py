@@ -58,6 +58,7 @@ class ConnectionHub:
         static_asymmetric_key_pair = DigitalSigning.generate_key_pair()
         static_asymmetric_key_pair.export("./_keys/me", "static")
         request = ConnectionDataPackage(command=ConnectionProtocol.DIR_CER_REQ, data=static_asymmetric_key_pair.public_key)
+        print("created request", request)
 
         # Send the request to the directory node for a certificate.
         conn = CreateRawConnection((DHT.get_random_directory_node(), 12345))
@@ -141,6 +142,7 @@ def CreateSecConnection(address: str) -> SecureSocket:
 def _HandleNewClient(client_socket: Socket, address: IPv4Address, auto_handler: SecureSocket.Handler) -> SecureSocket:
     # Receive the connection request and verify the integrity.
     request = client_socket.recv(4096)
+    print("got data", request)
     request = _VerifyResponseIntegrity(request, ConnectionProtocol.CON_CON_REQ)
 
     # Check if this node is known (is it in the DHT cache?)

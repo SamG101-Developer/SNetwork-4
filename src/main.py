@@ -81,7 +81,10 @@ def main():
             pass
     except KeyboardInterrupt:
         print("\nExiting...")
-        sys.exit(0)
+        try:
+            sys.exit(0)
+        except SystemExit as e:
+            print(e)
 
 
 if __name__ == "__main__":
