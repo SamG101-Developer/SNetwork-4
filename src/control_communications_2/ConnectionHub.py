@@ -160,7 +160,7 @@ def _HandleNewClient(client_socket: UnsecureSocket, address: IPv4Address, auto_h
     request = _VerifyResponseIntegrity(request, ConnectionProtocol.CON_CON_REQ)
 
     # Check if this node is known (is it in the DHT cache?)
-    if DHT.get_static_public_key(address.compressed) is None:
+    if DHT.get_static_public_key(address.compressed, silent=True) is None:
         # Request a certificate from the DHT node.
         client_socket.send(ConnectionDataPackage(command=ConnectionProtocol.DHT_CER_REQ, data=b""))
 
@@ -215,7 +215,9 @@ def _DirectoryNodeHandlesNewClient(client_socket: UnsecureSocket, address: IPv4A
 
         # Determine the requesting node's static public key and id.
         their_static_public_key = SecureBytes(request.data)
+        print("PUB_KEY", their_static_public_key)
         their_id = Hashing.hash(their_static_public_key)
+        print("ID", their_id)
 
         # Create a certificate for the node.
         my_ip = IPv4Address(client_socket.getpeername()[0])

@@ -19,7 +19,7 @@ class UnsecureSocket:
         data = b""
         while not data.endswith(b"\r\n"):
             data += self._socket.recv(1024)
-        return data
+        return data[:-2]
 
     def getpeername(self):
         return self._socket.getpeername()
