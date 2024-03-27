@@ -3,10 +3,12 @@ from __future__ import annotations
 import json, os
 import logging
 import pickle
+import socket
 from typing import Any, Dict, List, Tuple
 from ipaddress import IPv4Address
-from socket import socket as Socket, create_connection as CreateRawConnection
+from socket import socket as Socket
 
+from control_communications_2.UnsecureSocket import UnsecureSocket
 from crypto_engines.crypto.hashing import Hashing
 from crypto_engines.crypto.digital_signing import DigitalSigning, SignedMessage
 from crypto_engines.crypto.key_encapsulation import KEM
@@ -47,7 +49,7 @@ class ConnectionHub:
         # Refresh the IP list by exchanging with neighbours.
         self._refresh_cache()
 
-    def _handle_client(self, client_socket: Socket, address: IPv4Address) -> None:
+    def _handle_client(self, client_socket: UnsecureSocket, address: IPv4Address) -> None:
         secure_connection = _HandleNewClient(client_socket, address, self._handle_command)
         self._connections.append(secure_connection)
 
@@ -62,11 +64,11 @@ class ConnectionHub:
 
         # Send the request to the directory node for a certificate.
         logging.debug("Requesting a certificate from a directory node...")
-        conn = CreateRawConnection((DHT.get_random_directory_node(), 12345))
+        conn = CreateUnsecureConnection(DHT.get_random_directory_node())
         conn.send(_DumpData(request))
 
         # Receive the certificate and save it. todo: verify
-        response = conn.recv(10000)
+        response = conn.recv()
         print(len(response))
         response = _VerifyResponseIntegrity(response, ConnectionProtocol.DIR_CER_RES)
         logging.debug("Received a certificate from a directory node.")
@@ -76,7 +78,7 @@ class ConnectionHub:
     def _bootstrap_from_directory_node(self):
         # Create a request for bootstrap nodes, and send it to the directory node.
         request = ConnectionDataPackage(command=ConnectionProtocol.DIR_LST_REQ, data=b"")
-        conn = CreateSecConnection(DHT.DIRECTORY_NODES.keys()[0])
+        conn = CreateSecureConnection(DHT.DIRECTORY_NODES.keys()[0])
         conn.send(request)
 
         # Receive the IP addresses of the bootstrap nodes.
@@ -98,7 +100,13 @@ class ConnectionHub:
         ...
 
 
-def CreateSecConnection(address: str) -> SecureSocket:
+def CreateUnsecureConnection(address: str) -> UnsecureSocket:
+    # Create a raw connection to the address.
+    underlying_socket = socket.create_connection((address, 12345))
+    return UnsecureSocket(underlying_socket)
+
+
+def CreateSecureConnection(address: str) -> SecureSocket:
     # Generate an ephemeral key pair, and sign the public key with the static secret key.
     my_static_secret_key = KeyPair().import_("./_keys/me", "static").secret_key
     my_ephemeral_secret_key, my_ephemeral_public_key = KEM.generate_key_pair().both()
@@ -108,12 +116,12 @@ def CreateSecConnection(address: str) -> SecureSocket:
         their_id=DHT.get_id(address))
 
     # Create the socket and send the connection request.
-    conn = CreateRawConnection((address, 12345))
+    conn = CreateUnsecureConnection(address)
     request = ConnectionDataPackage(command=ConnectionProtocol.CON_CON_REQ, data=my_ephemeral_public_key_signed)
     conn.send(_DumpData(request))
 
     # Receive either a CON_CON_[ACC|REJ], or a DHT_CER_REQ.
-    response = conn.recv(10000)
+    response = conn.recv()
     response = _VerifyResponseIntegrity(response, ConnectionProtocol.CON_CON_ACC, ConnectionProtocol.CON_CON_REJ, ConnectionProtocol.DHT_CER_REQ)
 
     # Send the certificate to prove identity.
@@ -122,7 +130,7 @@ def CreateSecConnection(address: str) -> SecureSocket:
         conn.send(_DumpData(ConnectionDataPackage(command=ConnectionProtocol.DHT_CER_RES, data=my_certificate)))
 
         # The next response will be a CON_CON_[ACC|REJ].
-        response = conn.recv(10000)
+        response = conn.recv()
         response = _VerifyResponseIntegrity(response, ConnectionProtocol.CON_CON_ACC, ConnectionProtocol.CON_CON_REJ)
 
     if response.command == ConnectionProtocol.CON_CON_REJ:
@@ -140,12 +148,12 @@ def CreateSecConnection(address: str) -> SecureSocket:
         encapsulated_key=kem_wrapped_shared_secret_signed.message).decapsulated_key
 
     # Create a secure connection with the key.
-    return SecureSocket(conn, shared_secret)
+    return SecureSocket(conn._socket, shared_secret)
 
 
-def _HandleNewClient(client_socket: Socket, address: IPv4Address, auto_handler: SecureSocket.Handler) -> SecureSocket:
+def _HandleNewClient(client_socket: UnsecureSocket, address: IPv4Address, auto_handler: SecureSocket.Handler) -> SecureSocket:
     # Receive the connection request and verify the integrity.
-    request = client_socket.recv(10000)
+    request = client_socket.recv()
     request = _VerifyResponseIntegrity(request, ConnectionProtocol.CON_CON_REQ)
 
     # Check if this node is known (is it in the DHT cache?)
@@ -154,7 +162,7 @@ def _HandleNewClient(client_socket: Socket, address: IPv4Address, auto_handler: 
         client_socket.send(_DumpData(ConnectionDataPackage(command=ConnectionProtocol.DHT_CER_REQ, data=b"")))
 
         # Get the certificate from the node.
-        response = client_socket.recv(10000)
+        response = client_socket.recv()
         response = _VerifyResponseIntegrity(response, ConnectionProtocol.DHT_CER_RES)
 
         # Verify the certificate and cache the node information in the DHT.
@@ -190,12 +198,12 @@ def _HandleNewClient(client_socket: Socket, address: IPv4Address, auto_handler: 
 
     # Create a secure connection with the key.
     shared_secret = kem_wrapped_shared_secret.decapsulated_key
-    secure_connection = SecureSocket(client_socket, shared_secret, auto_handler)
+    secure_connection = SecureSocket(client_socket._socket, shared_secret, auto_handler)
     return secure_connection
 
 
-def _DirectoryNodeHandlesNewClient(client_socket: Socket, address: IPv4Address, auto_handler: SecureSocket.Handler) -> SecureSocket:
-    request = client_socket.recv(10000)
+def _DirectoryNodeHandlesNewClient(client_socket: UnsecureSocket, address: IPv4Address, auto_handler: SecureSocket.Handler) -> SecureSocket:
+    request = client_socket.recv()
     request = _VerifyResponseIntegrity(request, ConnectionProtocol.CON_CON_REQ, ConnectionProtocol.DIR_CER_REQ)
 
     if request.command == ConnectionProtocol.DIR_CER_REQ:
@@ -250,7 +258,7 @@ class DirectoryHub:
         self._tcp_server = ConnectionServer(12345, self._handle_new_client)
         self._connections = []
 
-    def _handle_new_client(self, client_socket: Socket, address: IPv4Address) -> None:
+    def _handle_new_client(self, client_socket: UnsecureSocket, address: IPv4Address) -> None:
         secure_connection = _DirectoryNodeHandlesNewClient(client_socket, address, self._handle_command)
         self._connections.append(secure_connection)
 

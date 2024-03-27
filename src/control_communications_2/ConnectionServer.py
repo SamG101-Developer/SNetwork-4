@@ -5,9 +5,11 @@ from socket import socket as Socket
 from threading import Thread
 from typing import Callable
 
+from control_communications_2.UnsecureSocket import UnsecureSocket
+
 
 class ConnectionServer:
-    Handler = Callable[[Socket, IPv4Address], None]
+    Handler = Callable[[UnsecureSocket, IPv4Address], None]
 
     _handle_client: ConnectionServer.Handler
     _socket: Socket
@@ -28,5 +30,6 @@ class ConnectionServer:
         # Accept connections and handle them through the handler function.
         while True:
             client_socket, address = self._socket.accept()
+            client_socket = UnsecureSocket(client_socket)
             handle_thread = Thread(target=self._handle_client, args=(client_socket, IPv4Address(address[0])))
             handle_thread.start()
