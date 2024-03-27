@@ -69,11 +69,10 @@ class ConnectionHub:
 
         # Receive the certificate and save it. todo: verify
         response = conn.recv()
-        print(len(response))
         response = _VerifyResponseIntegrity(response, ConnectionProtocol.DIR_CER_RES)
         logging.debug("Received a certificate from a directory node.")
 
-        SecureBytes(response.data).export("./_certs", "certificate", ".ctf")
+        SecureBytes(_DumpData(response.data)).export("./_certs", "certificate", ".ctf")
 
     def _bootstrap_from_directory_node(self):
         # Create a request for bootstrap nodes, and send it to the directory node.
