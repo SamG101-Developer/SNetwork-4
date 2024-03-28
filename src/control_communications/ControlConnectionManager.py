@@ -192,14 +192,14 @@ class ControlConnectionManager:
         return connection_token
 
     def refresh_cache(self):
-        ip_to_contact = DHT.get_random_node(block_list=[Address.me().ip])
-        logging.debug(f"Refreshing cache from {ip_to_contact}")
+        node_to_contact = DHT.get_random_node(block_list=[Address.me().ip])
+        logging.debug(f"Refreshing cache from {node_to_contact["ip"]}")
 
-        if not ip_to_contact:
+        if not node_to_contact:
             logging.debug("No nodes online at the moment")
             return
 
-        target_address = Address(ip=ip_to_contact["ip"])
+        target_address = Address(ip=node_to_contact["ip"])
         connection_token = self._open_connection_to(target_address)
 
     # @LogPre
