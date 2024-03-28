@@ -83,6 +83,7 @@ class ConnectionHub:
         conn.pause_automatically_handling()
         ack = conn.recv()
         ack = _VerifyResponseIntegrity(ack, ConnectionProtocol.ACK)
+        logging.debug("Got ACK from other node.")
 
         conn.send(request)
         logging.debug("Sent a request for bootstrap nodes to a directory node.")
