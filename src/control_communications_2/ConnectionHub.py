@@ -80,7 +80,6 @@ class ConnectionHub:
         request = ConnectionDataPackage(command=ConnectionProtocol.DIR_LST_REQ, data=b"")
 
         # Send it to the directory node.
-        conn.pause_handler()
         conn.send(request)
         logging.debug("Sent a request for bootstrap nodes to a directory node.")
 
@@ -88,7 +87,6 @@ class ConnectionHub:
         response = conn.recv()
         response = _VerifyResponseIntegrity(response, ConnectionProtocol.DIR_LST_RES)
         logging.debug("Received bootstrap nodes from a directory node.")
-        conn.resume_handler()
 
         bootstrap_nodes: List[Dict[Str, Any]] = response.data
 
@@ -289,6 +287,7 @@ class DirectoryHub:
         # Send the list of nodes to the requesting node.
         response = ConnectionDataPackage(command=ConnectionProtocol.DIR_LST_RES, data=random_nodes)
         client.send(response)
+        client.resume_handler()
 
     def _handle_command(self, socket: SecureSocket, data: ConnectionDataPackage) -> None:
         match data.command:

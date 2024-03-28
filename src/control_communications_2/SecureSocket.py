@@ -22,7 +22,7 @@ class SecureSocket:
         self._socket = socket
         self._e2e_key = e2e_key
         self._auto_handler = auto_handler
-        self._handling = True
+        self._handling = False
 
         # thread = Thread(target=self._auto_handle)
         # thread.start()
