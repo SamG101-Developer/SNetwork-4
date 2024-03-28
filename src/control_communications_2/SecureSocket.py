@@ -62,6 +62,10 @@ class SecureSocket:
 
     def _auto_handle(self):
         while self._handling:
-            data = self.recv()
+            try:
+                data = self.recv()
+            except BlockingIOError:
+                continue
+
             thread = Thread(target=self._auto_handler, args=(self, pickle.loads(data)))
             thread.start()
