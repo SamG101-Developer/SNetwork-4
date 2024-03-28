@@ -38,9 +38,12 @@ class SecureSocket:
     def recv(self) -> bytes:
         data = b""
         while not data.endswith(b"\r\n"):
-            data += self._socket.recv(2048)
+            chunk = self._socket.recv(2048)
+            print(f"added chunk size {len(chunk)}")
+            data += chunk
+
+        print("R1", len(data))
         data = SecureBytes(data[:-2])
-        print("R1", data.length)
         data = SymmetricEncryption.decrypt(data, self._e2e_key)
         print("R2", data.length)
         return data.raw
