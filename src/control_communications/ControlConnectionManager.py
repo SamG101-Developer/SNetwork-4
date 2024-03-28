@@ -880,7 +880,7 @@ class ControlConnectionManager:
 
         # Cache the node information.
         DHT.cache_node_information(
-            node_id=their_id,
+            node_id=their_id.raw,
             node_public_key=their_certificate[-DigitalSigning.ALGORITHM.PUBLIC_KEY_SIZE:],
             ip_address=addr.ip)
 
