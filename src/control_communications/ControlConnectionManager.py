@@ -81,7 +81,9 @@ class ControlConnectionManager:
         if not self._is_directory_node and len(json.loads(open("./_cache/dht_cache.json").read())) == 0:
             self.obtain_first_nodes()
 
+        print("here")
         if not self._is_directory_node:
+            print("in here")
             self.refresh_cache()
 
     @LogPre
@@ -358,7 +360,7 @@ class ControlConnectionManager:
 
         # Wait for the certificate to be received from the directory node.
         except NodeNotInNetworkException:
-            self._send_message_onwards(addr, os.urandom(32), ControlConnectionProtocol.DHT_EXH_REQ, b"")
+            self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.DHT_EXH_REQ, b"")
             while (their_static_public_key := DHT.get_static_public_key(addr.ip)) is None:
                 pass
 
@@ -835,12 +837,8 @@ class ControlConnectionManager:
         @return:
         """
 
-        # logging.debug(f"\t\tReceived list of nodes from directory node: {addr.ip}")
-        # logging.debug(f"\t\tConnection token: {connection_token}")
-
         nodes = pickle.loads(data)
         for node in nodes:
-            # logging.debug(f"\t\tNode: {node['ip']}")
             DHT.cache_node_information(node["id"], node["key"], node["ip"])
 
     @LogPre
