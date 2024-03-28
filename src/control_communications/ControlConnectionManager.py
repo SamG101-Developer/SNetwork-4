@@ -162,7 +162,7 @@ class ControlConnectionManager:
         connection_token = self._open_connection_to(target_address)
         self._send_message_onwards(target_address, connection_token.token, ControlConnectionProtocol.DIR_LST_REQ, b"")
 
-        while len(json.loads(open("./_cache/dht_cache.json").read())) == 0:
+        while len(json.load(open("./_cache/dht_cache.json"))) == 0:
             pass
 
     def _open_connection_to(self, addr: Address) -> ConnectionToken:
@@ -983,12 +983,13 @@ class ControlConnectionManager:
     @LogPre
     def _send_message_onwards_raw(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
         # Encrypt the connection to the direct neighbour node, if a shared secret has been established.
-        conversation_id = ConnectionToken(token=connection_token, address=addr)
+        conversation_id = ConnectionToken(token=connection_token, address=addr)  # todo: prepended to data
         if shared_secret := self._conversations[conversation_id].shared_secret:
             data = SymmetricEncryption.encrypt(SecureBytes(data), shared_secret).raw
             # logging.debug(f"\t\tE2E encrypted payload: {data[:100]}...")
 
         # Send the data to the node.
+        data = connection_token + data
         self._udp_server.udp_send(data, addr.socket_format())
 
     @LogPre
@@ -997,17 +998,19 @@ class ControlConnectionManager:
         # logging.debug(f"\t\tRaw payload: {data[:100]}...")
 
         addr = Address(ip=raw_addr[0], port=raw_addr[1])
+        connection_token, data = data[:32], data[32:]
 
         # Decrypt the e2e connection if its encrypted (not encrypted when initiating a connection).
+        # todo: get connection token from the start of the data
         if addr in [c.address for c in self._conversations.keys()]:
-            connection_token = [c.token for c in self._conversations.keys() if c.address == addr][0]
+            # connection_token = [c.token for c in self._conversations.keys() if c.address == addr][0]
             conversation_id  = ConnectionToken(token=connection_token, address=addr)
             if shared_secret := self._conversations[conversation_id].shared_secret:
                 data = SymmetricEncryption.decrypt(SecureBytes(data), shared_secret).raw
                 # logging.debug(f"\t\tE2E decrypted payload: {data[:100]}...")
 
         # Decrypt any layered encryption (if the command is CONN_FWD).
-        connection_token = [c.token for c in self._conversations.keys() if c.address == addr]
+        # connection_token = [c.token for c in self._conversations.keys() if c.address == addr]
 
         # Decrypt all layers (this node is the client node). The exception is when this node has send this node data, as
         # at this point, the idea is to just execute the command on this node.
