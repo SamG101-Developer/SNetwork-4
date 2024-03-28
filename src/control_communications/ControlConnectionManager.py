@@ -203,7 +203,14 @@ class ControlConnectionManager:
         target_address = Address(ip=node_to_contact["ip"])
         connection_token = self._open_connection_to(target_address)
 
-        self._send_message_onwards(target_address, connection_token.token, ControlConnectionProtocol.DHT_EXH_ADR, b"")
+        nodes = []
+        for x in range(3):
+            next_node = DHT.get_random_node(block_list=[node["ip"] for node in nodes])
+            if not next_node: break
+            nodes.append(next_node)
+        sending_data = pickle.dumps(nodes)
+
+        self._send_message_onwards(target_address, connection_token.token, ControlConnectionProtocol.DHT_EXH_ADR, sending_data)
 
     # @LogPre
     def _parse_message(self, data: Bytes) -> Tuple[ConnectionProtocol, Bytes, Bytes]:
