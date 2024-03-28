@@ -61,6 +61,9 @@ def create_argument_parser() -> ArgumentParser:
     # Directory node subparser
     directory_node_parser = subparsers.add_parser("directory", help="Start a directory node")
 
+    # Reset node subparser
+    directory_node_parser = subparsers.add_parser("reset", help="Reset the node")
+
     # Return the parser
     return parser
 

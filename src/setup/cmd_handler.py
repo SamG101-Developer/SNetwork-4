@@ -1,4 +1,5 @@
 import logging
+import sys
 
 from crypto_engines.crypto.hashing import Hashing
 from crypto_engines.crypto.digital_signing import DigitalSigning
@@ -22,6 +23,19 @@ class CmdHandler:
     @staticmethod
     def _handle(command: Str, arguments: Namespace) -> None:
         getattr(CmdHandler, f"_handle_{command}")(arguments)
+
+    @staticmethod
+    def _handle_reset(arguments: Namespace) -> None:
+        logging.debug(f"Resetting the node (manual removal on directory node may be required).")
+
+        if sys.platform == "win32":
+            os.system("rmdir /s /q ./_keys")
+            os.system("rmdir /s /q ./_cache")
+            os.system("rmdir /s /q ./_certs")
+        else:
+            os.system("rm -rf ./_keys")
+            os.system("rm -rf ./_cache")
+            os.system("rm -rf ./_certs")
 
     @staticmethod
     def _handle_keygen(arguments: Namespace) -> None:
