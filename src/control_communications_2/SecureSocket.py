@@ -39,8 +39,8 @@ class SecureSocket:
         data = b""
         while not data.endswith(b"\r\n"):
             chunk = self._socket.recv(2048)
-            print(f"added chunk size {len(chunk)}")
             data += chunk
+            print(f"added chunk size {len(chunk)}. total length is now {len(data)}")
 
         print("R1", len(data))
         data = SecureBytes(data[:-2])
