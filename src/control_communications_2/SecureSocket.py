@@ -22,7 +22,7 @@ class SecureSocket:
         self._socket = socket
         self._e2e_key = e2e_key
         self._auto_handler = auto_handler
-        self._handling = False
+        self._handling = True
 
         thread = Thread(target=self._auto_handle)
         thread.start()
@@ -36,6 +36,10 @@ class SecureSocket:
         self._socket.sendall(data.raw)
 
     def recv(self) -> bytes:
+        import inspect
+        frame = inspect.stack()[1]
+        print(f"{frame.filename}:{frame.lineno} ({frame.function})")
+
         data = b""
         i = 0
         while not data.endswith(b"\r\n"):

@@ -242,7 +242,8 @@ def _DirectoryNodeHandlesNewClient(client_socket: UnsecureSocket, address: IPv4A
 
     else:
         pre_request = _DumpData(request)
-        return _HandleNewClient(client_socket, address, auto_handler, request=pre_request)
+        secure_connection = _HandleNewClient(client_socket, address, auto_handler, request=pre_request)
+        return secure_connection
 
 
 def _VerifyResponseIntegrity(response: bytes, *expected_commands: ConnectionProtocol) -> ConnectionDataPackage:
@@ -272,7 +273,6 @@ class DirectoryHub:
 
     def _handle_new_client(self, client_socket: UnsecureSocket, address: IPv4Address) -> None:
         secure_connection = _DirectoryNodeHandlesNewClient(client_socket, address, self._handle_command)
-        secure_connection.resume_handler()
         self._connections.append(secure_connection)
 
     def _handle_list_request(self, client: SecureSocket, data: ConnectionDataPackage):
