@@ -30,6 +30,7 @@ class ConnectionServer:
         # Accept connections and handle them through the handler function.
         while True:
             client_socket, address = self._socket.accept()
+            client_socket.setblocking(False)
             client_socket = UnsecureSocket(client_socket)
             handle_thread = Thread(target=self._handle_client, args=(client_socket, IPv4Address(address[0])))
             handle_thread.start()
