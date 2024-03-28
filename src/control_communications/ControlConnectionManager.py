@@ -370,7 +370,8 @@ class ControlConnectionManager:
         DigitalSigning.verify(
             their_static_public_key=their_static_public_key,
             signed_message=their_signed_ephemeral_public_key,
-            my_id=SecureBytes().import_("./_keys/me", "identifier", ".txt"))
+            my_id=SecureBytes().import_("./_keys/me", "identifier", ".txt"),
+            allow_stale=True)  # temporarily, because of the possible delay from the DHT_EXH_REQ request.
 
         # Create a shared secret with a KEM, using their ephemeral public key, and sign it.
         their_ephemeral_public_key = their_signed_ephemeral_public_key.message
@@ -829,7 +830,7 @@ class ControlConnectionManager:
         their_id = SecureBytes(their_certificate.message.raw[4 + Hashing.ALGORITHM.digest_size:-DigitalSigning.ALGORITHM.PUBLIC_KEY_SIZE])
         directory_node_ip = IPv4Address(their_certificate.message.raw[:4]).compressed
 
-        # Verify certificate is legitimate (allow stale because it's a certificate).
+        # Verify the certificate is legitimate (allow stale because it's a certificate).
         DigitalSigning.verify(
             their_static_public_key=DHT.DIRECTORY_NODES[directory_node_ip],
             signed_message=their_certificate,
