@@ -81,9 +81,7 @@ class ControlConnectionManager:
         if not self._is_directory_node and len(json.loads(open("./_cache/dht_cache.json").read())) == 0:
             self.obtain_first_nodes()
 
-        print("here")
         if not self._is_directory_node:
-            print("in here")
             self.refresh_cache()
 
     @LogPre
@@ -163,6 +161,9 @@ class ControlConnectionManager:
         target_address = Address(ip=DHT.get_random_directory_node())
         connection_token = self._open_connection_to(target_address)
         self._send_message_onwards(target_address, connection_token.token, ControlConnectionProtocol.DIR_LST_REQ, b"")
+
+        while len(json.loads(open("./_cache/dht_cache.json").read())) == 0:
+            pass
 
     def _open_connection_to(self, addr: Address) -> ConnectionToken:
         my_static_private_key = KeyPair().import_("./_keys/me", "static").secret_key
