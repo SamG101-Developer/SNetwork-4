@@ -420,7 +420,6 @@ class ControlConnectionManager:
 
         # Save the connection information for the requesting node.
 
-
         # Send the signed KEM wrapped shared secret to the requesting node.
         self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_ACC, pickle.dumps(signed_kem_wrapped_shared_secret))
         # while not self._conversations[conversation_id].secure:
@@ -1009,7 +1008,7 @@ class ControlConnectionManager:
 
     @LogPre
     def _send_message_onwards(self, addr: Address, connection_token: Bytes, command: ConnectionProtocol, data: Bytes) -> None:
-        logging.debug(f"\t\tSending {command} to: {addr.ip}")
+        logging.debug(f"\t\tSending {command} to: {addr.ip}: {data[:50]}...")
         # logging.debug(f"\t\tConnection token: {connection_token}")
         # logging.debug(f"\t\tRaw payload ({len(data)}): {data[:100]}...")
 
@@ -1051,7 +1050,7 @@ class ControlConnectionManager:
         # Decrypt all layers (this node is the client node). The exception is when this node has send this node data, as
         # at this point, the idea is to just execute the command on this node.
         # todo : just call "self._handle_message directly(...)", and remove the "addr != Address.me()"?
-        if not self._is_directory_node and self._my_route and self._my_route.connection_token.token == connection_token[0]:
+        if not self._is_directory_node and self._my_route and self._my_route.connection_token.token == connection_token:
             if addr != Address.me():
                 relay_nodes = iter(self._my_route.route[1:])
                 next_node = next(relay_nodes, None)
@@ -1064,7 +1063,7 @@ class ControlConnectionManager:
                 while next_node:
                     # logging.debug(f"\t\tUnwrapping layer from {next_node.connection_token.address.ip}")
                     nested_command, nested_connection_token, nested_data = self._parse_message(data)
-                    assert nested_connection_token == connection_token[0]
+                    assert nested_connection_token == connection_token
                     data = nested_data
 
                     if next_node.shared_secret:
@@ -1076,26 +1075,26 @@ class ControlConnectionManager:
 
         elif (not self._is_directory_node
               and connection_token
-              and connection_token[0] in self._node_to_client_tunnel_keys.keys()
-              and self._node_to_client_tunnel_keys[connection_token[0]].shared_secret):
+              and connection_token in self._node_to_client_tunnel_keys.keys()
+              and self._node_to_client_tunnel_keys[connection_token].shared_secret):
 
-            two_nodes_with_connection_token = [c.address for c in self._conversations.keys() if c.token == connection_token[0]]
-            from_previous_node = addr == two_nodes_with_connection_token[0]
+            two_nodes_with_connection_token = [c.address for c in self._conversations.keys() if c.token == connection_token]
+            from_previous_node = addr == two_nodes_with_connection_token
 
             # Relay node receiving a message from the previous node in the route => decrypt a layer
             if from_previous_node:
-                client_key = self._node_to_client_tunnel_keys[connection_token[0]].shared_secret.decapsulated_key
+                client_key = self._node_to_client_tunnel_keys[connection_token].shared_secret.decapsulated_key
                 data = SymmetricEncryption.decrypt(SecureBytes(data), client_key).raw
                 # logging.debug(f"\t\tDecrypted payload: {data[:100]}...")
 
             # Relay node receiving a message from the next node in the route => add a layer of encryption
             elif self._parse_message(data)[0] == ControlConnectionProtocol.CONN_FWD:
-                client_key = self._node_to_client_tunnel_keys[connection_token[0]].shared_secret.decapsulated_key
+                client_key = self._node_to_client_tunnel_keys[connection_token].shared_secret.decapsulated_key
                 data = SymmetricEncryption.encrypt(SecureBytes(data), client_key).raw
-                data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + connection_token[0] + data
+                data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + connection_token + data
 
-                prev_node = two_nodes_with_connection_token[0]
-                self._send_message_onwards_raw(prev_node, connection_token[0], data)
+                prev_node = two_nodes_with_connection_token
+                self._send_message_onwards_raw(prev_node, connection_token, data)
                 return
 
                 # logging.debug(f"\t\tEncrypted payload: {data[:100]}...")
