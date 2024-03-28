@@ -858,7 +858,6 @@ class ControlConnectionManager:
         their_certificate, signed_challenge = pickle.loads(data)
         my_id = SecureBytes().import_("./_keys/me", "identifier", ".txt")
 
-        their_certificate = pickle.loads(their_certificate)
         their_id = their_certificate.message[4 + Hashing.ALGORITHM.digest_size:-DigitalSigning.ALGORITHM.PUBLIC_KEY_SIZE]
         directory_node_ip = IPv4Address(their_certificate.message[:4]).compressed
 
