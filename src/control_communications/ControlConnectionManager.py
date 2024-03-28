@@ -1018,12 +1018,12 @@ class ControlConnectionManager:
     @LogPre
     def _send_message_onwards_raw(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
         # Encrypt the connection to the direct neighbour node, if a shared secret has been established.
-        conversation_id = ConnectionToken(token=connection_token, address=addr)  # todo: prepended to data
+        conversation_id = ConnectionToken(token=connection_token, address=addr)
         if shared_secret := self._conversations[conversation_id].shared_secret:
             data = SymmetricEncryption.encrypt(SecureBytes(data), shared_secret).raw
             # logging.debug(f"\t\tE2E encrypted payload: {data[:100]}...")
 
-        # Send the data to the node.
+        # Send the data to the node (prepend the connection token because encryption will hide it).
         data = connection_token + data
         self._udp_server.udp_send(data, addr.socket_format())
 
@@ -1036,10 +1036,11 @@ class ControlConnectionManager:
         connection_token, data = data[:32], data[32:]
 
         # Decrypt the e2e connection if its encrypted (not encrypted when initiating a connection).
-        # todo: get connection token from the start of the data
         if addr in [c.address for c in self._conversations.keys()]:
             # connection_token = [c.token for c in self._conversations.keys() if c.address == addr][0]
-            conversation_id  = ConnectionToken(token=connection_token, address=addr)
+            conversation_id = ConnectionToken(token=connection_token, address=addr)
+            print(self._conversations)
+
             if shared_secret := self._conversations[conversation_id].shared_secret:
                 data = SymmetricEncryption.decrypt(SecureBytes(data), shared_secret).raw
                 # logging.debug(f"\t\tE2E decrypted payload: {data[:100]}...")
