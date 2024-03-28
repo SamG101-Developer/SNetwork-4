@@ -1039,7 +1039,7 @@ class ControlConnectionManager:
         if addr in [c.address for c in self._conversations.keys()]:
             # connection_token = [c.token for c in self._conversations.keys() if c.address == addr][0]
             conversation_id = ConnectionToken(token=connection_token, address=addr)
-            print(self._conversations)
+            # print(self._conversations)
 
             if shared_secret := self._conversations[conversation_id].shared_secret:
                 data = SymmetricEncryption.decrypt(SecureBytes(data), shared_secret).raw
