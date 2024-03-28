@@ -2,7 +2,7 @@ import logging
 
 from crypto_engines.crypto.hashing import Hashing
 from crypto_engines.crypto.digital_signing import DigitalSigning
-from control_communications_2.ConnectionHub import ConnectionHub, DirectoryHub
+from control_communications.ControlConnectionManager import ControlConnectionManager
 from my_types import Str, List
 
 from argparse import Namespace
@@ -11,7 +11,7 @@ import os, socket
 
 
 class CmdHandler:
-    CONTROLLER: ConnectionHub = None
+    CONTROLLER: ControlConnectionManager = None
     THREADS: List[Thread] = []
 
     def __init__(self, command: Str, arguments: Namespace) -> None:
@@ -47,15 +47,15 @@ class CmdHandler:
         logging.debug(f"Joining network as a node.")
         # Setup the control connection server
         if not CmdHandler.CONTROLLER:
-            CmdHandler.CONTROLLER = ConnectionHub()
+            CmdHandler.CONTROLLER = ControlConnectionManager()
 
     @staticmethod
     def _handle_route(arguments: Namespace) -> None:
         if not CmdHandler.CONTROLLER:
-            CmdHandler.CONTROLLER = ConnectionHub()
+            CmdHandler.CONTROLLER = ControlConnectionManager()
         CmdHandler.CONTROLLER.create_route(arguments)
 
     @staticmethod
     def _handle_directory(arguments: Namespace) -> None:
         logging.debug(f"Joining network as a directory.")
-        CmdHandler.CONTROLLER = DirectoryHub()
+        CmdHandler.CONTROLLER = ControlConnectionManager(is_directory_node=True)
