@@ -360,7 +360,7 @@ class ControlConnectionManager:
 
         # Wait for the certificate to be received from the directory node.
         except NodeNotInNetworkException:
-            self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.DHT_EXH_REQ, b"")
+            self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.DHT_EXH_REQ, os.urandom(32))
             while (their_static_public_key := DHT.get_static_public_key(addr.ip, silent=True)) is None:
                 pass
 
@@ -397,7 +397,7 @@ class ControlConnectionManager:
             signed_e2e_key = DigitalSigning.sign(
                 message=self._node_to_client_tunnel_keys[connection_token].ephemeral_key_pair.public_key,
                 my_static_private_key=my_static_private_key,
-                their_id=their_id)
+                their_id=DHT.get_id(addr.ip))
 
         # logging.debug(f"\t\tE2E public key: {hashlib.md5(signed_e2e_key.message.raw).hexdigest()}...")
         # logging.debug(f"\t\tSigned E2E public key: {hashlib.md5(signed_e2e_key.signature.raw).hexdigest()}...")
@@ -848,13 +848,13 @@ class ControlConnectionManager:
     @LogPre
     def _handle_request_for_certificate(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
         my_certificate = SecureBytes().import_(f"./_certs", "certificate", ".ctf")
-        random_challenge = SecureBytes.from_random(32)
-        signature = DigitalSigning.sign(
-            message=random_challenge,
+
+        signed_challenge = DigitalSigning.sign(
+            message=SecureBytes(data),
             my_static_private_key=KeyPair().import_("./_keys/me", "static").secret_key,
             their_id=DHT.get_id(addr.ip))
 
-        sending_data = pickle.dumps((my_certificate, signature))
+        sending_data = pickle.dumps((pickle.loads(my_certificate.raw), signed_challenge))
         logging.debug(len(sending_data))
         self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.DHT_EXH_RES, sending_data)
 
@@ -872,7 +872,7 @@ class ControlConnectionManager:
             signed_message=their_certificate,
             my_id=their_id)
 
-        # Verify the signed random data uses the key in the certificate.
+        # Verify the signed challenge uses the key in the certificate. todo: check challenge value
         DigitalSigning.verify(
             their_static_public_key=their_certificate[-DigitalSigning.ALGORITHM.PUBLIC_KEY_SIZE:],
             signed_message=signed_challenge,
