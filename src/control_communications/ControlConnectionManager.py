@@ -191,6 +191,8 @@ class ControlConnectionManager:
 
     def refresh_cache(self):
         ip_to_contact = DHT.get_random_node()
+        logging.debug(f"Refreshing cache from {ip_to_contact}")
+
         if not ip_to_contact:
             logging.debug("No nodes online at the moment")
             return
