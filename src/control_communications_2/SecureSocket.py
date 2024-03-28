@@ -24,8 +24,8 @@ class SecureSocket:
         self._auto_handler = auto_handler
         self._handling = False
 
-        # thread = Thread(target=self._auto_handle)
-        # thread.start()
+        thread = Thread(target=self._auto_handle)
+        thread.start()
 
     def send(self, plain_text: ConnectionDataPackage) -> None:
         data = SecureBytes(pickle.dumps(plain_text))
