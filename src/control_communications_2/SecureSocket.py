@@ -18,11 +18,11 @@ class SecureSocket:
     _auto_handler: Handler
     _handling: bool
 
-    def __init__(self, socket: Socket, e2e_key: SecureBytes, auto_handler: Handler = lambda *args: None, start_handling: bool = True):
+    def __init__(self, socket: Socket, e2e_key: SecureBytes, auto_handler: Handler = lambda *args: None):
         self._socket = socket
         self._e2e_key = e2e_key
         self._auto_handler = auto_handler
-        self._handling = start_handling
+        self._handling = False
 
         thread = Thread(target=self._auto_handle)
         thread.start()
@@ -54,11 +54,11 @@ class SecureSocket:
         print("R2", data.length)
         return data.raw
 
-    def pause_handler(self):
-        self._handling = False
-
-    def resume_handler(self):
+    def start_automatically_handling(self):
         self._handling = True
+
+    def pause_automatically_handling(self):
+        self._handling = False
 
     def _auto_handle(self):
         while self._handling:
