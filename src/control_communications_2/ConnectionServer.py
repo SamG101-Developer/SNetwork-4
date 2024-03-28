@@ -19,7 +19,6 @@ class ConnectionServer:
         # Setup the connection server attributes.
         self._handle_client = handle_client
         self._socket = Socket()
-        self._socket.setblocking(False)
         self._server_thread = Thread(target=self._setup_socket)
         self._server_thread.start()
 
