@@ -272,6 +272,7 @@ class DirectoryHub:
 
     def _handle_new_client(self, client_socket: UnsecureSocket, address: IPv4Address) -> None:
         secure_connection = _DirectoryNodeHandlesNewClient(client_socket, address, self._handle_command)
+        secure_connection.resume_handler()
         self._connections.append(secure_connection)
 
     def _handle_list_request(self, client: SecureSocket, data: ConnectionDataPackage):
@@ -287,7 +288,6 @@ class DirectoryHub:
         # Send the list of nodes to the requesting node.
         response = ConnectionDataPackage(command=ConnectionProtocol.DIR_LST_RES, data=random_nodes)
         client.send(response)
-        client.resume_handler()
 
     def _handle_command(self, socket: SecureSocket, data: ConnectionDataPackage) -> None:
         match data.command:
