@@ -203,6 +203,8 @@ class ControlConnectionManager:
         target_address = Address(ip=node_to_contact["ip"])
         connection_token = self._open_connection_to(target_address)
 
+        self._send_message_onwards(target_address, connection_token.token, ControlConnectionProtocol.DHT_EXH_ADR, b"")
+
     # @LogPre
     def _parse_message(self, data: Bytes) -> Tuple[ConnectionProtocol, Bytes, Bytes]:
         """
@@ -324,6 +326,10 @@ class ControlConnectionManager:
             # Handle a list of IP addresses from a neighbouring node.
             case ControlConnectionProtocol.DHT_EXH_ADR if connected:
                 self._handle_exchange_ip_addresses(addr, connection_token, data)
+
+            # Handle an ACK of IP addresses received from the exchange.
+            case ControlConnectionProtocol.DHT_EXH_ACK if connected:
+                self._handle_exchange_ack_ip_addresses(addr, connection_token, data)
 
             # Otherwise, log an error, ignore the message, and do nothing.
             case _:
@@ -863,7 +869,28 @@ class ControlConnectionManager:
         @return:
         """
 
-        self._handle_response_for_nodes_from_directory_node(addr, connection_token, data)
+        # Cache their data
+        nodes = pickle.loads(data)
+        for node in nodes:
+            DHT.cache_node_information(node["id"], node["key"], node["ip"])
+
+        # Get some random nodes
+        nodes = []
+        for x in range(3):
+            next_node = DHT.get_random_node(block_list=[node["ip"] for node in nodes])
+            if not next_node: break
+            nodes.append(next_node)
+
+        # Send the nodes back
+        self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.DHT_EXH_ACK, pickle.dumps(nodes))
+
+    @LogPre
+    def _handle_exchange_ack_ip_addresses(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
+
+        # Cache their data
+        nodes = pickle.loads(data)
+        for node in nodes:
+            DHT.cache_node_information(node["id"], node["key"], node["ip"])
 
     @LogPre
     # @ReplayErrorBackToUser

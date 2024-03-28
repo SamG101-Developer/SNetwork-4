@@ -31,6 +31,7 @@ class ControlConnectionProtocol(ConnectionProtocol):
     DHT_EXH_REQ = 0b10011  # Request node certificate to prove on network
     DHT_EXH_RES = 0b10100  # Response to a certificate request
     DHT_EXH_ADR = 0b10101  # Exchange IP addresses with a node
+    DHT_EXH_ACK = 0b10110  # Acknowledge an address exchange
 
 
 __all__ = ["ConnectionProtocol", "ControlConnectionProtocol"]
