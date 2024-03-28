@@ -863,8 +863,8 @@ class ControlConnectionManager:
         logging.debug(len(data))
         their_certificate, signed_challenge = pickle.loads(data)
 
-        their_id = their_certificate[4 + Hashing.ALGORITHM.digest_size:-DigitalSigning.ALGORITHM.PUBLIC_KEY_SIZE]
-        directory_node_ip = IPv4Address(their_certificate[:4]).compressed
+        their_id = SecureBytes(their_certificate.raw[4 + Hashing.ALGORITHM.digest_size:-DigitalSigning.ALGORITHM.PUBLIC_KEY_SIZE])
+        directory_node_ip = IPv4Address(their_certificate.raw[:4]).compressed
 
         # Verify certificate is legitimate.
         DigitalSigning.verify(
