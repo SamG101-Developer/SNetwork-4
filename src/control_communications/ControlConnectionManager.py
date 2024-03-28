@@ -190,7 +190,7 @@ class ControlConnectionManager:
         return connection_token
 
     def refresh_cache(self):
-        ip_to_contact = DHT.get_random_node()
+        ip_to_contact = DHT.get_random_node(block_list=[Address.me().ip])
         logging.debug(f"Refreshing cache from {ip_to_contact}")
 
         if not ip_to_contact:
