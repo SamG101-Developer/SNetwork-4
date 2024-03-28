@@ -361,7 +361,7 @@ class ControlConnectionManager:
         # Wait for the certificate to be received from the directory node.
         except NodeNotInNetworkException:
             self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.DHT_EXH_REQ, b"")
-            while (their_static_public_key := DHT.get_static_public_key(addr.ip)) is None:
+            while (their_static_public_key := DHT.get_static_public_key(addr.ip, silent=True)) is None:
                 pass
 
         self._conversations[conversation_id].their_static_public_key = their_static_public_key
