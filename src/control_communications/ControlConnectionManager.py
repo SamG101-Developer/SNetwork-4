@@ -61,7 +61,7 @@ class ControlConnectionManager:
     _is_directory_node: bool
     _waiting_for_cert: bool
 
-    def __init__(self, is_directory_node: bool = False):
+    def __init__(self, is_directory_node: bool = False, instant_routing: bool = False):
         # Setup the attributes of the control connection manager.
         self._udp_server = ControlConnectionServer()
         self._udp_server.on_message_received = self._recv_message
@@ -81,8 +81,8 @@ class ControlConnectionManager:
         if not self._is_directory_node and len(json.loads(open("./_cache/dht_cache.json").read())) == 0:
             self.obtain_first_nodes()
 
-        if not self._is_directory_node:
-            self.refresh_cache()
+        # if not self._is_directory_node:
+        #     self.refresh_cache()
 
     @LogPre
     def create_route(self, _arguments: Namespace) -> None:
@@ -1039,11 +1039,6 @@ class ControlConnectionManager:
         if connection_token in [c.token for c in self._conversations.keys()]:
             # connection_token = [c.token for c in self._conversations.keys() if c.address == addr][0]
             conversation_id = ConnectionToken(token=connection_token, address=addr)
-
-            logging.debug("#####")
-            for c in self._conversations.keys():
-                print(f"{c.address.ip}: {c.token}")
-            logging.debug("#####")
 
             if shared_secret := self._conversations[conversation_id].shared_secret:
                 data = SymmetricEncryption.decrypt(SecureBytes(data), shared_secret).raw
