@@ -851,12 +851,14 @@ class ControlConnectionManager:
             their_id=DHT.get_static_public_key(addr.ip))
 
         sending_data = pickle.dumps((my_certificate, signature))
+        print((len(sending_data)))
         self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.DHT_EXH_RES, sending_data)
 
     @LogPre
     def _handle_response_for_certificate(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
         their_certificate, signed_challenge = pickle.loads(data)
         my_id = SecureBytes().import_("./_keys/me", "identifier", ".txt")
+        print(len(data))
 
         their_id = their_certificate.message[4 + Hashing.ALGORITHM.digest_size:-DigitalSigning.ALGORITHM.PUBLIC_KEY_SIZE]
         directory_node_ip = IPv4Address(their_certificate.message[:4]).compressed
