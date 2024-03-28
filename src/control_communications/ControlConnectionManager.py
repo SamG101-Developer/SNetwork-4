@@ -181,7 +181,7 @@ class ControlConnectionManager:
         signed_my_ephemeral_public_key = DigitalSigning.sign(
             my_static_private_key=my_static_private_key,
             message=my_ephemeral_public_key,
-            their_id=DHT.get_static_public_key(addr.ip))
+            their_id=DHT.get_id(addr.ip))
 
         sending_data = pickle.dumps((signed_my_ephemeral_public_key, False))
 
@@ -371,7 +371,7 @@ class ControlConnectionManager:
         DigitalSigning.verify(
             their_static_public_key=their_static_public_key,
             signed_message=their_signed_ephemeral_public_key,
-            my_id=my_static_public_key)
+            my_id=SecureBytes().import_("./_keys/me", "identifier", ".txt"))
 
         # Create a shared secret with a KEM, using their ephemeral public key, and sign it.
         their_ephemeral_public_key = their_signed_ephemeral_public_key.message
@@ -379,7 +379,7 @@ class ControlConnectionManager:
         signed_kem_wrapped_shared_secret = DigitalSigning.sign(
             my_static_private_key=my_static_private_key,
             message=kem_wrapped_shared_secret.encapsulated_key,
-            their_id=their_static_public_key)
+            their_id=DHT.get_id(addr.ip))
 
         # logging.debug(f"\t\tTheir ephemeral public key: {their_ephemeral_public_key.raw[:100]}...")
         # logging.debug(f"\t\tShared secret (CON): {kem_wrapped_shared_secret.decapsulated_key.raw[:100]}...")
@@ -397,7 +397,7 @@ class ControlConnectionManager:
             signed_e2e_key = DigitalSigning.sign(
                 message=self._node_to_client_tunnel_keys[connection_token].ephemeral_key_pair.public_key,
                 my_static_private_key=my_static_private_key,
-                their_id=their_static_public_key)
+                their_id=their_id)
 
         # logging.debug(f"\t\tE2E public key: {hashlib.md5(signed_e2e_key.message.raw).hexdigest()}...")
         # logging.debug(f"\t\tSigned E2E public key: {hashlib.md5(signed_e2e_key.signature.raw).hexdigest()}...")
@@ -438,7 +438,7 @@ class ControlConnectionManager:
         DigitalSigning.verify(
             their_static_public_key=their_static_public_key,
             signed_message=signed_kem_wrapped_shared_secret,
-            my_id=my_static_public_key)
+            my_id=SecureBytes().import_("./_keys/me", "identifier", ".txt"))
 
         # Save the connection information for the accepting node.
         conversation_id = ConnectionToken(token=connection_token, address=addr)
@@ -463,6 +463,7 @@ class ControlConnectionManager:
     def _handle_accept_connection_attach_key_to_client(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
         current_final_node = [node for node in self._my_route.route if node.connection_token.address != self._pending_node_to_add_to_route][-1]
         current_final_node_static_public_key = DHT.get_static_public_key(current_final_node.connection_token.address.ip)
+        current_final_node_id = DHT.get_id(current_final_node.connection_token.address.ip)
 
         my_static_private_key, my_static_public_key = KeyPair().import_("./_keys/me", "static").both()
         their_static_public_key = DHT.get_static_public_key(self._pending_node_to_add_to_route.ip)
@@ -474,7 +475,7 @@ class ControlConnectionManager:
         DigitalSigning.verify(
             their_static_public_key=their_static_public_key,
             signed_message=signed_e2e_pub_key,
-            my_id=current_final_node_static_public_key)
+            my_id=current_final_node_id)
 
         candidates = [c.address for c in self._conversations.keys() if c.token == connection_token and c.address != addr]
         assert len(candidates) == 1, f"There should be exactly one candidate, but there are {len(candidates)}: {candidates}"
@@ -523,6 +524,7 @@ class ControlConnectionManager:
         # public key could be obtained from the DHT from the "target_addr", but it can be sent to reduce DHT lookups.
         target_addr = pickle.loads(data)
         target_static_public_key = DHT.get_static_public_key(target_addr.ip)
+        target_id = DHT.get_id(target_addr.ip)
         # logging.debug(f"\t\tExtending to: {target_addr.ip}")
 
         # Create an ephemeral public key, sign it, and send it to the next node in the route. This establishes e2e
@@ -548,7 +550,7 @@ class ControlConnectionManager:
         signed_my_ephemeral_public_key = DigitalSigning.sign(
             my_static_private_key=my_static_private_key,
             message=my_ephemeral_public_key,
-            their_id=target_static_public_key)
+            their_id=target_id)
 
         # logging.debug(f"\t\tSigned ephemeral public key: {signed_my_ephemeral_public_key.signature.raw[:100]}...")
 
@@ -577,6 +579,7 @@ class ControlConnectionManager:
             # originally sent to Node Y, so the identifier of Node Y is used to verify the signature.
             current_final_node = [node for node in self._my_route.route if node.connection_token.address != self._pending_node_to_add_to_route][-1]
             current_final_node_static_public_key = DHT.get_static_public_key(current_final_node.connection_token.address.ip)
+            current_final_node_id = DHT.get_id(current_final_node.connection_token.address.ip)
 
             their_static_public_key = DHT.get_static_public_key(self._pending_node_to_add_to_route.ip)
             signed_ephemeral_public_key: SignedMessage = pickle.loads(data)
@@ -590,7 +593,7 @@ class ControlConnectionManager:
             DigitalSigning.verify(
                 their_static_public_key=their_static_public_key,
                 signed_message=signed_ephemeral_public_key,
-                my_id=current_final_node_static_public_key)
+                my_id=current_final_node_id)
 
             # Check that the command (signed by the target node being extended to), is indeed what the next node
             # reported. This is to prevent the next node lying about the state of the connection. If the next node is
@@ -603,7 +606,7 @@ class ControlConnectionManager:
             DigitalSigning.verify(
                 their_static_public_key=their_static_public_key,
                 signed_message=signed_ephemeral_public_key,
-                my_id=current_final_node_static_public_key)
+                my_id=current_final_node_id)
 
             # Save the connection information to the route list.
             self._my_route.route.append(ControlConnectionRouteNode(
@@ -646,13 +649,14 @@ class ControlConnectionManager:
         if self._my_route and self._my_route.connection_token.token == connection_token:
             their_static_public_key = DHT.get_static_public_key(self._pending_node_to_add_to_route.ip)
             original_node_static_public_key = DHT.get_static_public_key(self._my_route.route[-1].connection_token.address.ip)
+            original_node_id = DHT.get_id(self._my_route.route[-1].connection_token.address.ip)
             rejection_message: SignedMessage = pickle.loads(data)
 
             # Verify the signature of the rejection message being sent from the rejecting node.
             DigitalSigning.verify(
                 their_static_public_key=their_static_public_key,
                 signed_message=rejection_message,
-                my_id=original_node_static_public_key)
+                my_id=original_node_id)
 
             # Check that the command (signed by the target node being extended to), is indeed what the next node
             # reported. This is to prevent the next node lying about the state of the connection. If the next node is
@@ -711,7 +715,7 @@ class ControlConnectionManager:
         DigitalSigning.verify(
             their_static_public_key=directory_node_static_public_key,
             signed_message=certificate,
-            my_id=my_static_public_key)
+            my_id=SecureBytes().import_("./_keys/me", "identifier", ".txt"))
 
         # Export the certificate to a file, and set the "waiting for certificate flag" to False.
         SecureBytes(data).export(f"./_certs", "certificate", ".ctf")
@@ -756,7 +760,7 @@ class ControlConnectionManager:
         certificate = DigitalSigning.sign(
             message=my_ip + previous_certificate_hash + node_id + their_static_public_key,
             my_static_private_key=my_static_private_key,
-            their_id=their_static_public_key)
+            their_id=node_id)
 
         # Cache the key for the node
         DHT.cache_node_information(node_id.raw, their_static_public_key.raw, addr.ip)
@@ -848,17 +852,16 @@ class ControlConnectionManager:
         signature = DigitalSigning.sign(
             message=random_challenge,
             my_static_private_key=KeyPair().import_("./_keys/me", "static").secret_key,
-            their_id=DHT.get_static_public_key(addr.ip))
+            their_id=DHT.get_id(addr.ip))
 
         sending_data = pickle.dumps((my_certificate, signature))
-        print((len(sending_data)))
+        logging.debug(len(sending_data))
         self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.DHT_EXH_RES, sending_data)
 
     @LogPre
     def _handle_response_for_certificate(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
+        logging.debug(len(data))
         their_certificate, signed_challenge = pickle.loads(data)
-        my_id = SecureBytes().import_("./_keys/me", "identifier", ".txt")
-        print(len(data))
 
         their_id = their_certificate.message[4 + Hashing.ALGORITHM.digest_size:-DigitalSigning.ALGORITHM.PUBLIC_KEY_SIZE]
         directory_node_ip = IPv4Address(their_certificate.message[:4]).compressed
@@ -873,7 +876,7 @@ class ControlConnectionManager:
         DigitalSigning.verify(
             their_static_public_key=their_certificate.message[-DigitalSigning.ALGORITHM.PUBLIC_KEY_SIZE:],
             signed_message=signed_challenge,
-            my_id=my_id)
+            my_id=SecureBytes().import_("./_keys/me", "identifier", ".txt"))
 
         # Cache the node information.
         DHT.cache_node_information(
