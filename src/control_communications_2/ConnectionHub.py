@@ -98,13 +98,11 @@ class ConnectionHub:
 
         # For each given IP, attempt to contact the node and get its public key (check against hash)
         for node in bootstrap_nodes:
-            ip_address, node_id = node["ip"], node["id"]
-        print("done")
-
-            # DHT.cache_node_information(
-            #     node_id=Hashing.hash(public_key).raw,
-            #     ip_address=ip_address.compressed,
-            #     node_public_key=public_key.raw)
+            ip_address, public_key, node_id = node["ip"], node["key"], node["id"]
+            DHT.cache_node_information(
+                node_id=node_id,
+                ip_address=ip_address,
+                node_public_key=public_key)
 
     def _refresh_cache(self):
         ...
@@ -279,9 +277,11 @@ class DirectoryHub:
 
     def _handle_new_client(self, client_socket: UnsecureSocket, address: IPv4Address) -> None:
         secure_connection = _DirectoryNodeHandlesNewClient(client_socket, address, self._handle_command)
-        secure_connection.start_automatically_handling()
-        secure_connection.send(ConnectionDataPackage(command=ConnectionProtocol.ACK, data=b""))
         self._connections.append(secure_connection)
+
+        secure_connection.send(ConnectionDataPackage(command=ConnectionProtocol.ACK, data=b""))
+        data = secure_connection.recv()
+        self._handle_list_request(secure_connection, _LoadData(data))
 
     def _handle_list_request(self, client: SecureSocket, data: ConnectionDataPackage):
         logging.debug(f"Received a list request from {client._socket.getpeername()[0]}.")
