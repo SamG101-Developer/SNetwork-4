@@ -24,8 +24,8 @@ class SecureSocket:
         self._auto_handler = auto_handler
         self._handling = True
 
-        thread = Thread(target=self._auto_handle)
-        thread.start()
+        # thread = Thread(target=self._auto_handle)
+        # thread.start()
 
     def send(self, plain_text: ConnectionDataPackage) -> None:
         data = SecureBytes(pickle.dumps(plain_text))
@@ -57,13 +57,6 @@ class SecureSocket:
         self._handling = True
 
     def _auto_handle(self):
-        # while True:
-        #     while not self._handling:
-        #         pass
-            # data = self.recv()
-            # thread = Thread(target=self._auto_handler, args=(self, pickle.loads(data)))
-            # thread.start()
-
         while self._handling:
             data = self.recv()
             thread = Thread(target=self._auto_handler, args=(self, pickle.loads(data)))
