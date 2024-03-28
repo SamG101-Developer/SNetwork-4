@@ -18,11 +18,11 @@ class SecureSocket:
     _auto_handler: Handler
     _handling: bool
 
-    def __init__(self, socket: Socket, e2e_key: SecureBytes, auto_handler: Handler = lambda *args: None):
+    def __init__(self, socket: Socket, e2e_key: SecureBytes, auto_handler: Handler = lambda *args: None, start_handling: bool = True):
         self._socket = socket
         self._e2e_key = e2e_key
         self._auto_handler = auto_handler
-        self._handling = True
+        self._handling = start_handling
 
         thread = Thread(target=self._auto_handle)
         thread.start()
@@ -62,10 +62,6 @@ class SecureSocket:
 
     def _auto_handle(self):
         while self._handling:
-            try:
-                data = self.recv()
-            except BlockingIOError:
-                continue
-
+            data = self.recv()
             thread = Thread(target=self._auto_handler, args=(self, pickle.loads(data)))
             thread.start()

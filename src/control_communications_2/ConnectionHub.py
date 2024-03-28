@@ -76,7 +76,7 @@ class ConnectionHub:
     def _bootstrap_from_directory_node(self):
         # Create a request for bootstrap nodes.
         logging.debug("Requesting bootstrap nodes from a directory node...")
-        conn = CreateSecureConnection(DHT.get_random_directory_node())
+        conn = CreateSecureConnection(DHT.get_random_directory_node(), start_handling=False)
         request = ConnectionDataPackage(command=ConnectionProtocol.DIR_LST_REQ, data=b"")
 
         # Send it to the directory node.
@@ -95,12 +95,13 @@ class ConnectionHub:
         # For each given IP, attempt to contact the node and get its public key (check against hash)
         for node in bootstrap_nodes:
             ip_address, node_id = node["ip"], node["id"]
-        print("done")
 
             # DHT.cache_node_information(
             #     node_id=Hashing.hash(public_key).raw,
             #     ip_address=ip_address.compressed,
             #     node_public_key=public_key.raw)
+
+        print("done")
 
     def _refresh_cache(self):
         ...
@@ -112,7 +113,7 @@ def CreateUnsecureConnection(address: str) -> UnsecureSocket:
     return UnsecureSocket(underlying_socket)
 
 
-def CreateSecureConnection(address: str) -> SecureSocket:
+def CreateSecureConnection(address: str, start_handling: bool = True) -> SecureSocket:
     # Generate an ephemeral key pair, and sign the public key with the static secret key.
     my_static_secret_key = KeyPair().import_("./_keys/me", "static").secret_key
     my_ephemeral_secret_key, my_ephemeral_public_key = KEM.generate_key_pair().both()
@@ -156,7 +157,7 @@ def CreateSecureConnection(address: str) -> SecureSocket:
     logging.debug(f"Encrypted connection established to {address} {shared_secret}.")
 
     # Create a secure connection with the key.
-    return SecureSocket(conn._socket, shared_secret)
+    return SecureSocket(conn._socket, shared_secret, start_handling)
 
 
 def _HandleNewClient(client_socket: UnsecureSocket, address: IPv4Address, auto_handler: SecureSocket.Handler, request=None) -> SecureSocket:
