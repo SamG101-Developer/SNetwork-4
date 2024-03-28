@@ -4,7 +4,6 @@ import json, os
 import logging
 import pickle
 import socket
-from typing import Any, Dict, List, Tuple
 from ipaddress import IPv4Address
 from socket import socket as Socket
 
@@ -16,6 +15,7 @@ from crypto_engines.keys.key_pair import KeyPair
 from crypto_engines.tools.secure_bytes import SecureBytes
 from crypto_engines.tools.certificate import Certificate, CertificateData
 from distributed_hash_table.DHT import DHT
+from my_types import Str, Any, Dict, List
 
 from control_communications_2.ConnectionDataPackage import ConnectionDataPackage
 from control_communications_2.ConnectionProtocol import ConnectionProtocol
@@ -90,14 +90,17 @@ class ConnectionHub:
         logging.debug("Received bootstrap nodes from a directory node.")
         conn.resume_handler()
 
-        bootstrap_nodes: List[Tuple[IPv4Address, SecureBytes]] = response.data
+        bootstrap_nodes: List[Dict[Str, Any]] = response.data
 
-        # Cache the bootstrap nodes in the DHT cache.
-        for ip_address, public_key in bootstrap_nodes:
-            DHT.cache_node_information(
-                node_id=Hashing.hash(public_key).raw,
-                ip_address=ip_address.compressed,
-                node_public_key=public_key.raw)
+        # For each given IP, attempt to contact the node and get its public key (check against hash)
+        for node in bootstrap_nodes:
+            ip_address, node_id = node["ip"], node["id"]
+        print("done")
+
+            # DHT.cache_node_information(
+            #     node_id=Hashing.hash(public_key).raw,
+            #     ip_address=ip_address.compressed,
+            #     node_public_key=public_key.raw)
 
     def _refresh_cache(self):
         ...
@@ -277,11 +280,11 @@ class DirectoryHub:
         logging.debug(f"Received a list request from {client._socket.getpeername()[0]}.")
 
         # Get a list of random nodes from the DHT cache.
-        random_nodes = [client._socket.getpeername()[0]]
-        number_of_nodes_to_send_back = min(3, DHT.total_nodes_known(block_list=random_nodes))
+        random_nodes = []
+        number_of_nodes_to_send_back = min(3, DHT.total_nodes_known())
         for i in range(number_of_nodes_to_send_back):
-            random_node = DHT.get_random_node(block_list=random_nodes)
-            random_nodes.append(random_node["ip"])
+            random_node = DHT.get_random_node(block_list=[node["ip"] for node in random_nodes])
+            random_nodes.append(random_node)
 
         # Send the list of nodes to the requesting node.
         response = ConnectionDataPackage(command=ConnectionProtocol.DIR_LST_RES, data=random_nodes)
