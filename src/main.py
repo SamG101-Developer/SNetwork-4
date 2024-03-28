@@ -1,7 +1,7 @@
 __author__ = "Sam Gardner"
 __version__ = "4.10.1"
 
-
+import json
 import os
 from argparse import ArgumentParser
 from setup.cmd_handler import CmdHandler
@@ -73,7 +73,7 @@ def main():
     if not os.path.exists("./_cache"):
         os.mkdir("./_cache")
     if not os.path.exists("./_cache/dht_cache.json"):
-        open("./_cache/dht_cache.json", "w").write("[]")
+        json.dump([], open("./_cache/dht_cache.json", "w"))
 
     parser = create_argument_parser()
     args = parser.parse_args(sys.argv[1:])
