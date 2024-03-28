@@ -303,8 +303,8 @@ class ControlConnectionManager:
                 self._handle_request_for_nodes_from_directory_node(addr, connection_token, data)
 
             # Handle a node requesting a new certificate from a directory node.
-            case ControlConnectionProtocol.DIR_CER_REQ if self._is_directory_node and connected:
-                self._handle_request_for_certificate_from_directory_node(addr, connection_token, data)
+            # case ControlConnectionProtocol.DIR_CER_REQ if self._is_directory_node and connected:
+            #     self._handle_request_for_certificate_from_directory_node(addr, connection_token, data)
 
             # Handle a response from the directory node with a list of nodes to bootstrap from.
             case ControlConnectionProtocol.DIR_LST_RES if they_are_directory_node and connected:
@@ -374,18 +374,20 @@ class ControlConnectionManager:
         # logging.debug(f"\t\tKEM-wrapped shared secret: {kem_wrapped_shared_secret.encapsulated_key.raw[:100]}...")
         # logging.debug(f"\t\tSigned KEM wrapped shared secret: {signed_kem_wrapped_shared_secret.signature.raw[:100]}...")
 
-        # Create a key for the new node, to allow e2e encrypted tunnel via the other nodes in the circuit.
         conversation_id = ConnectionToken(token=connection_token, address=addr)
-        self._node_to_client_tunnel_keys[connection_token] = ControlConnectionRouteNode(
-            connection_token=conversation_id,
-            ephemeral_key_pair=KEM.generate_key_pair(),
-            shared_secret=None,
-            secure=False)
 
-        signed_e2e_key = DigitalSigning.sign(
-            message=self._node_to_client_tunnel_keys[connection_token].ephemeral_key_pair.public_key,
-            my_static_private_key=my_static_private_key,
-            their_id=their_static_public_key)
+        signed_e2e_key = None
+        if for_route:
+            self._node_to_client_tunnel_keys[connection_token] = ControlConnectionRouteNode(
+                connection_token=conversation_id,
+                ephemeral_key_pair=KEM.generate_key_pair(),
+                shared_secret=None,
+                secure=False)
+
+            signed_e2e_key = DigitalSigning.sign(
+                message=self._node_to_client_tunnel_keys[connection_token].ephemeral_key_pair.public_key,
+                my_static_private_key=my_static_private_key,
+                their_id=their_static_public_key)
 
         # logging.debug(f"\t\tE2E public key: {hashlib.md5(signed_e2e_key.message.raw).hexdigest()}...")
         # logging.debug(f"\t\tSigned E2E public key: {hashlib.md5(signed_e2e_key.signature.raw).hexdigest()}...")
@@ -746,7 +748,7 @@ class ControlConnectionManager:
         # Generate the certificate for the new node, signing it with the directory node's private key.
         previous_certificate_hash = SecureBytes(b"\x00" * Hashing.ALGORITHM.digest_size)
         my_static_private_key = KeyPair().import_("./_keys/me", "static").secret_key
-        my_ip = SecureBytes(pickle.dumps(IPv4Address(socket.gethostbyname(socket.gethostname()))))
+        my_ip = SecureBytes(IPv4Address(socket.gethostbyname(socket.gethostname())).packed)
         certificate = DigitalSigning.sign(
             message=my_ip + previous_certificate_hash + node_id + their_static_public_key,
             my_static_private_key=my_static_private_key,
@@ -781,45 +783,45 @@ class ControlConnectionManager:
             nodes.append(next_node)
         self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.DIR_LST_RES, pickle.dumps(nodes))
 
-    @LogPre
-    def _handle_request_for_certificate_from_directory_node(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
-        """
-        This is used to generate a new certificate for a node that is already on the network. This is used for
-        refreshing old certificates. All that's required is that a new certificate is generated normally, because
-        timestamps are embedded into signatures. At this point, the connection is already e2e encrypted & authenticated,
-        meaning that the authenticity of the given node ID is valid.
-
-        Each new certificate also embeds the hash of the previous certificate, creating a chain of trust.
-
-        @param addr:
-        @param connection_token:
-        @param data: Contains the ID of the node to generate a new certificate for.
-        @return: None.
-        """
-
-        node_id, old_certificate = pickle.loads(data)
-
-        # Verify that the old certificate is valid, and that the node ID matches the old certificate. Note that the ID
-        # is the ID of the node, because that's where the certificate was sent originally.
-        their_static_public_key = DHT.get_static_public_key(addr.ip)
-        DigitalSigning.verify(
-            their_static_public_key=their_static_public_key,
-            signed_message=old_certificate,
-            my_id=DHT.get_static_public_key(addr.ip))
-
-        # Ensure the node ID on the old certificate matches the node ID of the node.
-        assert old_certificate.message[Hashing.ALGORITHM.digest_size:2 * Hashing.ALGORITHM.digest_size] == node_id
-
-        # Generate a new certificate for the node, and send it to the node.
-        previous_certificate_hash = Hashing.hash(old_certificate.message[:Hashing.ALGORITHM.digest_size])
-        my_static_private_key = KeyPair().import_("./_keys/me", "static").secret_key
-        refreshed_certificate = DigitalSigning.sign(
-            message=node_id + SecureBytes(data),
-            my_static_private_key=my_static_private_key,
-            their_id=DHT.get_static_public_key(addr.ip))
-
-        # Send the refreshed certificate to the node.
-        self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.DIR_CER, pickle.dumps(refreshed_certificate))
+    # @LogPre
+    # def _handle_request_for_certificate_from_directory_node(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
+    #     """
+    #     This is used to generate a new certificate for a node that is already on the network. This is used for
+    #     refreshing old certificates. All that's required is that a new certificate is generated normally, because
+    #     timestamps are embedded into signatures. At this point, the connection is already e2e encrypted & authenticated,
+    #     meaning that the authenticity of the given node ID is valid.
+    #
+    #     Each new certificate also embeds the hash of the previous certificate, creating a chain of trust.
+    #
+    #     @param addr:
+    #     @param connection_token:
+    #     @param data: Contains the ID of the node to generate a new certificate for.
+    #     @return: None.
+    #     """
+    #
+    #     node_id, old_certificate = pickle.loads(data)
+    #
+    #     # Verify that the old certificate is valid, and that the node ID matches the old certificate. Note that the ID
+    #     # is the ID of the node, because that's where the certificate was sent originally.
+    #     their_static_public_key = DHT.get_static_public_key(addr.ip)
+    #     DigitalSigning.verify(
+    #         their_static_public_key=their_static_public_key,
+    #         signed_message=old_certificate,
+    #         my_id=DHT.get_static_public_key(addr.ip))
+    #
+    #     # Ensure the node ID on the old certificate matches the node ID of the node.
+    #     assert old_certificate.message[Hashing.ALGORITHM.digest_size:2 * Hashing.ALGORITHM.digest_size] == node_id
+    #
+    #     # Generate a new certificate for the node, and send it to the node.
+    #     previous_certificate_hash = Hashing.hash(old_certificate.message[:Hashing.ALGORITHM.digest_size])
+    #     my_static_private_key = KeyPair().import_("./_keys/me", "static").secret_key
+    #     refreshed_certificate = DigitalSigning.sign(
+    #         message=node_id + SecureBytes(data),
+    #         my_static_private_key=my_static_private_key,
+    #         their_id=DHT.get_static_public_key(addr.ip))
+    #
+    #     # Send the refreshed certificate to the node.
+    #     self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.DIR_CER, pickle.dumps(refreshed_certificate))
 
     @LogPre
     def _handle_response_for_nodes_from_directory_node(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
@@ -857,17 +859,26 @@ class ControlConnectionManager:
         my_id = SecureBytes().import_("./_keys/me", "identifier", ".txt")
 
         their_certificate = pickle.loads(their_certificate)
-        their_id = their_certificate.message[51 + Hashing.ALGORITHM.digest_size:-DigitalSigning.ALGORITHM.PUBLIC_KEY_SIZE]
-        directory_node_ip = pickle.loads(their_certificate.message[:51])
+        their_id = their_certificate.message[4 + Hashing.ALGORITHM.digest_size:-DigitalSigning.ALGORITHM.PUBLIC_KEY_SIZE]
+        directory_node_ip = IPv4Address(their_certificate.message[:4]).compressed
+
+        # Verify certificate is legitimate.
         DigitalSigning.verify(
             their_static_public_key=DHT.DIRECTORY_NODES[directory_node_ip],
             signed_message=their_certificate,
             my_id=their_id)
 
+        # Verify the signed random data uses the key in the certificate.
         DigitalSigning.verify(
-            their_static_public_key=their_certificate.message[:DigitalSigning.ALGORITHM.PUBLIC_KEY_SIZE],
+            their_static_public_key=their_certificate.message[-DigitalSigning.ALGORITHM.PUBLIC_KEY_SIZE:],
             signed_message=signed_challenge,
             my_id=my_id)
+
+        # Cache the node information.
+        DHT.cache_node_information(
+            node_id=their_id,
+            node_public_key=their_certificate.message[-DigitalSigning.ALGORITHM.PUBLIC_KEY_SIZE:],
+            ip_address=addr.ip)
 
     @LogPre
     def _handle_exchange_ip_addresses(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
