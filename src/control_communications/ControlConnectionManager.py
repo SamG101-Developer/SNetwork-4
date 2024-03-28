@@ -1036,7 +1036,7 @@ class ControlConnectionManager:
         connection_token, data = data[:32], data[32:]
 
         # Decrypt the e2e connection if its encrypted (not encrypted when initiating a connection).
-        if addr in [c.address for c in self._conversations.keys()]:
+        if connection_token in [c.token for c in self._conversations.keys()]:
             # connection_token = [c.token for c in self._conversations.keys() if c.address == addr][0]
             conversation_id = ConnectionToken(token=connection_token, address=addr)
 
