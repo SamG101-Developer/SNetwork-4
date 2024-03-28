@@ -863,8 +863,12 @@ class ControlConnectionManager:
         logging.debug(len(data))
         their_certificate, signed_challenge = pickle.loads(data)
 
-        their_id = SecureBytes(their_certificate.raw[4 + Hashing.ALGORITHM.digest_size:-DigitalSigning.ALGORITHM.PUBLIC_KEY_SIZE])
-        directory_node_ip = IPv4Address(their_certificate.raw[:4]).compressed
+        their_certificate: SignedMessage
+        signed_challenge: SignedMessage
+
+        their_static_public_key = SecureBytes(their_certificate.message.raw[-DigitalSigning.ALGORITHM.PUBLIC_KEY_SIZE:])
+        their_id = SecureBytes(their_certificate.message.raw[4 + Hashing.ALGORITHM.digest_size:-DigitalSigning.ALGORITHM.PUBLIC_KEY_SIZE])
+        directory_node_ip = IPv4Address(their_certificate.message.raw[:4]).compressed
 
         # Verify certificate is legitimate.
         DigitalSigning.verify(
@@ -874,14 +878,14 @@ class ControlConnectionManager:
 
         # Verify the signed challenge uses the key in the certificate. todo: check challenge value
         DigitalSigning.verify(
-            their_static_public_key=their_certificate[-DigitalSigning.ALGORITHM.PUBLIC_KEY_SIZE:],
+            their_static_public_key=their_static_public_key,
             signed_message=signed_challenge,
             my_id=SecureBytes().import_("./_keys/me", "identifier", ".txt"))
 
         # Cache the node information.
         DHT.cache_node_information(
             node_id=their_id.raw,
-            node_public_key=their_certificate[-DigitalSigning.ALGORITHM.PUBLIC_KEY_SIZE:],
+            node_public_key=their_static_public_key.raw,
             ip_address=addr.ip)
 
     @LogPre
