@@ -80,12 +80,14 @@ class ConnectionHub:
         request = ConnectionDataPackage(command=ConnectionProtocol.DIR_LST_REQ, data=b"")
 
         # Send it to the directory node.
+        conn.pause_handler()
         conn.send(request)
         logging.debug("Sent a request for bootstrap nodes to a directory node.")
 
         # Receive the IP addresses of the bootstrap nodes.
         response = conn.recv()
         response = _VerifyResponseIntegrity(response, ConnectionProtocol.DIR_LST_RES)
+        conn.resume_handler()
         logging.debug("Received bootstrap nodes from a directory node.")
 
         bootstrap_nodes: List[Dict[Str, Any]] = response.data
