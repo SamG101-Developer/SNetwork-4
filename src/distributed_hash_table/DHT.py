@@ -42,6 +42,11 @@ class DHT:
 
         valid_ips = [node for node in cache if node["ip"] not in block_list]
         random_node = random.choice(valid_ips) if valid_ips else None
+
+        if random_node:
+            random_node["id" ] = base58.b58decode(random_node["id"])
+            random_node["key"] = base58.b58decode(random_node["key"])
+
         return random_node
 
     @staticmethod
