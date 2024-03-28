@@ -1092,7 +1092,7 @@ class ControlConnectionManager:
               and self._node_to_client_tunnel_keys[connection_token].shared_secret):
 
             two_nodes_with_connection_token = [c.address for c in self._conversations.keys() if c.token == connection_token]
-            from_previous_node = addr == two_nodes_with_connection_token
+            from_previous_node = addr == two_nodes_with_connection_token[0]
 
             # Relay node receiving a message from the previous node in the route => decrypt a layer
             if from_previous_node:
@@ -1106,7 +1106,7 @@ class ControlConnectionManager:
                 data = SymmetricEncryption.encrypt(SecureBytes(data), client_key).raw
                 data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + connection_token + data
 
-                prev_node = two_nodes_with_connection_token
+                prev_node = two_nodes_with_connection_token[0]
                 self._send_message_onwards_raw(prev_node, connection_token, data)
                 return
 
