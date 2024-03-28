@@ -1034,6 +1034,14 @@ class ControlConnectionManager:
         addr = Address(ip=raw_addr[0], port=raw_addr[1])
         connection_token, data = data[:32], data[32:]
 
+        print("#" * 50)
+        print(f"connection_token {raw_addr[0]}: {connection_token}")
+        print("-" * 50)
+        print("known tokens:")
+        for c in self._conversations.keys():
+            print(f"{c.address.ip}: {c.token}")
+        print("#" * 50)
+
         # Decrypt the e2e connection if its encrypted (not encrypted when initiating a connection).
         if connection_token in [c.token for c in self._conversations.keys()]:
             print("known")
