@@ -347,7 +347,6 @@ class ControlConnectionManager:
                 logging.error(f"\t\tConnected?: {connected}")
 
     @LogPre
-    # @ReplayErrorBackToUser(ControlConnectionProtocol.CONN_REJ)
     def _handle_request_to_connect(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
         """
         Handle a request from a node to connect to this node, forming an end to end UDP connection. The request will
@@ -1037,10 +1036,12 @@ class ControlConnectionManager:
 
         # Decrypt the e2e connection if its encrypted (not encrypted when initiating a connection).
         if connection_token in [c.token for c in self._conversations.keys()]:
+            print("known")
             # connection_token = [c.token for c in self._conversations.keys() if c.address == addr][0]
             conversation_id = ConnectionToken(token=connection_token, address=addr)
 
             if shared_secret := self._conversations[conversation_id].shared_secret:
+                print("decrypting")
                 data = SymmetricEncryption.decrypt(SecureBytes(data), shared_secret).raw
                 # logging.debug(f"\t\tE2E decrypted payload: {data[:100]}...")
 
