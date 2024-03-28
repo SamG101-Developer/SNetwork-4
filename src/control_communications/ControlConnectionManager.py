@@ -119,7 +119,11 @@ class ControlConnectionManager:
             self._pending_node_to_add_to_route = Address(ip=DHT.get_random_node(current_ips_in_route + [my_ip])["ip"], port=12345)
             logging.info(f"\t\t\033[32mExtending route to: {self._pending_node_to_add_to_route.ip}\033[0m")
 
-            self._tunnel_message_forwards(self._pending_node_to_add_to_route, connection_token.token, ControlConnectionProtocol.CONN_EXT, pickle.dumps(self._pending_node_to_add_to_route))
+            self._tunnel_message_forwards(
+                addr=self._pending_node_to_add_to_route,
+                connection_token=connection_token.token,
+                command=ControlConnectionProtocol.CONN_EXT,
+                data=pickle.dumps(self._pending_node_to_add_to_route))
 
             while True:
                 addresses = [node.connection_token.address for node in self._my_route.route]
@@ -286,8 +290,8 @@ class ControlConnectionManager:
                 self._forward_message(addr, connection_token, data)
 
             # Handle a confirmation that a connection is node secure from a node. REQ -> ACC -> SEC.
-            # case ControlConnectionProtocol.CONN_SEC:
-            #     self._register_connection_as_secure(addr, connection_token, data)
+            case ControlConnectionProtocol.CONN_SEC:
+                self._register_connection_as_secure(addr, connection_token, data)
 
             # Handle a KEM key being tunnelled backwards from a relay node to the route owner.
             case ControlConnectionProtocol.CONN_PKT_KEM if connected or waiting_for_ack:
@@ -421,11 +425,11 @@ class ControlConnectionManager:
 
         # Send the signed KEM wrapped shared secret to the requesting node.
         self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_ACC, pickle.dumps(signed_kem_wrapped_shared_secret))
-        # while not self._conversations[conversation_id].secure:
-        #     pass
+        while not self._conversations[conversation_id].secure:
+            pass
 
         self._conversations[conversation_id].shared_secret = kem_wrapped_shared_secret.decapsulated_key
-        self._conversations[conversation_id].secure = True
+        # self._conversations[conversation_id].secure = True
 
         if for_route:
             self._tunnel_message_backward(addr, connection_token, ControlConnectionProtocol.CONN_PKT_KEM, pickle.dumps(signed_e2e_key))
@@ -460,7 +464,7 @@ class ControlConnectionManager:
         my_ephemeral_secret_key = self._conversations[conversation_id].my_ephemeral_secret_key
 
         # Confirm to the other node that the connection is now secure, and from now on to use E2E encryption.
-        # self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_SEC, b"")
+        self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_SEC, b"")
 
         # Save the "shared secret", so E2E encryption is now available in the send/recv functions.
         self._conversations[conversation_id] = ControlConnectionConversationInfo(
@@ -934,12 +938,12 @@ class ControlConnectionManager:
         # Send the message to the target node. It will be automatically encrypted.
         self._send_message_onwards_raw(target_node, connection_token, data)
 
-    # @LogPre
-    # def _register_connection_as_secure(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
-    #     logging.debug(f"Marking connection to {addr.ip} as secure")
-    #
-    #     conversation_id = ConnectionToken(token=connection_token, address=addr)
-    #     self._conversations[conversation_id].secure = True
+    @LogPre
+    def _register_connection_as_secure(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
+        logging.debug(f"Marking connection to {addr.ip} as secure")
+
+        conversation_id = ConnectionToken(token=connection_token, address=addr)
+        self._conversations[conversation_id].secure = True
 
     @LogPre
     def _tunnel_message_forwards(self, addr: Address, connection_token: Bytes, command: ConnectionProtocol, data: Bytes) -> None:
@@ -1034,13 +1038,13 @@ class ControlConnectionManager:
         addr = Address(ip=raw_addr[0], port=raw_addr[1])
         connection_token, data = data[:32], data[32:]
 
-        print("#" * 50)
-        print(f"connection_token {raw_addr[0]}: {connection_token}")
-        print("-" * 50)
-        print("known tokens:")
-        for c in self._conversations.keys():
-            print(f"{c.address.ip}: {c.token}")
-        print("#" * 50)
+        # print("#" * 50)
+        # print(f"connection_token {raw_addr[0]}: {connection_token}")
+        # print("-" * 50)
+        # print("known tokens:")
+        # for c in self._conversations.keys():
+        #     print(f"{c.address.ip}: {c.token}")
+        # print("#" * 50)
 
         # Decrypt the e2e connection if its encrypted (not encrypted when initiating a connection).
         if connection_token in [c.token for c in self._conversations.keys()]:
