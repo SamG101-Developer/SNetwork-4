@@ -342,6 +342,15 @@ class ControlConnectionManager:
         @return: None.
         """
 
+        conversation_id = ConnectionToken(token=connection_token, address=addr)
+        self._conversations[conversation_id] = ControlConnectionConversationInfo(
+            state=ControlConnectionState.CONNECTED,
+            their_static_public_key=None,
+            shared_secret=None,
+            my_ephemeral_public_key=None,
+            my_ephemeral_secret_key=None,
+            secure=False)
+
         # Get their static public key from the DHT, and the parse the signed message.
         my_static_private_key, my_static_public_key = KeyPair().import_("./_keys/me", "static").both()
         try:
@@ -353,6 +362,7 @@ class ControlConnectionManager:
             while (their_static_public_key := DHT.get_static_public_key(addr.ip)) is None:
                 pass
 
+        self._conversations[conversation_id].their_static_public_key = their_static_public_key
         their_signed_ephemeral_public_key, for_route = pickle.loads(data)
 
         # Verify the signature of the ephemeral public key being sent from the requesting node.
@@ -374,8 +384,6 @@ class ControlConnectionManager:
         # logging.debug(f"\t\tKEM-wrapped shared secret: {kem_wrapped_shared_secret.encapsulated_key.raw[:100]}...")
         # logging.debug(f"\t\tSigned KEM wrapped shared secret: {signed_kem_wrapped_shared_secret.signature.raw[:100]}...")
 
-        conversation_id = ConnectionToken(token=connection_token, address=addr)
-
         signed_e2e_key = None
         if for_route:
             self._node_to_client_tunnel_keys[connection_token] = ControlConnectionRouteNode(
@@ -393,13 +401,7 @@ class ControlConnectionManager:
         # logging.debug(f"\t\tSigned E2E public key: {hashlib.md5(signed_e2e_key.signature.raw).hexdigest()}...")
 
         # Save the connection information for the requesting node.
-        self._conversations[conversation_id] = ControlConnectionConversationInfo(
-            state=ControlConnectionState.CONNECTED,
-            their_static_public_key=their_static_public_key,
-            shared_secret=None,
-            my_ephemeral_public_key=None,
-            my_ephemeral_secret_key=None,
-            secure=False)
+
 
         # Send the signed KEM wrapped shared secret to the requesting node.
         self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_ACC, pickle.dumps(signed_kem_wrapped_shared_secret))
