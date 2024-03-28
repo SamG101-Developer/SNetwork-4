@@ -13,3 +13,5 @@ class ConnectionProtocol(Enum):
 
     DHT_CER_REQ = 0b00001000
     DHT_CER_RES = 0b00001001
+
+    ACK = 0b11111111

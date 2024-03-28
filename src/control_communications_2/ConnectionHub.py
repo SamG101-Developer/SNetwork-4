@@ -81,6 +81,9 @@ class ConnectionHub:
 
         # Send it to the directory node.
         conn.pause_automatically_handling()
+        ack = conn.recv()
+        ack = _VerifyResponseIntegrity(ack, ConnectionProtocol.ACK)
+
         conn.send(request)
         logging.debug("Sent a request for bootstrap nodes to a directory node.")
 
@@ -275,6 +278,8 @@ class DirectoryHub:
 
     def _handle_new_client(self, client_socket: UnsecureSocket, address: IPv4Address) -> None:
         secure_connection = _DirectoryNodeHandlesNewClient(client_socket, address, self._handle_command)
+        secure_connection.start_automatically_handling()
+        secure_connection.send(ConnectionDataPackage(command=ConnectionProtocol.ACK, data=b""))
         self._connections.append(secure_connection)
 
     def _handle_list_request(self, client: SecureSocket, data: ConnectionDataPackage):
