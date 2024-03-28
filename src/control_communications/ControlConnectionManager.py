@@ -112,10 +112,11 @@ class ControlConnectionManager:
             secure=True)
 
         # Extend the connection (use a while loop so failed connections don't affect the node counter for route length).
+        my_ip = Address.me().ip
         while len(self._my_route.route) < 4:
             # Extend the connection to the next node in the route.
             current_ips_in_route = [node.connection_token.address.ip for node in self._my_route.route]
-            self._pending_node_to_add_to_route = Address(ip=DHT.get_random_node(current_ips_in_route)["ip"], port=12345)
+            self._pending_node_to_add_to_route = Address(ip=DHT.get_random_node(current_ips_in_route + [my_ip])["ip"], port=12345)
             logging.info(f"\t\t\033[32mExtending route to: {self._pending_node_to_add_to_route.ip}\033[0m")
 
             self._tunnel_message_forwards(self._pending_node_to_add_to_route, connection_token.token, ControlConnectionProtocol.CONN_EXT, pickle.dumps(self._pending_node_to_add_to_route))
