@@ -829,11 +829,12 @@ class ControlConnectionManager:
         their_id = SecureBytes(their_certificate.message.raw[4 + Hashing.ALGORITHM.digest_size:-DigitalSigning.ALGORITHM.PUBLIC_KEY_SIZE])
         directory_node_ip = IPv4Address(their_certificate.message.raw[:4]).compressed
 
-        # Verify certificate is legitimate.
+        # Verify certificate is legitimate (allow stale because it's a certificate).
         DigitalSigning.verify(
             their_static_public_key=DHT.DIRECTORY_NODES[directory_node_ip],
             signed_message=their_certificate,
-            my_id=their_id)
+            my_id=their_id,
+            allow_stale=True)
 
         # Verify the signed challenge uses the key in the certificate. todo: check challenge value
         DigitalSigning.verify(
