@@ -16,6 +16,7 @@ class ControlConnectionProtocol(ConnectionProtocol):
     CONN_FWD     = 0b00110  # Forward a connection command
     CONN_EXT     = 0b00111  # Extend a connection
     CONN_SEC     = 0b01000  # E2E connection is secured
+    CONN_SEC_ACK = 0b10111  #
     CONN_EXT_ACC = 0b01001  # Acknowledge an extended connection
     CONN_EXT_REJ = 0b01010  # Reject an extended connection
     CONN_PKT_KEM = 0b01011  # Packet key: send pub key for KEM

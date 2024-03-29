@@ -289,9 +289,13 @@ class ControlConnectionManager:
             case ControlConnectionProtocol.CONN_FWD:
                 self._forward_message(addr, connection_token, data)
 
-            # Handle a confirmation that a connection is node secure from a node. REQ -> ACC -> SEC.
+            # Handle a confirmation that a connection is node secure from a node. REQ -> ACC -> SEC -> SEC_ACK.
             case ControlConnectionProtocol.CONN_SEC:
                 self._register_connection_as_secure(addr, connection_token, data)
+
+            #
+            case ControlConnectionProtocol.CONN_SEC_ACK:
+                self._register_connection_as_secure_ack(addr, connection_token, data)
 
             # Handle a KEM key being tunnelled backwards from a relay node to the route owner.
             case ControlConnectionProtocol.CONN_PKT_KEM if connected or waiting_for_ack:
@@ -465,6 +469,8 @@ class ControlConnectionManager:
 
         # Confirm to the other node that the connection is now secure, and from now on to use E2E encryption.
         self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_SEC, b"")
+        while not self._conversations[conversation_id].secure:
+            pass
 
         # Save the "shared secret", so E2E encryption is now available in the send/recv functions.
         self._conversations[conversation_id] = ControlConnectionConversationInfo(
@@ -940,6 +946,14 @@ class ControlConnectionManager:
 
     @LogPre
     def _register_connection_as_secure(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
+        logging.debug(f"Marking connection to {addr.ip} as secure")
+
+        conversation_id = ConnectionToken(token=connection_token, address=addr)
+        self._conversations[conversation_id].secure = True
+        self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_SEC_ACK, b"")
+
+    @LogPre
+    def _register_connection_as_secure_ack(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
         logging.debug(f"Marking connection to {addr.ip} as secure")
 
         conversation_id = ConnectionToken(token=connection_token, address=addr)
