@@ -949,8 +949,8 @@ class ControlConnectionManager:
         logging.debug(f"Marking connection to {addr.ip} as secure")
 
         conversation_id = ConnectionToken(token=connection_token, address=addr)
-        self._conversations[conversation_id].secure = True
         self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_SEC_ACK, b"")
+        self._conversations[conversation_id].secure = True
 
     @LogPre
     def _register_connection_as_secure_ack(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
