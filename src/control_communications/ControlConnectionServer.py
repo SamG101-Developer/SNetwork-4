@@ -1,7 +1,7 @@
-from my_types import Optional, Callable, Tuple, Int, Str
-
-from threading import Thread
 import socket
+from threading import Thread
+
+from src.MyTypes import Optional, Callable, Tuple, Int, Str
 
 
 class ControlConnectionServer:

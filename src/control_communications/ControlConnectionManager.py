@@ -8,19 +8,19 @@ import time
 from argparse import Namespace
 from ipaddress import IPv4Address
 
-from control_communications.ControlConnectionServer import *
-from control_communications.ControlConnectionProtocol import *
-from control_communications.ControlConnectionRoute import *
-from control_communications.ControlConnectionConversation import *
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat, load_pem_public_key
 
-from crypto_engines.crypto.digital_signing import DigitalSigning, SignedMessage
-from crypto_engines.crypto.key_encapsulation import KEM
-from crypto_engines.crypto.symmetric_encryption import SymmetricEncryption
-from crypto_engines.crypto.hashing import Hashing
-from crypto_engines.keys.key_pair import KeyPair
-from crypto_engines.tools.secure_bytes import SecureBytes
-from distributed_hash_table.DHT import DHT, NodeNotInNetworkException
-from my_types import Bytes, Tuple, Str, Int, Dict, Optional
+from src.control_communications.ControlConnectionServer import *
+from src.control_communications.ControlConnectionProtocol import *
+from src.control_communications.ControlConnectionRoute import *
+from src.control_communications.ControlConnectionConversation import *
+from src.crypto_engines.crypto.DigitalSigning import DigitalSigning, SignedMessage
+from src.crypto_engines.crypto.KeyEncapsulation import KEM
+from src.crypto_engines.crypto.SymmetricEncryption import SymmetricEncryption
+from src.crypto_engines.crypto.Hashing import Hashing
+from src.crypto_engines.tools.KeyPair import KeyPair
+from src.distributed_hash_table.DHT import DHT, NodeNotInNetworkException
+from src.MyTypes import Bytes, Tuple, Str, Int, Dict, Optional
 
 
 def ReplayErrorBackToUser(error_command):
@@ -144,7 +144,7 @@ class ControlConnectionManager:
         # Dummy conversation to allow the directory node to send a certificate.
         self._conversations[connection_token] = ControlConnectionConversationInfo(
             state=ControlConnectionState.WAITING_FOR_ACK,
-            their_static_public_key=SecureBytes(),
+            their_static_public_key=None,
             shared_secret=None,
             my_ephemeral_public_key=None,
             my_ephemeral_secret_key=None,
@@ -188,7 +188,7 @@ class ControlConnectionManager:
 
         signed_my_ephemeral_public_key = DigitalSigning.sign(
             my_static_private_key=my_static_private_key,
-            message=my_ephemeral_public_key,
+            message=my_ephemeral_public_key.public_bytes(encoding=Encoding.PEM, format=PublicFormat.SubjectPublicKeyInfo),
             their_id=DHT.get_id(addr.ip))
 
         sending_data = pickle.dumps((signed_my_ephemeral_public_key, False))
@@ -220,7 +220,8 @@ class ControlConnectionManager:
         self._send_message_onwards(target_address, connection_token.token, ControlConnectionProtocol.DHT_EXH_ADR, sending_data)
 
     # @LogPre
-    def _parse_message(self, data: Bytes) -> Tuple[ConnectionProtocol, Bytes, Bytes]:
+    @staticmethod
+    def _parse_message(data: Bytes) -> Tuple[ControlConnectionProtocol, Bytes, Bytes]:
         """
         Parse the message into a command, connection token, and data. The command is always 1-byte long (first byte),
         the connection token is always 32 bytes, and the rest of the bytes will be the message data, so get each part by
@@ -238,7 +239,7 @@ class ControlConnectionManager:
         return command, connection_token, data
 
     @LogPre
-    def _handle_message(self, addr: Address, command: ConnectionProtocol, connection_token: Bytes, data: Bytes) -> None:
+    def _handle_message(self, addr: Address, command: ControlConnectionProtocol, connection_token: Bytes, data: Bytes) -> None:
         """
         Handle a message from a node. The message is handled by the command, and conditions based on the connection
         status for a conversation matching the connection token.
@@ -391,7 +392,7 @@ class ControlConnectionManager:
         DigitalSigning.verify(
             their_static_public_key=their_static_public_key,
             signed_message=their_signed_ephemeral_public_key,
-            my_id=SecureBytes().import_("./_keys/me", "identifier", ".txt"),
+            my_id=open("./_keys/me/identifier.txt", "rb").read(),
             allow_stale=True)  # temporarily, because of the possible delay from the DHT_EXH_REQ request.
 
         # Create a shared secret with a KEM, using their ephemeral public key, and sign it.
@@ -416,7 +417,7 @@ class ControlConnectionManager:
                 secure=False)
 
             signed_e2e_key = DigitalSigning.sign(
-                message=self._node_to_client_tunnel_keys[connection_token].ephemeral_key_pair.public_key,
+                message=self._node_to_client_tunnel_keys[connection_token].ephemeral_key_pair.public_key.public_bytes(encoding=Encoding.PEM, format=PublicFormat.SubjectPublicKeyInfo),
                 my_static_private_key=my_static_private_key,
                 their_id=DHT.get_id(addr.ip))
 
@@ -458,7 +459,7 @@ class ControlConnectionManager:
         DigitalSigning.verify(
             their_static_public_key=their_static_public_key,
             signed_message=signed_kem_wrapped_shared_secret,
-            my_id=SecureBytes().import_("./_keys/me", "identifier", ".txt"))
+            my_id=open("./_keys/me/identifier.txt", "rb").read())
 
         # Save the connection information for the accepting node.
         conversation_id = ConnectionToken(token=connection_token, address=addr)
@@ -569,7 +570,7 @@ class ControlConnectionManager:
         # ultimately send an EXT_ACK command to acknowledge the extension.
         signed_my_ephemeral_public_key = DigitalSigning.sign(
             my_static_private_key=my_static_private_key,
-            message=my_ephemeral_public_key,
+            message=my_ephemeral_public_key.public_bytes(encoding=Encoding.PEM, format=PublicFormat.SubjectPublicKeyInfo),
             their_id=target_id)
 
         # logging.debug(f"\t\tSigned ephemeral public key: {signed_my_ephemeral_public_key.signature.raw[:100]}...")
@@ -631,14 +632,18 @@ class ControlConnectionManager:
             # Save the connection information to the route list.
             self._my_route.route.append(ControlConnectionRouteNode(
                 connection_token=ConnectionToken(token=connection_token, address=self._pending_node_to_add_to_route),
-                ephemeral_key_pair=KeyPair(public_key=signed_ephemeral_public_key.message),
+                ephemeral_key_pair=KeyPair(public_key=load_pem_public_key(signed_ephemeral_public_key.message)),
                 shared_secret=None,
                 secure=False))
-            kem_wrapped_packet_key = KEM.kem_wrap(signed_ephemeral_public_key.message)
+            kem_wrapped_packet_key = KEM.kem_wrap(load_pem_public_key(signed_ephemeral_public_key.message))
 
             # Note: vulnerable to MITM, so use unilateral authentication later. TODO
             # logging.debug(f"\t\tSending packet key to: {self._pending_node_to_add_to_route.ip}")
-            self._tunnel_message_forwards(self._pending_node_to_add_to_route, connection_token, ControlConnectionProtocol.CONN_PKT_KEY, kem_wrapped_packet_key.encapsulated_key.raw)
+            self._tunnel_message_forwards(
+                self._pending_node_to_add_to_route,
+                connection_token,
+                ControlConnectionProtocol.CONN_PKT_KEY,
+                kem_wrapped_packet_key.encapsulated_key)
 
             # The shared secret is added here. If added before, the recipient would need the key to decrypt the key.
             self._my_route.route[-1].shared_secret = kem_wrapped_packet_key
@@ -681,7 +686,7 @@ class ControlConnectionManager:
             # Check that the command (signed by the target node being extended to), is indeed what the next node
             # reported. This is to prevent the next node lying about the state of the connection. If the next node is
             # lying, this node needs changing. TODO: Remove lying node
-            target_cmd, target_connection_token, rejection_data = self._parse_message(rejection_message.message.raw)
+            target_cmd, target_connection_token, rejection_data = self._parse_message(rejection_message.message)
             assert target_cmd == ControlConnectionProtocol.CONN_EXT_REJ
             assert target_connection_token == connection_token
 
@@ -701,7 +706,7 @@ class ControlConnectionManager:
         # logging.debug(f"\t\tConnection token: {connection_token}")
 
         my_ephemeral_secret_key = self._node_to_client_tunnel_keys[connection_token].ephemeral_key_pair.secret_key
-        self._node_to_client_tunnel_keys[connection_token].shared_secret = KEM.kem_unwrap(my_ephemeral_secret_key, SecureBytes(data))
+        self._node_to_client_tunnel_keys[connection_token].shared_secret = KEM.kem_unwrap(my_ephemeral_secret_key, data)
         # logging.debug(f"\t\tShared secret (PKT): {self._node_to_client_tunnel_keys[connection_token].shared_secret.decapsulated_key.raw[:100]}...")
 
         self._tunnel_message_backward(addr, connection_token, ControlConnectionProtocol.CONN_PKT_ACK, b"")
@@ -735,10 +740,10 @@ class ControlConnectionManager:
         DigitalSigning.verify(
             their_static_public_key=directory_node_static_public_key,
             signed_message=certificate,
-            my_id=SecureBytes().import_("./_keys/me", "identifier", ".txt"))
+            my_id=open("./_keys/me/identifier.txt", "rb").read())
 
         # Export the certificate to a file, and set the "waiting for certificate flag" to False.
-        SecureBytes(data).export(f"./_certs", "certificate", ".ctf")
+        open(f"./_certs/certificate.ctf", "wb").write(data)
         self._waiting_for_cert = False
 
     @LogPre
@@ -757,7 +762,7 @@ class ControlConnectionManager:
         # logging.debug(f"\t\tConnection token: {connection_token}")
         # logging.debug(f"\t\tTheir static public key: {data[:100]}...")
 
-        their_static_public_key: SecureBytes = pickle.loads(data)
+        their_static_public_key = data  # todo: remove correspongin ex-pikcle.dumps
 
         # Save the new node's public key to the DHT, and generate a certificate for the new node.
         node_id = Hashing.hash(their_static_public_key)
@@ -767,23 +772,23 @@ class ControlConnectionManager:
         target_connection_token = ConnectionToken(address=addr, token=connection_token)
         self._conversations[target_connection_token] = ControlConnectionConversationInfo(
             state=ControlConnectionState.CONNECTED,
-            their_static_public_key=SecureBytes(),
+            their_static_public_key=None,
             shared_secret=None,
             my_ephemeral_public_key=None,
             my_ephemeral_secret_key=None,
             secure=False)
 
         # Generate the certificate for the new node, signing it with the directory node's private key.
-        previous_certificate_hash = SecureBytes(b"\x00" * Hashing.ALGORITHM.digest_size)
+        previous_certificate_hash = b"\x00" * Hashing.ALGORITHM.digest_size
         my_static_private_key = KeyPair().import_("./_keys/me", "static").secret_key
-        my_ip = SecureBytes(IPv4Address(socket.gethostbyname(socket.gethostname())).packed)
+        my_ip = IPv4Address(socket.gethostbyname(socket.gethostname())).packed
         certificate = DigitalSigning.sign(
             message=my_ip + previous_certificate_hash + node_id + their_static_public_key,
             my_static_private_key=my_static_private_key,
             their_id=node_id)
 
         # Cache the key for the node
-        DHT.cache_node_information(node_id.raw, their_static_public_key.raw, addr.ip)
+        DHT.cache_node_information(node_id, their_static_public_key, addr.ip)
 
         # Send the certificate to the new node.
         self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.DIR_CER, pickle.dumps(certificate))
@@ -827,14 +832,14 @@ class ControlConnectionManager:
 
     @LogPre
     def _handle_request_for_certificate(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
-        my_certificate = SecureBytes().import_(f"./_certs", "certificate", ".ctf")
+        my_certificate = open(f"./_certs/certificate.ctf", "rb").read()
 
         signed_challenge = DigitalSigning.sign(
-            message=SecureBytes(data),
+            message=data,
             my_static_private_key=KeyPair().import_("./_keys/me", "static").secret_key,
             their_id=DHT.get_id(addr.ip))
 
-        sending_data = pickle.dumps((pickle.loads(my_certificate.raw), signed_challenge))
+        sending_data = pickle.dumps((pickle.loads(my_certificate), signed_challenge))
         logging.debug(len(sending_data))
         self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.DHT_EXH_RES, sending_data)
 
@@ -846,9 +851,9 @@ class ControlConnectionManager:
         their_certificate: SignedMessage
         signed_challenge: SignedMessage
 
-        their_static_public_key = SecureBytes(their_certificate.message.raw[-DigitalSigning.ALGORITHM.PUBLIC_KEY_SIZE:])
-        their_id = SecureBytes(their_certificate.message.raw[4 + Hashing.ALGORITHM.digest_size:-DigitalSigning.ALGORITHM.PUBLIC_KEY_SIZE])
-        directory_node_ip = IPv4Address(their_certificate.message.raw[:4]).compressed
+        their_static_public_key = their_certificate.message[-DigitalSigning.PUB_PEM_SIZE:]
+        their_id = their_certificate.message[4 + Hashing.DIGEST_SIZE:-DigitalSigning.PUB_PEM_SIZE]
+        directory_node_ip = IPv4Address(their_certificate.message[:4]).compressed
 
         # Verify the certificate is legitimate (allow stale because it's a certificate).
         DigitalSigning.verify(
@@ -859,14 +864,14 @@ class ControlConnectionManager:
 
         # Verify the signed challenge uses the key in the certificate. todo: check challenge value
         DigitalSigning.verify(
-            their_static_public_key=their_static_public_key,
+            their_static_public_key=load_pem_public_key(their_static_public_key),
             signed_message=signed_challenge,
-            my_id=SecureBytes().import_("./_keys/me", "identifier", ".txt"))
+            my_id=open("./_keys/me/identifier.txt", "rb").read())
 
         # Cache the node information.
         DHT.cache_node_information(
-            node_id=their_id.raw,
-            node_public_key=their_static_public_key.raw,
+            node_id=their_id,
+            node_public_key=their_static_public_key,
             ip_address=addr.ip)
 
     @LogPre
@@ -948,7 +953,7 @@ class ControlConnectionManager:
         self._conversations[conversation_id].secure = True
 
     @LogPre
-    def _tunnel_message_forwards(self, addr: Address, connection_token: Bytes, command: ConnectionProtocol, data: Bytes) -> None:
+    def _tunnel_message_forwards(self, addr: Address, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
         # logging.debug(f"\t\tTunneling {command} to: {addr.ip}")
         # logging.debug(f"\t\tConnection token: {connection_token}")
         # logging.debug(f"\t\tRaw payload: {data[:100]}...")
@@ -974,7 +979,7 @@ class ControlConnectionManager:
 
                 # No shared secret when exchanging the KEM for the shared secret.
                 if next_node.shared_secret:
-                    data = SymmetricEncryption.encrypt(SecureBytes(data), next_node.shared_secret.decapsulated_key).raw
+                    data = SymmetricEncryption.encrypt(data, next_node.shared_secret.decapsulated_key)
                     # logging.debug(f"\t\tTunnel encrypted payload: {data[:100]}...")
 
                 data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + next_node.connection_token.token + data
@@ -988,14 +993,14 @@ class ControlConnectionManager:
         self._send_message_onwards(self._my_route.route[0].connection_token.address, connection_token, command, data)
 
     @LogPre
-    def _tunnel_message_backward(self, addr: Address, connection_token: Bytes, command: ConnectionProtocol, data: Bytes) -> None:
+    def _tunnel_message_backward(self, addr: Address, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
         # Encrypt with 1 layer as this message is travelling backwards to the client node. Don't do this for sending
         # information to self.
         if not (self._my_route and self._my_route.connection_token.token == connection_token):
             data = command.value.to_bytes(1, "big") + connection_token + data
             if shared_secret := self._node_to_client_tunnel_keys[connection_token].shared_secret:
                 client_key = shared_secret.decapsulated_key
-                data = SymmetricEncryption.encrypt(SecureBytes(data), client_key).raw
+                data = SymmetricEncryption.encrypt(data, client_key)
                 # logging.debug(f"\t\tTunnel backward encrypted payload: {data[:100]}...")
 
             self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_FWD, data)
@@ -1005,14 +1010,14 @@ class ControlConnectionManager:
             relay_nodes = iter(self._my_route.route[1:])
             while nested_command == ControlConnectionProtocol.CONN_FWD:
                 relay_node_key = next(relay_nodes).shared_secret.decapsulated_key
-                data = SymmetricEncryption.decrypt(SecureBytes(nested_data), relay_node_key).raw
+                data = SymmetricEncryption.decrypt(nested_data, relay_node_key)
                 nested_command, nested_connection_token, nested_data = self._parse_message(data)
                 assert nested_connection_token == connection_token
 
             self._handle_message(addr, nested_command, connection_token, nested_data)
 
     @LogPre
-    def _send_message_onwards(self, addr: Address, connection_token: Bytes, command: ConnectionProtocol, data: Bytes) -> None:
+    def _send_message_onwards(self, addr: Address, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
         logging.debug(f"\t\tSending {command} to: {addr.ip}: {data[:50]}...")
         # logging.debug(f"\t\tConnection token: {connection_token}")
         # logging.debug(f"\t\tRaw payload ({len(data)}): {data[:100]}...")
@@ -1025,7 +1030,7 @@ class ControlConnectionManager:
         # Encrypt the connection to the direct neighbour node, if a shared secret has been established.
         conversation_id = ConnectionToken(token=connection_token, address=addr)
         if shared_secret := self._conversations[conversation_id].shared_secret:
-            data = SymmetricEncryption.encrypt(SecureBytes(data), shared_secret).raw
+            data = SymmetricEncryption.encrypt(data, shared_secret)
             # logging.debug(f"\t\tE2E encrypted payload: {data[:100]}...")
 
         # Send the data to the node (prepend the connection token because encryption will hide it).
@@ -1056,7 +1061,7 @@ class ControlConnectionManager:
 
             if shared_secret := self._conversations[conversation_id].shared_secret:
                 print("decrypting")
-                data = SymmetricEncryption.decrypt(SecureBytes(data), shared_secret).raw
+                data = SymmetricEncryption.decrypt(data, shared_secret)
                 # logging.debug(f"\t\tE2E decrypted payload: {data[:100]}...")
 
         # Decrypt any layered encryption (if the command is CONN_FWD).
@@ -1083,7 +1088,7 @@ class ControlConnectionManager:
 
                     if next_node.shared_secret:
                         relay_node_key = next_node.shared_secret.decapsulated_key
-                        data = SymmetricEncryption.decrypt(SecureBytes(data), relay_node_key).raw
+                        data = SymmetricEncryption.decrypt(data, relay_node_key)
                         # logging.debug(f"\t\tDecrypted payload: {data[:100]}...")
 
                     next_node = next(relay_nodes, None)
@@ -1099,13 +1104,13 @@ class ControlConnectionManager:
             # Relay node receiving a message from the previous node in the route => decrypt a layer
             if from_previous_node:
                 client_key = self._node_to_client_tunnel_keys[connection_token].shared_secret.decapsulated_key
-                data = SymmetricEncryption.decrypt(SecureBytes(data), client_key).raw
+                data = SymmetricEncryption.decrypt(data, client_key)
                 # logging.debug(f"\t\tDecrypted payload: {data[:100]}...")
 
             # Relay node receiving a message from the next node in the route => add a layer of encryption
             elif self._parse_message(data)[0] == ControlConnectionProtocol.CONN_FWD:
                 client_key = self._node_to_client_tunnel_keys[connection_token].shared_secret.decapsulated_key
-                data = SymmetricEncryption.encrypt(SecureBytes(data), client_key).raw
+                data = SymmetricEncryption.encrypt(data, client_key)
                 data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + connection_token + data
 
                 prev_node = two_nodes_with_connection_token[0]
@@ -1144,55 +1149,6 @@ class ControlConnectionManager:
     def _is_connected_to(self, addr: Address, connection_token: Bytes) -> bool:
         conversation_id = ConnectionToken(token=connection_token, address=addr)
         return conversation_id in self._conversations.keys() and self._conversations[conversation_id].state & ControlConnectionState.CONNECTED
-
-
-# class DirectoryNodeFileManager:
-#     LOCK = threading.Lock()
-#
-#     @staticmethod
-#     def add_record(identifier: Bytes, static_public_key: Bytes) -> None:
-#         with DirectoryNodeFileManager.LOCK:
-#             with open("./_dir/registry.csv", "a") as file:
-#                 contents = base58.b58encode(identifier) + b"," + base58.b58encode(static_public_key) + b"\n"
-#                 file.write(contents.decode())
-#
-#     @staticmethod
-#     def get_record(identifier: Bytes) -> Bytes:
-#         with DirectoryNodeFileManager.LOCK:
-#             with open("./_dir/registry.csv", "r") as file:
-#                 rows = csv.reader(file)
-#                 return base58.b58decode(next((row[1] for row in rows if row[0] == identifier), b""))
-#
-#     @staticmethod
-#     def del_record(identifier: Bytes) -> None:
-#         with DirectoryNodeFileManager.LOCK:
-#             with open("./_dir/registry.csv", "r") as file:
-#                 rows = csv.reader(file)
-#                 rows = [row for row in rows if row[0] != base58.b58encode(identifier).decode()]
-#
-#             with open("./_dir/registry.csv", "w") as file:
-#                 writer = csv.writer(file)
-#                 writer.writerows(rows)
-#
-#     @staticmethod
-#     def num_records() -> int:
-#         with DirectoryNodeFileManager.LOCK:
-#             with open("./_dir/registry.csv", "r") as file:
-#                 return sum(1 for _ in file)
-#
-#     @staticmethod
-#     def get_random_records() -> List[Bytes]:
-#         current_number_of_records = DirectoryNodeFileManager.num_records()
-#         number_of_records = min(current_number_of_records, int(math.log2(current_number_of_records)))
-#
-#         with DirectoryNodeFileManager.LOCK:
-#             with open("./_dir/registry.csv", "r") as file:
-#                 rows = csv.reader(file)
-#                 rows = [row for row in rows]
-#                 random.shuffle(rows)
-#                 subset = rows[:int(number_of_records)]
-#                 subset = [(base58.b58decode(row[0]), base58.b58decode(row[1])) for row in subset]
-#                 return subset
 
 
 __all__ = ["ControlConnectionManager"]

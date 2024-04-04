@@ -1,8 +1,7 @@
-from crypto_engines.tools.secure_bytes import SecureBytes
-from my_types import Bool, Int
-
-from dataclasses import dataclass
 import time
+from dataclasses import dataclass
+
+from src.MyTypes import Bool, Int
 
 
 @dataclass(kw_only=True)
@@ -20,14 +19,14 @@ class Timestamp:
     TOLERANCE = 10_000_000_000  # 10 seconds
 
     @staticmethod
-    def current_time_bytes() -> SecureBytes:
-        # Get the current time in nanoseconds and return it as a SecureBytes object.
+    def current_time_bytes() -> bytes:
+        # Get the current time in nanoseconds and return it as a bytes object.
         current_time = time.time_ns()
-        return SecureBytes.from_int(current_time)
+        return current_time.to_bytes(8, "big")
 
     @staticmethod
-    def in_tolerance(t1: SecureBytes, t2: SecureBytes):
+    def in_tolerance(t1: bytes, t2: bytes):
         # Convert the timestamps to integers and check if the difference is within the tolerance.
-        t1 = t1.to_int()
-        t2 = t2.to_int()
+        t1 = int.from_bytes(t1, "big")
+        t2 = int.from_bytes(t2, "big")
         return Tolerance(in_tolerance=t1 - t2 < Timestamp.TOLERANCE, out_by=t1 - t2)

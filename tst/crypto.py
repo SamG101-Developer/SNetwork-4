@@ -1,9 +1,9 @@
 import os.path
 
-from crypto_engines.crypto.symmetric_encryption import SymmetricEncryption
-from crypto_engines.crypto.key_encapsulation import KEM
-from crypto_engines.crypto.digital_signing import DigitalSigning
-from crypto_engines.keys.key_pair import KeyPair
+from crypto_engines.crypto.SymmetricEncryption import SymmetricEncryption
+from crypto_engines.crypto.KeyEncapsulation import KEM
+from crypto_engines.crypto.DigitalSigning import DigitalSigning
+from crypto_engines.tools.KeyPair import KeyPair
 from crypto_engines.tools.secure_bytes import SecureBytes
 
 

@@ -1,14 +1,15 @@
-import logging
-import sys
-
-from crypto_engines.crypto.hashing import Hashing
-from crypto_engines.crypto.digital_signing import DigitalSigning
-from control_communications.ControlConnectionManager import ControlConnectionManager
-from my_types import Str, List
-
 from argparse import Namespace
 from threading import Thread
-import os, socket
+import logging
+import os
+import sys
+
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+
+from src.crypto_engines.crypto.Hashing import Hashing
+from src.crypto_engines.crypto.DigitalSigning import DigitalSigning
+from src.control_communications.ControlConnectionManager import ControlConnectionManager
+from src.MyTypes import Str, List
 
 
 class CmdHandler:
@@ -39,29 +40,31 @@ class CmdHandler:
 
     @staticmethod
     def _handle_keygen(arguments: Namespace) -> None:
-        # Check if the static keys already exist
+        # Check if the static keys already exist.
         if not os.path.exists("./_keys/me") or arguments.force:
-            # Create the directory for the keys
+            # Create the directory for the keys.
             os.makedirs("./_keys/me", exist_ok=True)
 
-            # Generate the static key pair for digital signing, and the hash of the public key (identifier)
+            # Generate the static key pair for digital signing, and the hash of the public key (identifier).
             my_static_key_pair = DigitalSigning.generate_key_pair()
-            my_identifier = Hashing.hash(my_static_key_pair.public_key)
+            my_identifier = Hashing.hash(my_static_key_pair.public_key.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)).hex()
 
-            # Write the keys to disk
+            # Write the keys to disk.
             my_static_key_pair.export("./_keys/me", "static")
-            my_identifier.export("./_keys/me", "identifier")
+            open("./_keys/me/identifier.txt", "w").write(my_identifier)
 
     @staticmethod
     def _handle_join(_arguments: Namespace) -> None:
-        if not all(os.path.exists(f"./_keys/me/{key}") for key in ["static.pk", "static.sk", "identifier.txt"]):
+        if not all(os.path.exists(f"./_keys/me/{key}") for key in ["static_sec.pem", "static_pub.pem", "identifier.txt"]):
             logging.error(f"Static keys do not exist. Please generate them first.")
             return
 
-        logging.debug(f"Joining network as a node.")
-        # Setup the control connection server
+        # Setup the control connection for a node.
         if not CmdHandler.CONTROLLER:
+            logging.debug(f"Joining network as a node.")
             CmdHandler.CONTROLLER = ControlConnectionManager()
+        else:
+            logging.error(f"Already joined the network as a node.")
 
     @staticmethod
     def _handle_route(arguments: Namespace) -> None:
@@ -71,5 +74,13 @@ class CmdHandler:
 
     @staticmethod
     def _handle_directory(arguments: Namespace) -> None:
-        logging.debug(f"Joining network as a directory.")
-        CmdHandler.CONTROLLER = ControlConnectionManager(is_directory_node=True)
+        if not all(os.path.exists(f"./_keys/me/{key}") for key in ["static_sec.pem", "static_pub.pem", "identifier.txt"]):
+            logging.error(f"Static keys do not exist. Please generate them first.")
+            return
+
+        # Setup the control connection for a directory server.
+        if not CmdHandler.CONTROLLER:
+            logging.debug(f"Joining network as a directory.")
+            CmdHandler.CONTROLLER = ControlConnectionManager(is_directory_node=True)
+        else:
+            logging.error(f"Already joined the network as a directory.")

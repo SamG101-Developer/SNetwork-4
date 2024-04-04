@@ -1,11 +1,9 @@
 __author__ = "Sam Gardner"
 __version__ = "4.10.1"
 
-import json
-import os
+import json, logging, os, sys
 from argparse import ArgumentParser
-from setup.cmd_handler import CmdHandler
-import logging, sys
+from src.setup.CmdHandler import CmdHandler
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -76,18 +74,12 @@ def main():
         json.dump([], open("./_cache/dht_cache.json", "w"))
 
     parser = create_argument_parser()
-    args = parser.parse_args(sys.argv[1:])
-    CmdHandler(args.command, args)
 
-    try:
-        while args.command in ["join", "route", "directory"]:
-            pass
-    except KeyboardInterrupt:
-        print("\nExiting...")
-        try:
-            sys.exit(0)
-        except SystemExit as e:
-            print(e)
+    while True:
+        command = input("> ")
+        if command == "exit": break
+        args = parser.parse_args(command.split())
+        CmdHandler(args.command, args)
 
 
 if __name__ == "__main__":

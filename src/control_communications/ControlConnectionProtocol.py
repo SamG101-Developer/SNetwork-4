@@ -1,13 +1,8 @@
 from enum import Enum
 
 
-# Base class for all connection protocols
-class ConnectionProtocol(Enum):
-    ...
-
-
 # Interacting with other nodes
-class ControlConnectionProtocol(ConnectionProtocol):
+class ControlConnectionProtocol(Enum):
     CONN_REQ     = 0b00000  # Request a connection
     CONN_ACC     = 0b00001  # Accept a connection request
     CONN_REJ     = 0b00011  # Reject a connection request
@@ -35,4 +30,4 @@ class ControlConnectionProtocol(ConnectionProtocol):
     DHT_EXH_ACK = 0b10110  # Acknowledge an address exchange
 
 
-__all__ = ["ConnectionProtocol", "ControlConnectionProtocol"]
+__all__ = ["ControlConnectionProtocol"]

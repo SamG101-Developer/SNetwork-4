@@ -1,4 +1,3 @@
-from crypto_engines.tools.secure_bytes import SecureBytes
 from argon2 import PasswordHasher as Argon2
 
 
@@ -9,8 +8,8 @@ class KDF:
     """
 
     @staticmethod
-    def derive_key(master_key: SecureBytes, customization_bytes: SecureBytes, tag_length: int) -> SecureBytes:
+    def derive_key(master_key: bytes, customization_bytes: bytes, tag_length: int) -> bytes:
         # Derive a key from the master key and customization bytes.
         argon2 = Argon2(hash_len=tag_length)
-        derived_key = argon2.hash(master_key.raw + customization_bytes.raw).encode()
-        return SecureBytes(derived_key)
+        derived_key = argon2.hash(master_key + customization_bytes).encode()
+        return derived_key

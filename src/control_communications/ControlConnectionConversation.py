@@ -1,8 +1,9 @@
 from dataclasses import dataclass
 from enum import IntFlag
 
-from crypto_engines.tools.secure_bytes import SecureBytes
-from my_types import Bool, Optional
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey, RSAPrivateKey
+
+from src.MyTypes import Bool, Optional
 
 
 class ControlConnectionState(IntFlag):
@@ -13,10 +14,10 @@ class ControlConnectionState(IntFlag):
 @dataclass(kw_only=True)
 class ControlConnectionConversationInfo:
     state: ControlConnectionState
-    their_static_public_key: SecureBytes
-    shared_secret: Optional[SecureBytes]
-    my_ephemeral_public_key: Optional[SecureBytes]
-    my_ephemeral_secret_key: Optional[SecureBytes]
+    their_static_public_key: Optional[RSAPublicKey]
+    shared_secret: Optional[bytes]
+    my_ephemeral_public_key: Optional[RSAPublicKey]
+    my_ephemeral_secret_key: Optional[RSAPrivateKey]
     secure: Bool
 
 

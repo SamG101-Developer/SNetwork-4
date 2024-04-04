@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import dataclasses
 import platform
-from dataclasses import dataclass
 import socket
+from dataclasses import dataclass
 
-from crypto_engines.keys.key_pair import KeyPair, KEMKeyPair
-from my_types import Bool, Bytes, Int, List, Optional, Str, Tuple
+from src.crypto_engines.tools.KeyPair import KeyPair, KEMKeyPair
+from src.MyTypes import Bool, Bytes, Int, List, Optional, Str, Tuple
 
 
 @dataclass(kw_only=True)

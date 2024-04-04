@@ -1,13 +1,12 @@
 from __future__ import annotations
 
+import socket
+
 from scapy.sendrecv import sniff, sendp, Packet
 from scapy.layers.inet import IP, TCP, Ether
 
-import socket
-
-from my_types import Dict, Bytes, List, Str, Tuple, Int
-from crypto_engines.crypto.symmetric_encryption import SymmetricEncryption
-from crypto_engines.tools.secure_bytes import SecureBytes
+from src.crypto_engines.crypto.SymmetricEncryption import SymmetricEncryption
+from src.MyTypes import Dict, Bytes, List, Str, Tuple, Int
 
 
 class ClientPacketInterceptor:
@@ -18,11 +17,11 @@ class ClientPacketInterceptor:
     """
 
     _connection_token: Bytes
-    _keys: List[SecureBytes]
+    _keys: List[bytes]
     _addresses: List[Str]
     _my_ip: Str
 
-    def __init__(self, connection_token: Bytes, keys: List[SecureBytes], addresses: List[Str]) -> None:
+    def __init__(self, connection_token: Bytes, keys: List[bytes], addresses: List[Str]) -> None:
         self._connection_token = connection_token
         self._keys = keys
         self._addresses = addresses
@@ -42,15 +41,15 @@ class ClientPacketInterceptor:
                 payload = bytes(original_packet[TCP].payload)
 
                 # Encrypt the payload with the exit node key.
-                payload = SymmetricEncryption.encrypt(SecureBytes(payload), self._keys[2]).raw
+                payload = SymmetricEncryption.encrypt(bytes(payload), self._keys[2])
                 payload += self._connection_token
 
                 # Encrypt the payload with the intermediary node key.
-                payload = SymmetricEncryption.encrypt(SecureBytes(payload), self._keys[1]).raw
+                payload = SymmetricEncryption.encrypt(bytes(payload), self._keys[1])
                 payload += self._connection_token
 
                 # Encrypt the payload with the entry node key.
-                payload = SymmetricEncryption.encrypt(SecureBytes(payload), self._keys[0]).raw
+                payload = SymmetricEncryption.encrypt(bytes(payload), self._keys[0])
                 payload += self._connection_token
 
                 # Add the payload to the packet and route it to the entry node.
@@ -75,13 +74,13 @@ class ExitNodePacketInterceptor:
     connection.
     """
 
-    _keys: Dict[Int, Tuple[SecureBytes, Str]]  # AES key and destination address
+    _keys: Dict[Int, Tuple[bytes, Str]]  # AES key and destination address
 
     def __init__(self) -> None:
         self._keys = {}
         self._begin_interception()
 
-    def register_key(self, port: Int, address: Str, key: SecureBytes) -> None:
+    def register_key(self, port: Int, address: Str, key: bytes) -> None:
         # Register a custom NAT behaviour by associating a key and address pair with a port.
         self._keys[port] = (key, address)
 
@@ -103,7 +102,7 @@ class ExitNodePacketInterceptor:
                     return
 
                 # Add the connection token and encrypt the payload with the AES key.
-                payload = SymmetricEncryption.encrypt(SecureBytes(payload), self._keys[original_packet[TCP].dport][0]).raw
+                payload = SymmetricEncryption.encrypt(bytes(payload), self._keys[original_packet[TCP].dport][0])
                 payload += self._keys[original_packet[TCP].dport][0]
 
                 # Add the payload to the packet and route it to the previous node.
@@ -128,7 +127,7 @@ class IntermediaryNodePacketForwarder:
     address, then encrypt a layer and send the packet to the previous node.
     """
 
-    _keys: Dict[Bytes, Tuple[SecureBytes, SecureBytes]]  # {Connection token: Forward & Backward keys}
+    _keys: Dict[Bytes, Tuple[bytes, bytes]]  # {Connection token: Forward & Backward keys}
     _addresses: Dict[Bytes, Tuple[Str, Str]]  # {Forward & Backward addresses}
     _exit_node_interceptor: ExitNodePacketInterceptor
 
@@ -142,7 +141,7 @@ class IntermediaryNodePacketForwarder:
         sniff(filter="tcp port 12346", prn=self._layer_packet)
 
     def register_keys_and_addresses(
-            self, connection_token: Bytes, forward_key: SecureBytes, backward_key: SecureBytes,
+            self, connection_token: Bytes, forward_key: bytes, backward_key: bytes,
             forward_address: Str, backward_address: Str) -> None:
         # Register an address pair and the keys needed for them against a connection token.
         self._keys[connection_token] = (forward_key, backward_key)
@@ -176,7 +175,7 @@ class IntermediaryNodePacketForwarder:
 
         # Decrypt the payload with the forward key.
         connection_token, payload = payload[-32:], payload[:-32]
-        payload = SymmetricEncryption.decrypt(SecureBytes(payload), self._keys[connection_token][0]).raw
+        payload = SymmetricEncryption.decrypt(bytes(payload), self._keys[connection_token][0])
 
         # Add the payload to the packet and route it to the next node.
         new_packet.add_payload(payload)
@@ -199,7 +198,7 @@ class IntermediaryNodePacketForwarder:
 
         # Encrypt the payload with the backward key.
         connection_token, payload = payload[-32:], payload[:-32]
-        payload = SymmetricEncryption.encrypt(SecureBytes(payload), self._keys[connection_token][1]).raw
+        payload = SymmetricEncryption.encrypt(bytes(payload), self._keys[connection_token][1])
 
         # Add the payload to the packet and route it to the previous node.
         new_packet.add_payload(payload)
