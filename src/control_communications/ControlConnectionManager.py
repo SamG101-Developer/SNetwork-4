@@ -172,12 +172,12 @@ class ControlConnectionManager:
 
         del self._conversations[connection_token]
 
-    def obtain_first_nodes(self, need_to_know: List[Address] = None):
+    def obtain_first_nodes(self, need_to_know: List[Str] = None):
         target_address = Address(ip=DHT.get_random_directory_node())
         connection_token = self._open_connection_to(target_address)
         time.sleep(2)
 
-        need_to_know_nodes = ",".join([node.ip for node in need_to_know]) if need_to_know else ""
+        need_to_know_nodes = ",".join([node for node in need_to_know]) if need_to_know else ""
         self._send_message_onwards(target_address, connection_token.token, ControlConnectionProtocol.DIR_LST_REQ, need_to_know_nodes.encode())
 
         cache_path = "./_cache/dht_cache.json"
