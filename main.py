@@ -73,8 +73,11 @@ def main():
     if not os.path.exists("./_cache/dht_cache.json"):
         json.dump([], open("./_cache/dht_cache.json", "w"))
 
-    parser = create_argument_parser()
+    if len(sys.argv) > 1:
+        logging.debug(f"Don't use program arguments here - use the interactive shell.")
+        sys.exit(1)
 
+    parser = create_argument_parser()
     while True:
         command = input("> ")
         if command == "exit": break

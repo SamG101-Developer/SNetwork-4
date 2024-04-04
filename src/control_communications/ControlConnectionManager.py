@@ -156,7 +156,7 @@ class ControlConnectionManager:
             addr=connection_token.address,
             connection_token=connection_token.token,
             command=ControlConnectionProtocol.DIR_REG,
-            data=pickle.dumps(static_asymmetric_key_pair.public_key))
+            data=static_asymmetric_key_pair.public_key.public_bytes(encoding=Encoding.PEM, format=PublicFormat.SubjectPublicKeyInfo))
 
         while self._waiting_for_cert:
             pass
