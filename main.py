@@ -68,6 +68,7 @@ def create_argument_parser() -> ArgumentParser:
 
 def main():
     if not os.path.exists("./_keys"): os.mkdir("./_keys")
+    if not os.path.exists("./_certs"): os.mkdir("./_certs")
     if not os.path.exists("./_cache"):
         os.mkdir("./_cache")
     if not os.path.exists("./_cache/dht_cache.json"):
