@@ -31,9 +31,9 @@ class CmdHandler:
         logging.debug(f"Resetting the node (manual removal on directory node may be required).")
 
         if sys.platform == "win32":
-            os.system("rmdir /s /q ./_keys")
-            os.system("rmdir /s /q ./_cache")
-            os.system("rmdir /s /q ./_certs")
+            os.system("rmdir /s /q _keys")
+            os.system("rmdir /s /q _cache")
+            os.system("rmdir /s /q _certs")
         else:
             os.system("rm -rf ./_keys")
             os.system("rm -rf ./_cache")
