@@ -396,7 +396,7 @@ class ControlConnectionManager:
             allow_stale=True)  # temporarily, because of the possible delay from the DHT_EXH_REQ request.
 
         # Create a shared secret with a KEM, using their ephemeral public key, and sign it.
-        their_ephemeral_public_key = their_signed_ephemeral_public_key.message
+        their_ephemeral_public_key = load_der_public_key(their_signed_ephemeral_public_key.message)
         kem_wrapped_shared_secret  = KEM.kem_wrap(their_ephemeral_public_key)
         signed_kem_wrapped_shared_secret = DigitalSigning.sign(
             my_static_private_key=my_static_private_key,
