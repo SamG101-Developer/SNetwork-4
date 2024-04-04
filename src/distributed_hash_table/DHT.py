@@ -1,9 +1,8 @@
 from threading import Lock
-import json, random
-from cryptography.hazmat.primitives._serialization import Encoding, PublicFormat
+import json, logging, random
 
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
-from cryptography.hazmat.primitives.serialization import load_pem_public_key
+from cryptography.hazmat.primitives.serialization import load_pem_public_key, Encoding, PublicFormat
 
 from src.crypto_engines.crypto.Hashing import Hashing
 from src.MyTypes import Str, List, Bytes, Dict, Optional
@@ -89,5 +88,5 @@ class DHT:
     def cache_node_information(node_id: Bytes, node_public_key: Bytes, ip_address: Str) -> None:
         with DHT.LOCK:
             cache = json.load(open("./_cache/dht_cache.json"))
-            cache.append({"id": node_id, "key": node_public_key.decode(), "ip": ip_address})
+            cache.append({"id": node_id.hex(), "key": node_public_key.decode(), "ip": ip_address})
             json.dump(cache, open("./_cache/dht_cache.json", "w"))
