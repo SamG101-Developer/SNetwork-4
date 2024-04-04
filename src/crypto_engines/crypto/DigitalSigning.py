@@ -20,6 +20,9 @@ class DigitalSigning:
     SEC_PEM_SIZE = 1704
     PUB_PEM_SIZE = 451
 
+    SEC_DER_SIZE = 1216
+    PUB_DER_SIZE = 294
+
     @staticmethod
     def generate_key_pair() -> KeyPair:
         # Generate a key pair and package it into a KeyPair object.

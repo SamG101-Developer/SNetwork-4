@@ -8,7 +8,7 @@ import time
 from argparse import Namespace
 from ipaddress import IPv4Address
 
-from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat, load_pem_public_key
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat, load_der_public_key
 
 from src.control_communications.ControlConnectionServer import *
 from src.control_communications.ControlConnectionProtocol import *
@@ -156,7 +156,7 @@ class ControlConnectionManager:
             addr=connection_token.address,
             connection_token=connection_token.token,
             command=ControlConnectionProtocol.DIR_REG,
-            data=static_asymmetric_key_pair.public_key.public_bytes(encoding=Encoding.PEM, format=PublicFormat.SubjectPublicKeyInfo))
+            data=static_asymmetric_key_pair.public_key.public_bytes(encoding=Encoding.DER, format=PublicFormat.SubjectPublicKeyInfo))
 
         while self._waiting_for_cert:
             pass
@@ -188,7 +188,7 @@ class ControlConnectionManager:
 
         signed_my_ephemeral_public_key = DigitalSigning.sign(
             my_static_private_key=my_static_private_key,
-            message=my_ephemeral_public_key.public_bytes(encoding=Encoding.PEM, format=PublicFormat.SubjectPublicKeyInfo),
+            message=my_ephemeral_public_key.public_bytes(encoding=Encoding.DER, format=PublicFormat.SubjectPublicKeyInfo),
             their_id=DHT.get_id(addr.ip))
 
         sending_data = pickle.dumps((signed_my_ephemeral_public_key, False))
@@ -392,7 +392,7 @@ class ControlConnectionManager:
         DigitalSigning.verify(
             their_static_public_key=their_static_public_key,
             signed_message=their_signed_ephemeral_public_key,
-            my_id=open("./_keys/me/identifier.txt", "rb").read(),
+            my_id=bytes.fromhex(open("./_keys/me/identifier.txt", "r").read()),
             allow_stale=True)  # temporarily, because of the possible delay from the DHT_EXH_REQ request.
 
         # Create a shared secret with a KEM, using their ephemeral public key, and sign it.
@@ -417,7 +417,7 @@ class ControlConnectionManager:
                 secure=False)
 
             signed_e2e_key = DigitalSigning.sign(
-                message=self._node_to_client_tunnel_keys[connection_token].ephemeral_key_pair.public_key.public_bytes(encoding=Encoding.PEM, format=PublicFormat.SubjectPublicKeyInfo),
+                message=self._node_to_client_tunnel_keys[connection_token].ephemeral_key_pair.public_key.public_bytes(encoding=Encoding.DER, format=PublicFormat.SubjectPublicKeyInfo),
                 my_static_private_key=my_static_private_key,
                 their_id=DHT.get_id(addr.ip))
 
@@ -459,7 +459,7 @@ class ControlConnectionManager:
         DigitalSigning.verify(
             their_static_public_key=their_static_public_key,
             signed_message=signed_kem_wrapped_shared_secret,
-            my_id=open("./_keys/me/identifier.txt", "rb").read())
+            my_id=bytes.fromhex(open("./_keys/me/identifier.txt", "r").read()))
 
         # Save the connection information for the accepting node.
         conversation_id = ConnectionToken(token=connection_token, address=addr)
@@ -570,7 +570,7 @@ class ControlConnectionManager:
         # ultimately send an EXT_ACK command to acknowledge the extension.
         signed_my_ephemeral_public_key = DigitalSigning.sign(
             my_static_private_key=my_static_private_key,
-            message=my_ephemeral_public_key.public_bytes(encoding=Encoding.PEM, format=PublicFormat.SubjectPublicKeyInfo),
+            message=my_ephemeral_public_key.public_bytes(encoding=Encoding.DER, format=PublicFormat.SubjectPublicKeyInfo),
             their_id=target_id)
 
         # logging.debug(f"\t\tSigned ephemeral public key: {signed_my_ephemeral_public_key.signature.raw[:100]}...")
@@ -632,10 +632,10 @@ class ControlConnectionManager:
             # Save the connection information to the route list.
             self._my_route.route.append(ControlConnectionRouteNode(
                 connection_token=ConnectionToken(token=connection_token, address=self._pending_node_to_add_to_route),
-                ephemeral_key_pair=KeyPair(public_key=load_pem_public_key(signed_ephemeral_public_key.message)),
+                ephemeral_key_pair=KeyPair(public_key=load_der_public_key(signed_ephemeral_public_key.message)),
                 shared_secret=None,
                 secure=False))
-            kem_wrapped_packet_key = KEM.kem_wrap(load_pem_public_key(signed_ephemeral_public_key.message))
+            kem_wrapped_packet_key = KEM.kem_wrap(load_der_public_key(signed_ephemeral_public_key.message))
 
             # Note: vulnerable to MITM, so use unilateral authentication later. TODO
             # logging.debug(f"\t\tSending packet key to: {self._pending_node_to_add_to_route.ip}")
@@ -740,7 +740,7 @@ class ControlConnectionManager:
         DigitalSigning.verify(
             their_static_public_key=directory_node_static_public_key,
             signed_message=certificate,
-            my_id=open("./_keys/me/identifier.txt", "rb").read())
+            my_id=bytes.fromhex(open("./_keys/me/identifier.txt", "r").read()))
 
         # Export the certificate to a file, and set the "waiting for certificate flag" to False.
         open(f"./_certs/certificate.ctf", "wb").write(data)
@@ -765,7 +765,7 @@ class ControlConnectionManager:
         their_static_public_key = data  # todo: remove correspongin ex-pikcle.dumps
 
         # Save the new node's public key to the DHT, and generate a certificate for the new node.
-        node_id = Hashing.hash(their_static_public_key).hex().encode()
+        node_id = Hashing.hash(their_static_public_key)
         # DirectoryNodeFileManager.add_record(node_id.raw, their_static_public_key.raw)
 
         # Temporary conversation
@@ -851,8 +851,8 @@ class ControlConnectionManager:
         their_certificate: SignedMessage
         signed_challenge: SignedMessage
 
-        their_static_public_key = their_certificate.message[-DigitalSigning.PUB_PEM_SIZE:]
-        their_id = their_certificate.message[4 + Hashing.DIGEST_SIZE:-DigitalSigning.PUB_PEM_SIZE]
+        their_static_public_key = their_certificate.message[-DigitalSigning.PUB_DER_SIZE:]
+        their_id = their_certificate.message[4 + Hashing.DIGEST_SIZE:-DigitalSigning.PUB_DER_SIZE]
         directory_node_ip = IPv4Address(their_certificate.message[:4]).compressed
 
         # Verify the certificate is legitimate (allow stale because it's a certificate).
@@ -864,9 +864,9 @@ class ControlConnectionManager:
 
         # Verify the signed challenge uses the key in the certificate. todo: check challenge value
         DigitalSigning.verify(
-            their_static_public_key=load_pem_public_key(their_static_public_key),
+            their_static_public_key=load_der_public_key(their_static_public_key),
             signed_message=signed_challenge,
-            my_id=open("./_keys/me/identifier.txt", "rb").read())
+            my_id=bytes.fromhex(open("./_keys/me/identifier.txt", "r").read()))
 
         # Cache the node information.
         DHT.cache_node_information(

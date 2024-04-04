@@ -1,8 +1,8 @@
 from threading import Lock
-import json, logging, random
+import json, random
 
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
-from cryptography.hazmat.primitives.serialization import load_pem_public_key, Encoding, PublicFormat
+from cryptography.hazmat.primitives.serialization import load_pem_public_key, load_der_public_key, Encoding, PublicFormat
 
 from src.crypto_engines.crypto.Hashing import Hashing
 from src.MyTypes import Str, List, Bytes, Dict, Optional
@@ -34,27 +34,36 @@ class DHT:
 
     @staticmethod
     def get_static_public_key(address: Str, silent: bool = False) -> Optional[RSAPublicKey]:
+        # Check cached directory nodes.
         if address in DHT.DIRECTORY_NODES.keys():
             return DHT.DIRECTORY_NODES[address]
 
+        # Lock the cache file and read the json node cache.
         with DHT.LOCK:
             cache = json.load(open("./_cache/dht_cache.json"))
 
+        # Check if the node is in the cache - todo: do against ID not IP?
         public_key = [node["key"] for node in cache if node["ip"] == address]
         if not public_key:
             if not silent:
                 raise NodeNotInNetworkException
             return None
 
-        public_key = load_pem_public_key(public_key[0].encode())
+        # Load the public key from the cache.
+        public_key = load_der_public_key(bytes.fromhex(public_key[0]))
         return public_key
 
     @staticmethod
     def get_id(address: str, silent: bool = False) -> bytes:
+        # Get the public key of the node.
         public_key = DHT.get_static_public_key(address, silent)
+
+        # Hash the public key to get the node ID.
         if public_key:
-            node_id = Hashing.hash(public_key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo)).hex().encode()
+            node_id = Hashing.hash(public_key.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo))
             return node_id
+
+        # Return an empty byte string if the node is not in the network.
         return b""
 
     @staticmethod
@@ -67,7 +76,7 @@ class DHT:
         random_node = random.choice(valid_ips) if valid_ips else None
 
         if random_node:
-            random_node["id" ] = random_node["id"]
+            random_node["id" ] = bytes.fromhex(random_node["id"])
             random_node["key"] = random_node["key"]
 
         return random_node
@@ -88,5 +97,5 @@ class DHT:
     def cache_node_information(node_id: Bytes, node_public_key: Bytes, ip_address: Str) -> None:
         with DHT.LOCK:
             cache = json.load(open("./_cache/dht_cache.json"))
-            cache.append({"id": node_id.decode(), "key": node_public_key.decode(), "ip": ip_address})
+            cache.append({"id": node_id.hex(), "key": node_public_key.hex(), "ip": ip_address})
             json.dump(cache, open("./_cache/dht_cache.json", "w"))
