@@ -1,4 +1,4 @@
-from cryptography.hazmat.primitives.hashes import Hash, SHA3_512
+from cryptography.hazmat.primitives.hashes import Hash, SHA3_512, SHA3_256
 
 
 class Hashing:
@@ -10,6 +10,10 @@ class Hashing:
     ALGORITHM = SHA3_512
     DIGEST_SIZE = ALGORITHM.digest_size
     BLOCK_SIZE = ALGORITHM.block_size
+
+    SMALL_ALGORITHM = SHA3_256
+    SMALL_DIGEST_SIZE = SMALL_ALGORITHM.digest_size
+    SMALL_BLOCK_SIZE = SMALL_ALGORITHM.block_size
 
     @staticmethod
     def hash(input_bytes: bytes) -> bytes:
