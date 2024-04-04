@@ -112,6 +112,15 @@ class ControlConnectionManager:
             my_ephemeral_secret_key=None,
             secure=True)
 
+        # Check this node knows at least 3 other nodes in the network.
+        if DHT.total_nodes_known([Address.me().ip]) < 3:
+            logging.error("Not enough nodes in the network to create a route.")
+            logging.debug("Refreshing cache...")
+            self.refresh_cache()
+
+            while DHT.total_nodes_known([Address.me().ip]) < 3:
+                time.sleep(1)  # use "sleep" because file locks
+
         # Extend the connection (use a while loop so failed connections don't affect the node counter for route length).
         my_ip = Address.me().ip
         while len(self._my_route.route) < 4:
