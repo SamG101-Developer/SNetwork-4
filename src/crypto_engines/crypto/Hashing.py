@@ -1,4 +1,4 @@
-from cryptography.hazmat.primitives.hashes import Hash, SHA3_512, SHA3_256
+from cryptography.hazmat.primitives.hashes import Hash, SHA3_512, SHA256
 
 
 class Hashing:
@@ -11,7 +11,7 @@ class Hashing:
     DIGEST_SIZE = ALGORITHM.digest_size
     BLOCK_SIZE = ALGORITHM.block_size
 
-    SMALL_ALGORITHM = SHA3_256
+    SMALL_ALGORITHM = SHA256
     SMALL_DIGEST_SIZE = SMALL_ALGORITHM.digest_size
     SMALL_BLOCK_SIZE = SMALL_ALGORITHM.block_size
 
