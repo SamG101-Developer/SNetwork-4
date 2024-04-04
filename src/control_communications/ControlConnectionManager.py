@@ -20,7 +20,7 @@ from src.crypto_engines.crypto.SymmetricEncryption import SymmetricEncryption
 from src.crypto_engines.crypto.Hashing import Hashing
 from src.crypto_engines.tools.KeyPair import KeyPair
 from src.distributed_hash_table.DHT import DHT, NodeNotInNetworkException
-from src.MyTypes import Bytes, Tuple, Str, Int, Dict, Optional
+from src.MyTypes import Bytes, Tuple, Str, Int, Dict, Optional, List
 
 
 def ReplayErrorBackToUser(error_command):
@@ -172,11 +172,13 @@ class ControlConnectionManager:
 
         del self._conversations[connection_token]
 
-    def obtain_first_nodes(self):
+    def obtain_first_nodes(self, need_to_know: List[Address] = None):
         target_address = Address(ip=DHT.get_random_directory_node())
         connection_token = self._open_connection_to(target_address)
         time.sleep(2)
-        self._send_message_onwards(target_address, connection_token.token, ControlConnectionProtocol.DIR_LST_REQ, b"")
+
+        need_to_know_nodes = ",".join([node.ip for node in need_to_know]) if need_to_know else ""
+        self._send_message_onwards(target_address, connection_token.token, ControlConnectionProtocol.DIR_LST_REQ, need_to_know_nodes.encode())
 
         cache_path = "./_cache/dht_cache.json"
         while not os.path.exists(cache_path):  # todo: is this loop needed?
@@ -555,7 +557,17 @@ class ControlConnectionManager:
         # Get the address and static public key of the next node in the route to extend the connection to. The static
         # public key could be obtained from the DHT from the "target_addr", but it can be sent to reduce DHT lookups.
         target_addr = pickle.loads(data)
-        target_static_public_key = DHT.get_static_public_key(target_addr.ip)
+        target_static_public_key = DHT.get_static_public_key(target_addr.ip, silent=True)
+
+        # If the target node is not in the DHT, request the node information from the directory node.
+        if not target_static_public_key:
+            logging.error(f"\t\tTarget node for extension not in DHT: {target_addr.ip}")
+            logging.debug(f"\t\tRequesting node information from directory node...")
+
+            self.obtain_first_nodes(need_to_know=[target_addr.ip])
+            while not (target_static_public_key := DHT.get_static_public_key(target_addr.ip, silent=True)):
+                pass
+
         target_id = DHT.get_id(target_addr.ip)
         # logging.debug(f"\t\tExtending to: {target_addr.ip}")
 
@@ -819,12 +831,22 @@ class ControlConnectionManager:
         @return:
         """
 
-        # Get the list of nodes from the DHT, and send it to the requesting node.
+        # Parse the required addresses from the data.
+        required_ip_addresses = data.split(b",") if data else []
         nodes = []
-        for x in range(3):
+
+        # Get the fixed nodes first.
+        for ip in required_ip_addresses:
+            node = DHT.get_fixed_node(ip.decode())
+            if node: nodes.append(node)
+
+        # Get random nodes from the DHT.
+        for x in range(min(3, 3 - len(nodes))):
             next_node = DHT.get_random_node(block_list=[node["ip"] for node in nodes])
             if not next_node: break
             nodes.append(next_node)
+
+        # Send the nodes to the requesting node.
         self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.DIR_LST_RES, pickle.dumps(nodes))
 
     @LogPre

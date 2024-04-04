@@ -67,6 +67,20 @@ class DHT:
         return b""
 
     @staticmethod
+    def get_fixed_node(ip: Str) -> Dict[Str, Str]:
+        with DHT.LOCK:
+            cache = json.load(open("./_cache/dht_cache.json"))
+
+        fixed_node = [node for node in cache if node["ip"] == ip]
+        if fixed_node:
+            fixed_node = fixed_node[0]
+            fixed_node["id" ] = bytes.fromhex(fixed_node["id"])
+            fixed_node["key"] = bytes.fromhex(fixed_node["key"])
+            return fixed_node
+
+        return {}
+
+    @staticmethod
     def get_random_node(block_list: List[Str] = None) -> Dict[Str, Str]:
         block_list = block_list or []
         with DHT.LOCK:
