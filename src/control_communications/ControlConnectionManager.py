@@ -765,7 +765,7 @@ class ControlConnectionManager:
         their_static_public_key = data  # todo: remove correspongin ex-pikcle.dumps
 
         # Save the new node's public key to the DHT, and generate a certificate for the new node.
-        node_id = Hashing.hash(their_static_public_key)
+        node_id = Hashing.hash(their_static_public_key).hex().encode()
         # DirectoryNodeFileManager.add_record(node_id.raw, their_static_public_key.raw)
 
         # Temporary conversation

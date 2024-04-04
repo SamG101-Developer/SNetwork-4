@@ -88,5 +88,5 @@ class DHT:
     def cache_node_information(node_id: Bytes, node_public_key: Bytes, ip_address: Str) -> None:
         with DHT.LOCK:
             cache = json.load(open("./_cache/dht_cache.json"))
-            cache.append({"id": node_id.hex(), "key": node_public_key.decode(), "ip": ip_address})
+            cache.append({"id": node_id.decode(), "key": node_public_key.decode(), "ip": ip_address})
             json.dump(cache, open("./_cache/dht_cache.json", "w"))
