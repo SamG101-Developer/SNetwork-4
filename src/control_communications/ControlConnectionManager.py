@@ -212,7 +212,9 @@ class ControlConnectionManager:
         node_to_contact = DHT.get_random_node(block_list=[Address.me().ip])
 
         if not node_to_contact:
-            logging.debug("No nodes online at the moment")
+            logging.error("No nodes online at the moment")
+            logging.debug("Using directory node")
+            self.obtain_first_nodes()
             return
 
         logging.debug(f"Refreshing cache from {node_to_contact['ip']}")
