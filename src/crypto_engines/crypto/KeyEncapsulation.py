@@ -29,8 +29,8 @@ class KEM:
         encapsulated_key = their_ephemeral_public_key.encrypt(
             plaintext=decapsulated_key,
             padding=OAEP(
-                mgf=MGF1(algorithm=Hashing.ALGORITHM),
-                algorithm=Hashing.ALGORITHM,
+                mgf=MGF1(algorithm=Hashing.ALGORITHM()),
+                algorithm=Hashing.ALGORITHM(),
                 label=None
             ))
         return KEMKeyPair(encapsulated_key, decapsulated_key)
@@ -41,8 +41,8 @@ class KEM:
         decapsulated_key = my_ephemeral_secret_key.decrypt(
             ciphertext=encapsulated_key,
             padding=OAEP(
-                mgf=MGF1(algorithm=Hashing.ALGORITHM),
-                algorithm=Hashing.ALGORITHM,
+                mgf=MGF1(algorithm=Hashing.ALGORITHM()),
+                algorithm=Hashing.ALGORITHM(),
                 label=None
             ))
         return KEMKeyPair(encapsulated_key, decapsulated_key)

@@ -38,10 +38,10 @@ class DigitalSigning:
         signature = my_static_private_key.sign(
             data=hashed_message,
             padding=PSS(
-                mgf=MGF1(algorithm=Hashing.ALGORITHM),
+                mgf=MGF1(algorithm=Hashing.ALGORITHM()),
                 salt_length=PSS.MAX_LENGTH
             ),
-            algorithm=Hashing.ALGORITHM)
+            algorithm=Hashing.ALGORITHM())
 
         # Package the message and signature into a SignedMessage object.
         return SignedMessage(enriched_message, bytes(signature))
@@ -62,10 +62,10 @@ class DigitalSigning:
             data=hashed_message,
             signature=signed_message.signature,
             padding=PSS(
-                mgf=MGF1(algorithm=Hashing.ALGORITHM),
+                mgf=MGF1(algorithm=Hashing.ALGORITHM()),
                 salt_length=PSS.MAX_LENGTH
             ),
-            algorithm=Hashing.ALGORITHM)
+            algorithm=Hashing.ALGORITHM())
 
         return True
 
