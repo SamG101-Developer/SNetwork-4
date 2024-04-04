@@ -1,3 +1,4 @@
+import json
 from argparse import Namespace
 from threading import Thread
 import logging
@@ -37,6 +38,12 @@ class CmdHandler:
             os.system("rm -rf ./_keys")
             os.system("rm -rf ./_cache")
             os.system("rm -rf ./_certs")
+
+        # Remake empty directories.
+        os.mkdir("./_keys")
+        os.mkdir("./_certs")
+        os.mkdir("./_cache")
+        json.dump([], open("./_cache/dht_cache.json", "w"))
 
     @staticmethod
     def _handle_keygen(arguments: Namespace) -> None:
