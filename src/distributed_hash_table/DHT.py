@@ -53,7 +53,7 @@ class DHT:
     def get_id(address: str, silent: bool = False) -> bytes:
         public_key = DHT.get_static_public_key(address, silent)
         if public_key:
-            node_id = Hashing.hash(public_key.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo))
+            node_id = Hashing.hash(public_key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo))
             return node_id
         return b""
 

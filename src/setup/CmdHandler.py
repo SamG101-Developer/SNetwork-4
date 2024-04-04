@@ -47,7 +47,7 @@ class CmdHandler:
 
             # Generate the static key pair for digital signing, and the hash of the public key (identifier).
             my_static_key_pair = DigitalSigning.generate_key_pair()
-            my_identifier = Hashing.hash(my_static_key_pair.public_key.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)).hex()
+            my_identifier = Hashing.hash(my_static_key_pair.public_key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo)).hex()
 
             # Write the keys to disk.
             my_static_key_pair.export("./_keys/me", "static")
