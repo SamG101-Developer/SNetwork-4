@@ -170,7 +170,7 @@ class ControlConnectionManager:
         self._send_message_onwards(target_address, connection_token.token, ControlConnectionProtocol.DIR_LST_REQ, b"")
 
         cache_path = "./_cache/dht_cache.json"
-        while not os.path.exists(cache_path) or len(json.load(open(cache_path))) == 0:
+        while not os.path.exists(cache_path):  # todo: is this loop needed?
             pass
 
     def _open_connection_to(self, addr: Address) -> ConnectionToken:
