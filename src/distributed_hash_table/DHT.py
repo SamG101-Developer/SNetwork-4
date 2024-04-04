@@ -46,14 +46,14 @@ class DHT:
                 raise NodeNotInNetworkException
             return None
 
-        public_key = load_pem_public_key(public_key[0])
+        public_key = load_pem_public_key(public_key[0].encode())
         return public_key
 
     @staticmethod
     def get_id(address: str, silent: bool = False) -> bytes:
         public_key = DHT.get_static_public_key(address, silent)
         if public_key:
-            node_id = Hashing.hash(public_key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo))
+            node_id = Hashing.hash(public_key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo)).hex().encode()
             return node_id
         return b""
 
