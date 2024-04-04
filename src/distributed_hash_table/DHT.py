@@ -77,7 +77,7 @@ class DHT:
 
         if random_node:
             random_node["id" ] = bytes.fromhex(random_node["id"])
-            random_node["key"] = random_node["key"]
+            random_node["key"] = bytes.fromhex(random_node["key"])
 
         return random_node
 
