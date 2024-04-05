@@ -1037,6 +1037,7 @@ class ControlConnectionManager:
             conversation_id = ConnectionToken(token=connection_token, address=addr)
 
             if shared_secret := self._conversations[conversation_id].shared_secret:
+                print("e2e decrypting")
                 data = SymmetricEncryption.decrypt(data, shared_secret)
 
         # Decrypt any layered encryption (if the command is CONN_FWD).
@@ -1046,6 +1047,7 @@ class ControlConnectionManager:
         # todo : just call "self._handle_message directly(...)", and remove the "addr != Address.me()"?
         if not self._is_directory_node and self._my_route and self._my_route.connection_token.token == connection_token:
             if addr != Address.me():
+                print("decrypting all layers")
                 relay_nodes = iter(self._my_route.route[1:])
                 next_node = next(relay_nodes, None)
 
@@ -1071,11 +1073,13 @@ class ControlConnectionManager:
 
             # Relay node receiving a message from the previous node in the route => decrypt a layer
             if from_previous_node:
+                print("unwrapping 1 layer")
                 client_key = self._node_to_client_tunnel_keys[connection_token].shared_secret.decapsulated_key
                 data = SymmetricEncryption.decrypt(data, client_key)
 
             # Relay node receiving a message from the next node in the route => add a layer of encryption
             elif self._parse_message(data)[0] == ControlConnectionProtocol.CONN_FWD:
+                print("wrapping 1 layer")
                 client_key = self._node_to_client_tunnel_keys[connection_token].shared_secret.decapsulated_key
                 data = SymmetricEncryption.encrypt(data, client_key)
                 data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + connection_token + data
