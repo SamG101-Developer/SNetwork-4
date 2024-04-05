@@ -151,8 +151,10 @@ class AppItem(QPushButton):
 
         painter.drawRoundedRect(0, 0, self.width(), self.height(), 16, 16)
         pixmap = QPixmap(self._icon)
-        pixmap = pixmap.scaled(self.width() // 2, self.height() // 2, Qt.AspectRatioMode.KeepAspectRatio,
-                               Qt.TransformationMode.SmoothTransformation)
+        if not pixmap.isNull():
+            pixmap = pixmap.scaled(
+                self.width() // 2, self.height() // 2, Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation)
         painter.drawPixmap((self.width() - pixmap.width()) // 2, self.height() // 8, pixmap)
 
         font = QFont()
