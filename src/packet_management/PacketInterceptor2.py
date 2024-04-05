@@ -136,7 +136,7 @@ class IntermediaryNodeInterceptor:
         new_packet = old_packet[IP].copy()
         new_packet[TCP].remove_payload()
         old_payload = Bytes(old_packet[TCP].payload)[:-32]
-        print(f"Forwarding next ({len(old_payload)} bytes)")
+        # print(f"Forwarding next ({len(old_payload)} bytes)")
 
         # Decrypt the payload with the next key.
         new_payload = SymmetricEncryption.decrypt(old_payload, self._node_tunnel_keys[connection_token])
@@ -147,6 +147,7 @@ class IntermediaryNodeInterceptor:
         new_packet.add_payload(new_payload)
         new_packet[TCP].dport = PACKET_PORT if next_address.is_private else HTTPS_PORT
         new_packet[IP].dst = next_address.exploded
+        new_packet[IP].src = Address.me().ip
         
         # Register information to the exit node interceptor if the packet is going to the internet.
         if not next_address.is_private:
@@ -182,6 +183,7 @@ class IntermediaryNodeInterceptor:
         new_packet.add_payload(new_payload)
         new_packet[TCP].dport = PACKET_PORT
         new_packet[IP].dst = prev_address
+        new_packet[IP].src = Address.me().ip
         
         # Add the Ethernet layer and force checksums to be recalculated.
         new_packet = Ether() / new_packet
@@ -229,6 +231,7 @@ class ExitNodeInterceptor:
         new_packet = old_packet.copy()
         new_packet[TCP].dport = PACKET_PORT
         new_packet[IP].dst = Address.me().ip
+        new_packet[IP].src = Address.me().ip
         
         # Add the connection token to the packet.
         connection_token = self._port_mapping.get(old_packet[TCP].sport)
