@@ -149,7 +149,6 @@ class IntermediaryNodeInterceptor:
         # Register information to the exit node interceptor if the packet is going to the internet.
         if not next_address.is_private:
             self._exit_node_interceptor.register_information(port=old_packet[TCP].sport, connection_token=connection_token)
-        else:
             logging.debug(f"\033[34mPacket from {old_packet[IP].src} intercepted and sent forwards to the internet {next_address}.\033[0m")
             # todo: send the packet (safe to test first)
             return
