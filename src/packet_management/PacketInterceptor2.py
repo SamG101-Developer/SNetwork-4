@@ -43,7 +43,7 @@ class ClientPacketInterceptor:
 
     def _transform_packet(self, old_packet: Packet) -> None:
         # Only process outgoing packets on the HTTPS port.
-        if not (IP in old_packet and TCP in old_packet and old_packet[IP].src == self._my_ip_address):
+        if IP not in old_packet or TCP not in old_packet or old_packet[IP].src != self._my_ip_address:
             return
 
         # Copy the old packet from the IP layer, and remove the payload.
@@ -209,7 +209,9 @@ class ExitNodeInterceptor:
         
     def _transform_packet(self, old_packet: Packet) -> None:
         # Only process incoming packets on the HTTPS port.
-        if not (IP in old_packet and TCP in old_packet and old_packet[TCP].dport == HTTPS_PORT):
+        if IP not in old_packet or TCP not in old_packet or old_packet[TCP].dport == HTTPS_PORT:
+            return
+        if old_packet[TCP].sport not in self._port_mapping:
             return
         
         # Otherwise, send the packet to itself on port 12346, and let the intermediary node handle it.
