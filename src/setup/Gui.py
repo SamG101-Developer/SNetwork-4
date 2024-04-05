@@ -21,19 +21,19 @@ class MainWindow(QWidget):
 
         # Add the buttons
         self._join_button = AppItem(
-            parent=self, text="Join Network", icon="icons/join_network.svg", clicked=self.join)
+            parent=self, text="Join Network", icon="./icons/join_network.svg", clicked=self.join)
         self._route_button = AppItem(
-            parent=self, text="Create Route", icon="icons/create_route.svg", clicked=self.route, disabled=True)
+            parent=self, text="Create Route", icon="./icons/create_route.svg", clicked=self.route, disabled=True)
         self._store_button = AppItem(
-            parent=self, text="Store Data", icon="icons/store_data.svg", clicked=self.store, disabled=True)
+            parent=self, text="Store Data", icon="./icons/store_data.svg", clicked=self.store, disabled=True)
         self._retrieve_button = AppItem(
-            parent=self, text="Retrieve Data", icon="icons/retrieve_data.svg", clicked=self.retrieve, disabled=True)
+            parent=self, text="Retrieve Data", icon="./icons/retrieve_data.svg", clicked=self.retrieve, disabled=True)
         self._keygen_button = AppItem(
-            parent=self, text="Keygen", icon="icons/keygen.svg", clicked=self.keygen, disabled=True)
+            parent=self, text="Keygen", icon="./icons/keygen.svg", clicked=self.keygen, disabled=True)
         self._directory_button = AppItem(
-            parent=self, text="Directory Node", icon="icons/directory_node.svg", clicked=self.directory, large=True)
+            parent=self, text="Directory Node", icon="./icons/directory_node.svg", clicked=self.directory, large=True)
         self._reset_button = AppItem(
-            parent=self, text="Reset Node", icon="icons/reset_node.svg", clicked=self.reset, disabled=True)
+            parent=self, text="Reset Node", icon="./icons/reset_node.svg", clicked=self.reset, disabled=True)
 
         # Add the buttons to the layout
         layout.addWidget(self._join_button, 1, 0)
