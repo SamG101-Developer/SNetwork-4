@@ -91,6 +91,7 @@ class ClientPacketInterceptor:
 
         # Debug
         logging.debug(f"\033[33mPacket to {old_packet[IP].dst} intercepted and sent to entry node {new_packet[IP].dst}:{new_packet[TCP].dport} ({len(new_payload) - 32} bytes).\033[0m")
+        logging.debug(f"\033[33mPayload: {old_payload[:32]}...\033[0m")
 
 
 class IntermediaryNodeInterceptor:
@@ -162,7 +163,8 @@ class IntermediaryNodeInterceptor:
         # Register information to the exit node interceptor if the packet is going to the internet.
         if not next_address.is_private:
             self._exit_node_interceptor.register_information(port=old_packet[TCP].sport, connection_token=connection_token)
-            logging.debug(f"\033[34mPacket from {old_packet[IP].src} intercepted and sent forwards to the internet {next_address}.\033[0m")
+            logging.debug(f"\033[32mPacket from {old_packet[IP].src} intercepted and sent forwards to the internet {next_address}.\033[0m")
+            logging.debug(f"\033[32mPayload: {old_payload[:32]}...\033[0m")
             # todo: send the packet (safe to test first)
             return
         
@@ -176,7 +178,7 @@ class IntermediaryNodeInterceptor:
             sendp(new_packet)
 
         # Debug
-        logging.debug(f"\033[34mPacket from {old_packet[IP].src} intercepted and sent forwards to next node {next_address}.\033[0m")
+        logging.debug(f"\033[32mPacket from {old_packet[IP].src} intercepted and sent forwards to next node {next_address}.\033[0m")
         
     def _forward_prev(self, old_packet: Packet, connection_token: Bytes) -> None:
         # Copy the old packet from the IP layer, and remove the payload.
@@ -255,7 +257,7 @@ class ExitNodeInterceptor:
         del new_packet[TCP].chksum
         
         # Send the packet (to itself).
-        # sendp(new_packet)
+        sendp(new_packet)
 
         # Debug
         logging.debug(f"\033[36mPacket from {old_packet[IP].src} (internet) intercepted and sent to itself on port 12346.\033[0m")
