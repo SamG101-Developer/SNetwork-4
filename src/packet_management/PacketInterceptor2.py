@@ -88,7 +88,7 @@ class ClientPacketInterceptor:
         sendp(new_packet)
 
         # Debug
-        logging.debug(f"\033[33mPacket to {old_packet[IP].dst} intercepted and sent to entry node {self._relay_node_addresses[0]}.\033[0m")
+        logging.debug(f"\033[33mPacket to {old_packet[IP].dst} intercepted and sent to entry node {new_packet[IP].dst}:{new_packet[TCP].dport}.\033[0m")
 
 
 class IntermediaryNodeInterceptor:
@@ -112,6 +112,7 @@ class IntermediaryNodeInterceptor:
         
     def register_prev_node(self, connection_token: Bytes, key: Bytes, previous_address: Str) -> None:
         # Register the connection token, previous key, and previous address.
+        logging.debug(f"\033[34mRegistering previous node {previous_address}.\033[0m")
         self._node_tunnel_keys[connection_token] = key
         self._prev_addresses[connection_token] = previous_address
         
@@ -163,7 +164,7 @@ class IntermediaryNodeInterceptor:
             sendp(new_packet)
 
         # Debug
-        logging.debug(f"\033[33mPacket from {old_packet[IP].src} intercepted and sent forwards to next node {next_address}.\033[0m")
+        logging.debug(f"\033[34mPacket from {old_packet[IP].src} intercepted and sent forwards to next node {next_address}.\033[0m")
         
     def _forward_prev(self, old_packet: Packet, connection_token: Bytes) -> None:
         # Copy the old packet from the IP layer, and remove the payload.
@@ -190,7 +191,7 @@ class IntermediaryNodeInterceptor:
         # sendp(new_packet)
 
         # Debug
-        logging.debug(f"\033[35mPacket from {old_packet[IP].src} intercepted and sent backwards to next node {prev_address}.\033[0m")
+        logging.debug(f"\033[35mPacket from {old_packet[IP].src} intercepted and sent backwards to prev node {prev_address}.\033[0m")
 
 
 class ExitNodeInterceptor:
