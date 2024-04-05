@@ -75,6 +75,16 @@ class ControlConnectionManager:
         self._is_directory_node = is_directory_node
         self._waiting_for_cert = False
 
+        # Check own information is in the cache
+        if not self._is_directory_node:
+            if not DHT.get_static_public_key(Address.me().ip, silent=True):
+                my_static_public_key = KeyPair().import_("./_keys/me", "static").public_key
+                my_id = bytes.fromhex(open("./_keys/me/identifier.txt", "r").read())
+                DHT.cache_node_information(
+                    node_id=my_id,
+                    node_public_key=my_static_public_key.public_bytes(encoding=Encoding.DER, format=PublicFormat.SubjectPublicKeyInfo),
+                    ip_address=Address.me().ip)
+
         # Setup functions that are optionally run depending on the state of this node.
         if not self._is_directory_node and not os.path.exists("./_certs/certificate.ctf"):
             self.obtain_certificate()
