@@ -113,6 +113,9 @@ class ControlConnectionManager:
         if self._my_route:
             return
 
+        # Create the packet interceptor for the client node.
+        self._client_packet_interceptor = ClientPacketInterceptor(connection_token=self._my_route.connection_token.token)
+
         # To create the route, the client will tell itself to extend the connection to the first node in the route. Each
         # time a new node is added, the communication flows via every node in the existing network, so only the first
         # node in the route knows the client node.
@@ -159,11 +162,6 @@ class ControlConnectionManager:
 
         # Log the route.
         logging.info(f"\t\tCreated route: {' -> '.join([node.connection_token.address.ip for node in self._my_route.route])}")
-
-        # Create the packet interceptor for the client node.
-        self._client_packet_interceptor = ClientPacketInterceptor(
-            connection_token=self._my_route.connection_token.token,
-            relay_node_addresses=[relay_node.connection_token.address.ip for relay_node in self._my_route.route][1:])
 
     def obtain_certificate(self):
         # This is a new node, so generate a static asymmetric key pair for signing.
@@ -657,7 +655,9 @@ class ControlConnectionManager:
 
             # The shared secret is added here. If added before, the recipient would need the key to decrypt the key.
             self._my_route.route[-1].shared_secret = kem_wrapped_packet_key
-            self._client_packet_interceptor.register_key(self._my_route.route[-1].shared_secret.decapsulated_key)
+            self._client_packet_interceptor.register_info(
+                address=self._pending_node_to_add_to_route.ip,
+                key=self._my_route.route[-1].shared_secret.decapsulated_key)
 
         # Otherwise, send this message to the previous node in the route.
         else:

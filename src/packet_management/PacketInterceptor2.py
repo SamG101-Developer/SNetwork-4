@@ -28,18 +28,19 @@ class ClientPacketInterceptor:
     _relay_node_addresses: List[Str]
     _my_ip_address: Str
 
-    def __init__(self, connection_token: Bytes, relay_node_addresses: List[Str]):
+    def __init__(self, connection_token: Bytes):
         # Set the attribute values
         self._connection_token = connection_token
         self._node_tunnel_keys = []
-        self._relay_node_addresses = relay_node_addresses
+        self._relay_node_addresses = []
         self._my_ip_address = Address.me().ip
 
         # Begin intercepting
         Thread(target=self._begin_interception).start()
 
-    def register_key(self, key: Bytes) -> None:
+    def register_info(self, address: Str, key: Bytes) -> None:
         # Register the key to the list.
+        self._relay_node_addresses.append(address)
         self._node_tunnel_keys.append(key)
 
     def _begin_interception(self) -> None:
@@ -50,7 +51,7 @@ class ClientPacketInterceptor:
         # Only process outgoing packets on the HTTPS port.
         if IP not in old_packet or TCP not in old_packet or old_packet[IP].src != self._my_ip_address:
             return
-        if len(self._node_tunnel_keys) < 3:
+        if len(self._relay_node_addresses) < 3:
             return
 
         # Copy the old packet from the IP layer, and remove the payload.
