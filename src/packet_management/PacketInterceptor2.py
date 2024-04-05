@@ -125,9 +125,12 @@ class IntermediaryNodeInterceptor:
         # Get the connection token from the packet, and check if it is in the dictionary.
         connection_token = Bytes(old_packet[TCP].payload)[-32:]
         if connection_token not in self._node_tunnel_keys: return
+
+        # Prevent re-routed packets being re-captured when they are sent, unless it's the exit node doing it.
+        if old_packet[IP].src == Address.me().ip and old_packet[IP].dst != Address.me():
+            return
         
         # Depending on the sender of the packet, forward it to the next or previous node.
-        # print(old_packet[IP].src, self._prev_addresses[connection_token], old_packet[IP].src == self._prev_addresses[connection_token])
         if old_packet[IP].src == self._prev_addresses[connection_token]:
             self._forward_next(old_packet, connection_token)
         else:
@@ -149,7 +152,6 @@ class IntermediaryNodeInterceptor:
 
         next_address, new_payload = new_payload[:4], new_payload[4:]
         next_address = IPv4Address(next_address)
-        print("Next address:", next_address)
         
         # Add the payload to the packet and route it to the next node (could be the internet).
         new_packet.add_payload(new_payload)
