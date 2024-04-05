@@ -46,7 +46,7 @@ class DHT:
         public_key = [node["key"] for node in cache if node["ip"] == address]
         if not public_key:
             if not silent:
-                raise NodeNotInNetworkException
+                raise NodeNotInNetworkException(f"Node with IP {address} is not in the network.")
             return None
 
         # Load the public key from the cache.
