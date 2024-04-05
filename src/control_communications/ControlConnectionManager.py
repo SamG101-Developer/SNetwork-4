@@ -163,7 +163,6 @@ class ControlConnectionManager:
         # Create the packet interceptor for the client node.
         self._client_packet_interceptor = ClientPacketInterceptor(
             connection_token=self._my_route.connection_token.token,
-            node_tunnel_keys=[relay_node.shared_secret.decapsulated_key for relay_node in self._my_route.route][1:],
             relay_node_addresses=[relay_node.connection_token.address.ip for relay_node in self._my_route.route][1:])
 
     def obtain_certificate(self):
@@ -658,6 +657,7 @@ class ControlConnectionManager:
 
             # The shared secret is added here. If added before, the recipient would need the key to decrypt the key.
             self._my_route.route[-1].shared_secret = kem_wrapped_packet_key
+            self._client_packet_interceptor.register_key(self._my_route.route[-1].shared_secret.decapsulated_key)
 
         # Otherwise, send this message to the previous node in the route.
         else:
