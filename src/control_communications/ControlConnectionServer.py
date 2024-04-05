@@ -4,6 +4,10 @@ from threading import Thread
 from src.MyTypes import Optional, Callable, Tuple, Int, Str
 
 
+BUFFER_SIZE = 16384
+CLIENT_PORT = 12345
+
+
 class ControlConnectionServer:
     _socket: Optional[socket.socket] = None
     _temp_threads: list[Thread] = []
@@ -14,18 +18,15 @@ class ControlConnectionServer:
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._server_socket_thread = Thread(target=self._setup_socket)
         self._server_socket_thread.start()
-
         self.on_message_received = None
 
     def _setup_socket(self) -> None:
-        # Bind a UDP socket for incoming commands to this node
-        # self._socket.settimeout(5)
-        self._socket.bind(("", 12345))
+        # Bind the UDP socket for incoming commands to this node
+        self._socket.bind(("", CLIENT_PORT))
 
         # For each message received, handle it in a new thread
         while True:
-            message = self._socket.recvfrom(16384)
-            # logging.debug(f"\t\tReceived message: {message[0][:10]}... from {message[1]}")
+            message = self._socket.recvfrom(BUFFER_SIZE)
             thread = Thread(target=self.on_message_received, args=(*message,))
             thread.start()
             self._temp_threads.append(thread)
