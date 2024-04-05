@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from ipaddress import IPv4Address
+from threading import Thread
 
 from scapy.packet import Packet
 from scapy.sendrecv import sniff, sendp
@@ -35,7 +36,7 @@ class ClientPacketInterceptor:
         self._my_ip_address = Address.me().ip
 
         # Begin intercepting
-        self._begin_interception()
+        Thread(target=self._begin_interception).start()
 
     def _begin_interception(self) -> None:
         # Begin sniffing on the HTTPS port (outgoing).
@@ -77,7 +78,7 @@ class ClientPacketInterceptor:
         del new_packet[IP].chksum
 
         # Send the packet (to the entry node).
-        sendp(new_packet)
+        # sendp(new_packet)
 
         # Debug
         logging.debug(f"\033[33mPacket to {old_packet[IP].dst} intercepted and sent to entry node {self._relay_node_addresses[0]}.\033[0m")
@@ -100,7 +101,7 @@ class IntermediaryNodeInterceptor:
         self._exit_node_interceptor = ExitNodeInterceptor()
 
         # Begin intercepting
-        self._begin_interception()
+        Thread(target=self._begin_interception).start()
         
     def register_prev_node(self, connection_token: Bytes, key: Bytes, previous_address: Str) -> None:
         # Register the connection token, previous key, and previous address.
@@ -151,7 +152,7 @@ class IntermediaryNodeInterceptor:
         del new_packet[TCP].chksum
         
         # Send the packet (to the next node or the internet).
-        sendp(new_packet)
+        # sendp(new_packet)
 
         # Debug
         logging.debug(f"\033[33mPacket from {old_packet[IP].src} intercepted and sent forwards to next node {next_address}.\033[0m")
@@ -178,7 +179,7 @@ class IntermediaryNodeInterceptor:
         del new_packet[TCP].chksum
         
         # Send the packet (to the previous node).
-        sendp(new_packet)
+        # sendp(new_packet)
 
         # Debug
         logging.debug(f"\033[35mPacket from {old_packet[IP].src} intercepted and sent backwards to next node {prev_address}.\033[0m")
@@ -197,7 +198,7 @@ class ExitNodeInterceptor:
         self._port_mapping = {}
 
         # Begin intercepting
-        self._begin_interception()
+        Thread(target=self._begin_interception).start()
         
     def register_information(self, port: int, connection_token: Bytes) -> None:
         # Register the connection token to the port.
@@ -231,7 +232,7 @@ class ExitNodeInterceptor:
         del new_packet[TCP].chksum
         
         # Send the packet (to itself).
-        sendp(new_packet)
+        # sendp(new_packet)
 
         # Debug
         logging.debug(f"\033[36mPacket from {old_packet[IP].src} (internet) intercepted and sent to itself on port 12346.\033[0m")

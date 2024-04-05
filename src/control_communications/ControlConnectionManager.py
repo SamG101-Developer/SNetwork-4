@@ -163,8 +163,8 @@ class ControlConnectionManager:
         # Create the packet interceptor for the client node.
         self._client_packet_interceptor = ClientPacketInterceptor(
             connection_token=self._my_route.connection_token.token,
-            node_tunnel_keys=[relay_node.shared_secret.decapsulated_key for relay_node in self._my_route.route],
-            relay_node_addresses=[relay_node.connection_token.address.ip for relay_node in self._my_route.route])
+            node_tunnel_keys=[relay_node.shared_secret.decapsulated_key for relay_node in self._my_route.route][1:],
+            relay_node_addresses=[relay_node.connection_token.address.ip for relay_node in self._my_route.route][1:])
 
     def obtain_certificate(self):
         # This is a new node, so generate a static asymmetric key pair for signing.
