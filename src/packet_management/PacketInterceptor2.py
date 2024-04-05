@@ -85,7 +85,7 @@ class ClientPacketInterceptor:
         del new_packet[IP].chksum
 
         # Send the packet (to the entry node).
-        # sendp(new_packet)
+        sendp(new_packet)
 
         # Debug
         logging.debug(f"\033[33mPacket to {old_packet[IP].dst} intercepted and sent to entry node {self._relay_node_addresses[0]}.\033[0m")
@@ -159,7 +159,8 @@ class IntermediaryNodeInterceptor:
         del new_packet[TCP].chksum
         
         # Send the packet (to the next node or the internet).
-        # sendp(new_packet)
+        if IPv4Address(next_address).is_private:  # todo: for now, testing before hitting internet
+            sendp(new_packet)
 
         # Debug
         logging.debug(f"\033[33mPacket from {old_packet[IP].src} intercepted and sent forwards to next node {next_address}.\033[0m")
