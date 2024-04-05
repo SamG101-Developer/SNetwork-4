@@ -127,7 +127,7 @@ class IntermediaryNodeInterceptor:
         if connection_token not in self._node_tunnel_keys: return
 
         # Prevent re-routed packets being re-captured when they are sent, unless it's the exit node doing it.
-        if old_packet[IP].src == Address.me().ip and old_packet[IP].dst != Address.me():
+        if old_packet[IP].src == Address.me().ip and old_packet[IP].dst != Address.me().ip:
             return
         
         # Depending on the sender of the packet, forward it to the next or previous node.
