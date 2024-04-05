@@ -49,7 +49,7 @@ class ClientPacketInterceptor:
         # Copy the old packet from the IP layer, and remove the payload.
         new_packet = old_packet[IP].copy()
         new_packet.remove_payload()
-        old_payload = old_packet[TCP].payload
+        old_payload = Bytes(old_packet[TCP].payload)
 
         # Encrypt the payload with the exit node key.
         embedded_ip_address = IPv4Address(old_packet[IP].dst).packed
@@ -113,7 +113,7 @@ class IntermediaryNodeInterceptor:
         
     def _transform_packet(self, old_packet: Packet) -> None:
         # Get the connection token from the packet, and check if it is in the dictionary.
-        connection_token = old_packet[TCP].payload[-32:]
+        connection_token = Bytes(old_packet[TCP].payload)[-32:]
         if connection_token not in self._node_tunnel_keys: return
         
         # Depending on the sender of the packet, forward it to the next or previous node.
@@ -126,7 +126,7 @@ class IntermediaryNodeInterceptor:
         # Copy the old packet from the IP layer, and remove the payload.
         new_packet = old_packet[IP].copy()
         new_packet.remove_payload()
-        old_payload = old_packet[TCP].payload[:-32]
+        old_payload = Bytes(old_packet[TCP].payload)[:-32]
         
         # Decrypt the payload with the next key.
         new_payload = SymmetricEncryption.decrypt(old_payload, self._node_tunnel_keys[connection_token])
@@ -160,7 +160,7 @@ class IntermediaryNodeInterceptor:
         # Copy the old packet from the IP layer, and remove the payload.
         new_packet = old_packet[IP].copy()
         new_packet.remove_payload()
-        old_payload = old_packet[TCP].payload[:-32]
+        old_payload = Bytes(old_packet[TCP].payload)[:-32]
         
         # Encrypt the payload with the previous key, and add the connection token.
         new_payload = SymmetricEncryption.encrypt(old_payload, self._node_tunnel_keys[connection_token])
@@ -221,7 +221,7 @@ class ExitNodeInterceptor:
         
         # Add the connection token to the packet.
         connection_token = self._port_mapping.get(old_packet[TCP].sport)
-        old_payload = old_packet[TCP].payload
+        old_payload = Bytes(old_packet[TCP].payload)
         new_packet[TCP].remove_payload()
         new_packet.add_payload(old_payload + connection_token)
         
