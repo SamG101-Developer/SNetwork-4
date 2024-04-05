@@ -12,6 +12,8 @@ from src.MyTypes import Bytes, List, Str, Dict, Tuple
 from src.control_communications.ControlConnectionRoute import Address
 from src.crypto_engines.crypto.SymmetricEncryption import SymmetricEncryption
 
+from cryptography.exceptions import InvalidTag
+
 
 PACKET_PORT = 12346
 HTTPS_PORT = 443
@@ -125,7 +127,7 @@ class IntermediaryNodeInterceptor:
         if connection_token not in self._node_tunnel_keys: return
         
         # Depending on the sender of the packet, forward it to the next or previous node.
-        print(old_packet[IP].src, self._prev_addresses[connection_token], old_packet[IP].src == self._prev_addresses[connection_token])
+        # print(old_packet[IP].src, self._prev_addresses[connection_token], old_packet[IP].src == self._prev_addresses[connection_token])
         if old_packet[IP].src == self._prev_addresses[connection_token]:
             self._forward_next(old_packet, connection_token)
         else:
@@ -139,7 +141,12 @@ class IntermediaryNodeInterceptor:
         # print(f"Forwarding next ({len(old_payload)} bytes)")
 
         # Decrypt the payload with the next key.
-        new_payload = SymmetricEncryption.decrypt(old_payload, self._node_tunnel_keys[connection_token])
+        try:
+            new_payload = SymmetricEncryption.decrypt(old_payload, self._node_tunnel_keys[connection_token])
+        except InvalidTag:
+            logging.error(f"\033[31mInvalid tag for connection token {connection_token}.\033[0m")
+            return
+
         next_address, new_payload = new_payload[:4], new_payload[4:]
         next_address = IPv4Address(next_address)
         
