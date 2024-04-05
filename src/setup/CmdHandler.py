@@ -17,14 +17,12 @@ class CmdHandler:
     CONTROLLER: ControlConnectionManager = None
     THREADS: List[Thread] = []
 
-    def __init__(self, command: Str, arguments: Namespace) -> None:
-        thread = Thread(target=CmdHandler._handle, args=(command, arguments))
-        thread.start()
-        CmdHandler.THREADS.append(thread)
-
     @staticmethod
     def _handle(command: Str, arguments: Namespace) -> None:
-        getattr(CmdHandler, f"_handle_{command}")(arguments)
+        target = getattr(CmdHandler, f"_handle_{command}")(arguments)
+        thread = Thread(target=target, args=(arguments, ))
+        thread.start()
+        CmdHandler.THREADS.append(thread)
 
     @staticmethod
     def _handle_reset(arguments: Namespace) -> None:

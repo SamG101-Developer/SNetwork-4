@@ -3,7 +3,13 @@ __version__ = "4.10.1"
 
 import json, logging, os, sys
 from argparse import ArgumentParser
+
+from PyQt6.QtWidgets import QApplication
+
 from src.setup.CmdHandler import CmdHandler
+from src.setup.Gui import MainWindow
+
+
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -77,12 +83,17 @@ def main():
         logging.debug(f"Don't use program arguments here - use the interactive shell.")
         sys.exit(1)
 
-    parser = create_argument_parser()
-    while True:
-        command = input("> ")
-        if command == "exit": break
-        args = parser.parse_args(command.split())
-        CmdHandler(args.command, args)
+    # parser = create_argument_parser()
+    # while True:
+    #     command = input("> ")
+    #     if command == "exit": break
+    #     args = parser.parse_args(command.split())
+    #     CmdHandler(args.command, args)
+
+    app = QApplication(sys.argv)
+    window = MainWindow()
+    window.show()
+    sys.exit(app.exec())
 
 
 if __name__ == "__main__":
