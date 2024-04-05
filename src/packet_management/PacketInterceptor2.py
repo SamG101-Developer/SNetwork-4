@@ -56,7 +56,7 @@ class ClientPacketInterceptor:
 
         # Copy the old packet from the IP layer, and remove the payload.
         new_packet = old_packet[IP].copy()
-        new_packet.remove_payload()
+        new_packet[TCP].remove_payload()
         old_payload = Bytes(old_packet[TCP].payload)
 
         # Encrypt the payload with the exit node key.
@@ -133,7 +133,7 @@ class IntermediaryNodeInterceptor:
     def _forward_next(self, old_packet: Packet, connection_token: Bytes) -> None:
         # Copy the old packet from the IP layer, and remove the payload.
         new_packet = old_packet[IP].copy()
-        new_packet.remove_payload()
+        new_packet[TCP].remove_payload()
         old_payload = Bytes(old_packet[TCP].payload)[:-32]
         
         # Decrypt the payload with the next key.
@@ -167,7 +167,7 @@ class IntermediaryNodeInterceptor:
     def _forward_prev(self, old_packet: Packet, connection_token: Bytes) -> None:
         # Copy the old packet from the IP layer, and remove the payload.
         new_packet = old_packet[IP].copy()
-        new_packet.remove_payload()
+        new_packet[TCP].remove_payload()
         old_payload = Bytes(old_packet[TCP].payload)[:-32]
         
         # Encrypt the payload with the previous key, and add the connection token.
