@@ -21,6 +21,7 @@ from src.crypto_engines.crypto.Hashing import Hashing
 from src.crypto_engines.tools.KeyPair import KeyPair
 from src.distributed_hash_table.DHT import DHT, NodeNotInNetworkException
 from src.MyTypes import Bytes, Tuple, Str, Int, Dict, Optional, List
+from src.packet_management.PacketInterceptor2 import ClientPacketInterceptor, IntermediaryNodeInterceptor
 
 
 def ReplayErrorBackToUser(error_command):
@@ -62,6 +63,9 @@ class ControlConnectionManager:
     _is_directory_node: bool
     _waiting_for_cert: bool
 
+    _client_packet_interceptor: Optional[ClientPacketInterceptor]
+    _intermediary_node_interceptor: Optional[IntermediaryNodeInterceptor]
+
     def __init__(self, is_directory_node: bool = False, instant_routing: bool = False):
         # Setup the attributes of the control connection manager.
         self._udp_server = ControlConnectionServer()
@@ -74,6 +78,9 @@ class ControlConnectionManager:
 
         self._is_directory_node = is_directory_node
         self._waiting_for_cert = False
+
+        self._client_packet_interceptor = None
+        self._intermediary_node_interceptor = IntermediaryNodeInterceptor()
 
         # Check own information is in the cache
         if not self._is_directory_node:
@@ -152,6 +159,12 @@ class ControlConnectionManager:
 
         # Log the route.
         logging.info(f"\t\tCreated route: {' -> '.join([node.connection_token.address.ip for node in self._my_route.route])}")
+
+        # Create the packet interceptor for the client node.
+        self._client_packet_interceptor = ClientPacketInterceptor(
+            connection_token=self._my_route.connection_token.token,
+            node_tunnel_keys=[relay_node.shared_secret.decapsulated_key for relay_node in self._my_route.route],
+            relay_node_addresses=[relay_node.connection_token.address.ip for relay_node in self._my_route.route])
 
     def obtain_certificate(self):
         # This is a new node, so generate a static asymmetric key pair for signing.
@@ -600,7 +613,6 @@ class ControlConnectionManager:
         :return:
         """
 
-
         # If this is the client node accepting the extension to the route, add the node to the route list.
         if self._my_route and self._my_route.connection_token.token == connection_token:
             # Get the signed ephemeral public key from the data, and verify the signature. The key from Node Z was
@@ -702,7 +714,14 @@ class ControlConnectionManager:
         my_ephemeral_secret_key = self._node_to_client_tunnel_keys[connection_token].ephemeral_key_pair.secret_key
         self._node_to_client_tunnel_keys[connection_token].shared_secret = KEM.kem_unwrap(my_ephemeral_secret_key, data)
 
+        # TODO: Hash and sign the key back, so the client can check for tampering
         self._tunnel_message_backward(addr, connection_token, ControlConnectionProtocol.CONN_PKT_ACK, b"")
+
+        # Register the node with the intermediary node interceptor.
+        self._intermediary_node_interceptor.register_prev_node(
+            connection_token=connection_token,
+            key=self._node_to_client_tunnel_keys[connection_token].shared_secret.decapsulated_key,
+            previous_address=addr.ip)
 
     @LogPre
     def _handle_packet_key_ack(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
@@ -833,12 +852,10 @@ class ControlConnectionManager:
             their_id=DHT.get_id(addr.ip))
 
         sending_data = pickle.dumps((pickle.loads(my_certificate), signed_challenge))
-        logging.debug(len(sending_data))
         self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.DHT_EXH_RES, sending_data)
 
     @LogPre
     def _handle_response_for_certificate(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
-        logging.debug(len(data))
         their_certificate, signed_challenge = pickle.loads(data)
 
         their_certificate: SignedMessage
