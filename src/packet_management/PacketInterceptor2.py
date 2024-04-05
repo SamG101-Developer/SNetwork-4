@@ -164,7 +164,7 @@ class IntermediaryNodeInterceptor:
         if not next_address.is_private:
             self._exit_node_interceptor.register_information(port=old_packet[TCP].sport, connection_token=connection_token)
             logging.debug(f"\033[32mPacket from {old_packet[IP].src} intercepted and sent forwards to the internet {next_address}.\033[0m")
-            logging.debug(f"\033[32mPayload: {old_payload[:32]}...\033[0m")
+            logging.debug(f"\033[32mPayload: {new_payload[:32]}...\033[0m")
             # todo: send the packet (safe to test first)
             return
         
