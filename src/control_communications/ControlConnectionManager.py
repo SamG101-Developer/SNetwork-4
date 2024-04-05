@@ -110,11 +110,10 @@ class ControlConnectionManager:
         @param _arguments: The arguments from the command line.
         @return: None.
         """
+
+        # Only allow 1 route to be created at a time.
         if self._my_route:
             return
-
-        # Create the packet interceptor for the client node.
-        self._client_packet_interceptor = ClientPacketInterceptor(connection_token=self._my_route.connection_token.token)
 
         # To create the route, the client will tell itself to extend the connection to the first node in the route. Each
         # time a new node is added, the communication flows via every node in the existing network, so only the first
@@ -122,6 +121,9 @@ class ControlConnectionManager:
         connection_token = ConnectionToken(token=os.urandom(32), address=Address.me())
         route_node = ControlConnectionRouteNode(connection_token=connection_token, ephemeral_key_pair=None, shared_secret=None, secure=False)
         self._my_route = ControlConnectionRoute(route=[route_node], connection_token=connection_token)
+
+        # Create the packet interceptor for the client node.
+        self._client_packet_interceptor = ClientPacketInterceptor(connection_token=connection_token.token)
 
         # Add the conversation to myself
         self._conversations[connection_token] = ControlConnectionConversationInfo(
