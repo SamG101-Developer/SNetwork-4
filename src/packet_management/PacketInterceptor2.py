@@ -139,14 +139,15 @@ class IntermediaryNodeInterceptor:
         # Decrypt the payload with the next key.
         new_payload = SymmetricEncryption.decrypt(old_payload, self._node_tunnel_keys[connection_token])
         next_address, new_payload = new_payload[:4], new_payload[4:]
+        next_address = IPv4Address(next_address)
         
         # Add the payload to the packet and route it to the next node (could be the internet).
         new_packet.add_payload(new_payload)
-        new_packet[TCP].dport = PACKET_PORT if IPv4Address(next_address).is_private else HTTPS_PORT
-        new_packet[IP].dst = next_address
+        new_packet[TCP].dport = PACKET_PORT if next_address.is_private else HTTPS_PORT
+        new_packet[IP].dst = next_address.exploded
         
         # Register information to the exit node interceptor if the packet is going to the internet.
-        if not IPv4Address(next_address).is_private:
+        if not next_address.is_private:
             self._exit_node_interceptor.register_information(port=old_packet[TCP].sport, connection_token=connection_token)
         else:
             logging.debug(f"\033[34mPacket from {old_packet[IP].src} intercepted and sent forwards to the internet {next_address}.\033[0m")
@@ -159,7 +160,7 @@ class IntermediaryNodeInterceptor:
         del new_packet[TCP].chksum
         
         # Send the packet (to the next node or the internet).
-        if IPv4Address(next_address).is_private:  # todo: for now, testing before hitting internet
+        if next_address.is_private:  # todo: for now, testing before hitting internet
             sendp(new_packet)
 
         # Debug
