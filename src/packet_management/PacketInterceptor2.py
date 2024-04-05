@@ -88,7 +88,7 @@ class ClientPacketInterceptor:
         sendp(new_packet)
 
         # Debug
-        logging.debug(f"\033[33mPacket to {old_packet[IP].dst} intercepted and sent to entry node {new_packet[IP].dst}:{new_packet[TCP].dport}.\033[0m")
+        logging.debug(f"\033[33mPacket to {old_packet[IP].dst} intercepted and sent to entry node {new_packet[IP].dst}:{new_packet[TCP].dport} ({len(new_payload) - 32} bytes).\033[0m")
 
 
 class IntermediaryNodeInterceptor:
@@ -112,7 +112,6 @@ class IntermediaryNodeInterceptor:
         
     def register_prev_node(self, connection_token: Bytes, key: Bytes, previous_address: Str) -> None:
         # Register the connection token, previous key, and previous address.
-        logging.debug(f"\033[34mRegistering previous node {previous_address}.\033[0m")
         self._node_tunnel_keys[connection_token] = key
         self._prev_addresses[connection_token] = previous_address
         
@@ -126,6 +125,7 @@ class IntermediaryNodeInterceptor:
         if connection_token not in self._node_tunnel_keys: return
         
         # Depending on the sender of the packet, forward it to the next or previous node.
+        print(old_packet[IP].src, self._prev_addresses[connection_token], old_packet[IP].src == self._prev_addresses[connection_token])
         if old_packet[IP].src == self._prev_addresses[connection_token]:
             self._forward_next(old_packet, connection_token)
         else:
@@ -136,7 +136,8 @@ class IntermediaryNodeInterceptor:
         new_packet = old_packet[IP].copy()
         new_packet[TCP].remove_payload()
         old_payload = Bytes(old_packet[TCP].payload)[:-32]
-        
+        print(f"Forwarding next ({len(old_payload)} bytes)")
+
         # Decrypt the payload with the next key.
         new_payload = SymmetricEncryption.decrypt(old_payload, self._node_tunnel_keys[connection_token])
         next_address, new_payload = new_payload[:4], new_payload[4:]
