@@ -149,6 +149,7 @@ class IntermediaryNodeInterceptor:
 
         next_address, new_payload = new_payload[:4], new_payload[4:]
         next_address = IPv4Address(next_address)
+        print("Next address:", next_address)
         
         # Add the payload to the packet and route it to the next node (could be the internet).
         new_packet.add_payload(new_payload)
