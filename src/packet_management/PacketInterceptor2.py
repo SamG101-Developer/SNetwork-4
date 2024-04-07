@@ -162,7 +162,7 @@ class ClientPacketInterceptor:
         new_packet[IP].dst = self._relay_node_addresses[0]
 
         # Add the Ethernet layer and force checksums to be recalculated.
-        new_packet = old_packet[Ether].copy() / new_packet
+        new_packet = Ether() / new_packet
         del new_packet[TCP].chksum
         del new_packet[IP].chksum
 
@@ -258,7 +258,7 @@ class IntermediaryNodeInterceptor:
             self._exit_node_interceptor.register_information(port=old_packet[TCP].sport, connection_token=connection_token)
         
         # Add the Ethernet layer and force checksums to be recalculated.
-        new_packet = old_packet[Ether].copy() / new_packet
+        new_packet = Ether() / new_packet
         del new_packet[IP].chksum
         del new_packet[TCP].chksum
         
@@ -287,7 +287,7 @@ class IntermediaryNodeInterceptor:
         new_packet[IP].src = Address.me().ip
         
         # Add the Ethernet layer and force checksums to be recalculated.
-        new_packet = old_packet[Ether].copy() / new_packet
+        new_packet = Ether() / new_packet
         del new_packet[IP].chksum
         del new_packet[TCP].chksum
         
@@ -354,7 +354,7 @@ class ExitNodeInterceptor:
         new_packet.add_payload(new_payload)
 
         # Add the Ethernet layer and force checksums to be recalculated.
-        new_packet = old_packet[Ether].copy() / new_packet
+        new_packet = Ether() / new_packet
         del new_packet[IP].chksum
         del new_packet[TCP].chksum
 
