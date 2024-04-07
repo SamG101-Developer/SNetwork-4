@@ -191,12 +191,10 @@ class IntermediaryNodeInterceptor:
         # Get the connection token from the packet, and check if it is in the dictionary.
         connection_token = Bytes(old_packet[TCP].payload)[-32:]
         if connection_token not in self._node_tunnel_keys:
-            # print(f"\033[31mConnection token {connection_token} not found.\033[0m")
             return
 
         # Prevent re-routed packets being re-captured when they are sent, unless it's the exit node doing it.
         if old_packet[IP].src == Address.me().ip and old_packet[IP].dst != Address.me().ip:
-            print(f"\033[31mPacket from self to {old_packet[IP].dst} re-intercepted on exit (ignored).\033[0m")
             return
         
         # Depending on the sender of the packet, forward it to the next or previous node.
@@ -248,7 +246,7 @@ class IntermediaryNodeInterceptor:
         # Copy the old packet from the IP layer, and remove the payload.
         new_packet = old_packet[IP].copy()
         new_packet[TCP].remove_payload()
-        old_payload = Bytes(old_packet[TCP].payload)[:-32]
+        old_payload = Bytes(old_packet[TCP].payload)
         
         # Encrypt the payload with the previous key, and add the connection token.
         new_payload = SymmetricEncryption.encrypt(old_payload, self._node_tunnel_keys[connection_token])
