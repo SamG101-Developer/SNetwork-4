@@ -79,8 +79,8 @@ class TestPacketInterceptor:
                 logging.error(f"\033[31mInvalid tag for connection token {next_connection_token}.\033[0m")
                 return
             except ValueError as e:
-                logging.error(f"\033[31m{i}, {L}\033[0m")
-                raise e
+                logging.error(f"\033[31mPacket error (maybe fragmented)\033[0m")
+                return
 
         payload, next_connection_token = payload[:-32], payload[-32:]
         if next_connection_token != self._connection_token:
@@ -89,7 +89,7 @@ class TestPacketInterceptor:
         new_packet.add_payload(payload)
 
         # Debug
-        logging.debug(f"\033[31mPacket sequence number: {new_packet[TCP].seq}.\033[0m")
+        # logging.debug(f"\033[31mPacket sequence number: {new_packet[TCP].seq}.\033[0m")
 
 
 class ClientPacketInterceptor:
