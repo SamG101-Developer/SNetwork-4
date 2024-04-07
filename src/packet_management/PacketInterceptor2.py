@@ -74,7 +74,7 @@ class TestPacketInterceptor:
                 logging.error(f"\033[31mInvalid tag for connection token {next_connection_token}.\033[0m")
                 return
             except ValueError as e:
-                logging.error(f"\033[31m{L}\033[0m")
+                logging.error(f"\033[31m{i}, {L}\033[0m")
                 raise e
 
         payload, next_connection_token = payload[-32:]
