@@ -197,8 +197,6 @@ class IntermediaryNodeInterceptor:
         # Register information to the exit node interceptor if the packet is going to the internet.
         if not next_address.is_private:
             self._exit_node_interceptor.register_information(port=old_packet[TCP].sport, connection_token=connection_token)
-            logging.debug(f"\033[32mPacket from {old_packet[IP].src} intercepted and sent forwards to the internet {next_address}.\033[0m")
-            logging.debug(f"\033[32mPayload: {new_payload[:32]}...\033[0m")
         
         # Add the Ethernet layer and force checksums to be recalculated.
         new_packet = Ether() / new_packet
@@ -206,11 +204,11 @@ class IntermediaryNodeInterceptor:
         del new_packet[TCP].chksum
         
         # Send the packet (to the next node or the internet).
-        # if next_address.is_private:  # todo: for now, testing before hitting internet
         sendp(new_packet)
 
         # Debug
         logging.debug(f"\033[32mPacket from {old_packet[IP].src} intercepted and sent forwards to next node {next_address}.\033[0m")
+        logging.debug(f"\033[32mPayload: {new_payload[:32]}...\033[0m")
         
     def _forward_prev(self, old_packet: Packet, connection_token: Bytes) -> None:
         # Copy the old packet from the IP layer, and remove the payload.
@@ -270,7 +268,7 @@ class ExitNodeInterceptor:
             return
         if old_packet[IP].dst != Address.me().ip:
             return
-        if old_packet[TCP].sport not in self._port_mapping.keys():
+        if old_packet[TCP].dport not in self._port_mapping.keys():
             return
         if len(old_packet[TCP].payload) == 0:
             return
