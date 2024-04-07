@@ -268,28 +268,29 @@ class ExitNodeInterceptor:
             return
         if old_packet[IP].dst != Address.me().ip:
             return
-        if old_packet[TCP].dport not in self._port_mapping.keys():
-            return
         if len(old_packet[TCP].payload) == 0:
             return
-        
+        if old_packet[TCP].dport not in self._port_mapping.keys():
+            print(f"{self._port_mapping.keys()} | {old_packet[TCP].dport} & {old_packet[TCP].sport}")
+            return
+
         # Otherwise, send the packet to itself on port 12346, and let the intermediary node handle it.
         new_packet = old_packet.copy()
         new_packet[TCP].dport = PACKET_PORT
         new_packet[IP].dst = Address.me().ip
         new_packet[IP].src = Address.me().ip
-        
+
         # Add the connection token to the packet.
         connection_token = self._port_mapping.get(old_packet[TCP].sport)
         old_payload = Bytes(old_packet[TCP].payload)
         new_packet[TCP].remove_payload()
         new_packet.add_payload(old_payload + connection_token)
-        
+
         # Add the Ethernet layer and force checksums to be recalculated.
         new_packet = Ether() / new_packet
         del new_packet[IP].chksum
         del new_packet[TCP].chksum
-        
+
         # Send the packet (to itself).
         sendp(new_packet)
 
