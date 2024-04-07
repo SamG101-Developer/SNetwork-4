@@ -251,7 +251,7 @@ class IntermediaryNodeInterceptor:
         old_payload = Bytes(old_packet[TCP].payload)[:-32]
         
         # Encrypt the payload with the previous key, and add the connection token.
-        new_payload = SymmetricEncryption.encrypt(old_payload + connection_token, self._node_tunnel_keys[connection_token])
+        new_payload = SymmetricEncryption.encrypt(old_payload, self._node_tunnel_keys[connection_token])
         new_payload += connection_token
         prev_address = self._prev_addresses[connection_token]
         
