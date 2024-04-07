@@ -199,8 +199,6 @@ class IntermediaryNodeInterceptor:
             self._exit_node_interceptor.register_information(port=old_packet[TCP].sport, connection_token=connection_token)
             logging.debug(f"\033[32mPacket from {old_packet[IP].src} intercepted and sent forwards to the internet {next_address}.\033[0m")
             logging.debug(f"\033[32mPayload: {new_payload[:32]}...\033[0m")
-            # todo: send the packet (safe to test first)
-            return
         
         # Add the Ethernet layer and force checksums to be recalculated.
         new_packet = Ether() / new_packet
@@ -273,7 +271,8 @@ class ExitNodeInterceptor:
         if old_packet[IP].dst != Address.me().ip:
             return
         if old_packet[TCP].sport not in self._port_mapping.keys():
-            print("potential target", old_packet[IP].src)
+            return
+        if len(old_packet[TCP].payload) == 0:
             return
         
         # Otherwise, send the packet to itself on port 12346, and let the intermediary node handle it.
