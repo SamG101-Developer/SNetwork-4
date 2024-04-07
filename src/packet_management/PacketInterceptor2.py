@@ -79,14 +79,14 @@ class TestPacketInterceptor:
 
         payload, addr, port, next_connection_token = payload[:-41], payload[-41:-37], payload[-37:-32], payload[-32:]
         addr = IPv4Address(addr)
-        port = int(port)
+        port = int(port.decode())
 
         if next_connection_token != self._connection_token:
             logging.error(f"\033[31mConnection token {next_connection_token} does not match {self._connection_token}.\033[0m")
             return
         new_packet.add_payload(payload)
 
-        logging.debug(f"\033[32mPacket from {addr}:{port} ({old_packet[TCP].seq})")
+        logging.debug(f"\033[32mPacket from {addr}:{port} ({old_packet[TCP].seq}).\033[0m")
         logging.debug(f"\033[32mPacket size: {len(payload)} bytes.\033[0m")
 
         # Debug
@@ -326,7 +326,7 @@ class ExitNodeInterceptor:
             # This is non-routed traffic, so let it pass through.
             addr, port = old_packet[IP].src, old_packet[TCP].dport
             payload = Bytes(old_packet[TCP].payload)
-            logging.debug(f"\033[33mPacket from {addr}:{port} ({old_packet[TCP].seq})")
+            logging.debug(f"\033[33mPacket from {addr}:{port} ({old_packet[TCP].seq})\033[0m")
             logging.debug(f"\033[33mPacket size: {len(payload)} bytes.\033[0m")
             return
 
@@ -339,9 +339,9 @@ class ExitNodeInterceptor:
         old_payload = Bytes(old_packet[TCP].payload)
         new_payload = (
                 old_payload
-                + connection_token
                 + IPv4Address(old_packet[IP].src).packed
-                + str(old_packet[TCP].dport).encode().zfill(5))
+                + str(old_packet[TCP].dport).encode().zfill(5)
+                + connection_token)
 
         new_packet.add_payload(new_payload)
 
