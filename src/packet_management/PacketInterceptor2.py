@@ -51,8 +51,6 @@ class TestPacketInterceptor:
             return
         if old_packet[IP].dst != Address.me().ip:
             return
-        if len(old_packet[TCP].payload) == 0:
-            return
         if len(self._node_tunnel_keys) < 3:
             return
         if Bytes(old_packet[TCP].payload)[-32:] != self._connection_token:
@@ -61,9 +59,6 @@ class TestPacketInterceptor:
         new_packet = old_packet[IP].copy()
         new_packet[TCP].remove_payload()
         payload = Bytes(old_packet[TCP].payload)
-
-        logging.debug(f"\033[32mPacket sequence number: {old_packet[TCP].seq}.\033[0m")
-        logging.debug(f"\033[32mPacket size: {len(old_packet[TCP].payload)} bytes.\033[0m")
 
         for i in range(3):
             payload, next_connection_token = payload[:-32], payload[-32:]
@@ -82,11 +77,17 @@ class TestPacketInterceptor:
                 logging.error(f"\033[31mPacket error (maybe fragmented)\033[0m")
                 return
 
-        payload, next_connection_token = payload[:-32], payload[-32:]
+        payload, addr, port, next_connection_token = payload[:-41], payload[-41:-37], payload[-37:-32], payload[-32:]
+        addr = IPv4Address(addr)
+        port = int(port)
+
         if next_connection_token != self._connection_token:
             logging.error(f"\033[31mConnection token {next_connection_token} does not match {self._connection_token}.\033[0m")
             return
         new_packet.add_payload(payload)
+
+        logging.debug(f"\033[32mPacket from {addr}:{port} ({old_packet[TCP].seq})")
+        logging.debug(f"\033[32mPacket size: {len(payload)} bytes.\033[0m")
 
         # Debug
         # logging.debug(f"\033[31mPacket sequence number: {new_packet[TCP].seq}.\033[0m")
@@ -130,8 +131,6 @@ class ClientPacketInterceptor:
         if IP not in old_packet or TCP not in old_packet or old_packet[IP].src != self._my_ip_address:
             return
         if len(self._relay_node_addresses) < 3:
-            return
-        if len(old_packet[TCP].payload) == 0:
             return
 
         # Copy the old packet from the IP layer, and remove the payload.
@@ -323,33 +322,13 @@ class ExitNodeInterceptor:
             return
         if old_packet[IP].dst != Address.me().ip:
             return
-        if len(old_packet[TCP].payload) == 0:
-            return
         if old_packet[TCP].dport not in self._port_mapping.keys():
             # This is non-routed traffic, so let it pass through.
-            logging.debug(f"\033[33mReceived packet from the internet ({len(old_packet[TCP].payload)} bytes).\033[0m")
-            logging.debug(f"\033[33mPacket sequence number: {old_packet[TCP].seq}.\033[0m")
+            addr, port = old_packet[IP].src, old_packet[TCP].dport
+            payload = Bytes(old_packet[TCP].payload)
+            logging.debug(f"\033[33mPacket from {addr}:{port} ({old_packet[TCP].seq})")
+            logging.debug(f"\033[33mPacket size: {len(payload)} bytes.\033[0m")
             return
-
-        # Otherwise, send the packet to itself on port 12346, and let the intermediary node handle it.
-        # new_packet = old_packet[IP].copy()
-        # new_packet[TCP].dport = PACKET_PORT
-        # new_packet[IP].dst = Address.me().ip
-        # new_packet[IP].src = Address.me().ip
-        #
-        # # Add the connection token to the packet.
-        # connection_token = self._port_mapping.get(old_packet[TCP].dport)
-        # old_payload = Bytes(old_packet[TCP].payload)
-        # new_packet[TCP].remove_payload()
-        # new_packet.add_payload(old_payload + connection_token)
-        #
-        # # Add the Ethernet layer and force checksums to be recalculated.
-        # new_packet = Ether() / new_packet
-        # del new_packet[IP].chksum
-        # del new_packet[TCP].chksum
-        #
-        # # Send the packet (to itself).
-        # sendp(new_packet)
 
         # Determine the connection token from the port, and let the intermediary node handle it.
         connection_token = self._port_mapping.get(old_packet[TCP].dport)
@@ -358,13 +337,22 @@ class ExitNodeInterceptor:
         new_packet = old_packet[IP].copy()
         new_packet[TCP].remove_payload()
         old_payload = Bytes(old_packet[TCP].payload)
-        new_payload = old_payload + connection_token
+        new_payload = (
+                old_payload
+                + connection_token
+                + IPv4Address(old_packet[IP].src).packed
+                + str(old_packet[TCP].dport).encode().zfill(5))
+
         new_packet.add_payload(new_payload)
 
         # Add the Ethernet layer and force checksums to be recalculated.
         new_packet = Ether() / new_packet
         del new_packet[IP].chksum
         del new_packet[TCP].chksum
+
+        # If this packet is the final one, remove the port from the mapping.
+        if old_packet[TCP].flags & 0x01:
+            self._port_mapping.pop(old_packet[TCP].dport)
 
         # Handle the packet in the intermediary node.
         self._intermediary_node_interceptor._forward_prev(new_packet, connection_token)
