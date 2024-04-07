@@ -159,10 +159,13 @@ class IntermediaryNodeInterceptor:
     def _transform_packet(self, old_packet: Packet) -> None:
         # Get the connection token from the packet, and check if it is in the dictionary.
         connection_token = Bytes(old_packet[TCP].payload)[-32:]
-        if connection_token not in self._node_tunnel_keys: return
+        if connection_token not in self._node_tunnel_keys:
+            print(f"\033[31mConnection token {connection_token} not found.\033[0m")
+            return
 
         # Prevent re-routed packets being re-captured when they are sent, unless it's the exit node doing it.
         if old_packet[IP].src == Address.me().ip and old_packet[IP].dst != Address.me().ip:
+            print(f"\033[31mPacket from self to {old_packet[IP].dst} re-intercepted on exit (ignored).\033[0m")
             return
         
         # Depending on the sender of the packet, forward it to the next or previous node.
