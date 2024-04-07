@@ -156,6 +156,24 @@ class ClientPacketInterceptor:
         new_payload = SymmetricEncryption.encrypt(embedded_ip_address + new_payload, self._node_tunnel_keys[0])
         new_payload += self._connection_token
 
+        if len(new_payload) > 1500:
+            logging.error(f"\033[31mPacket too large ({len(new_payload)} bytes).\033[0m")
+
+            # Fragment the packet
+            # while len(new_payload) > 1500:
+            #     fragment = new_payload[:1500]
+            #     new_payload = new_payload[1500:]
+            #     new_packet.add_payload(fragment)
+            #     new_packet[TCP].flags = 0x01
+            #     new_packet[TCP].seq += len(fragment)
+            #     new_packet[TCP].chksum = None
+            #     new_packet[IP].len = len(new_packet)
+            #     sendp(new_packet)
+            #     new_packet = old_packet[IP].copy()
+            #     new_packet[TCP].remove_payload()
+
+            return
+
         # Add the payload to the packet and route it to the entry node.
         new_packet.add_payload(new_payload)
         new_packet[TCP].dport = PACKET_PORT
