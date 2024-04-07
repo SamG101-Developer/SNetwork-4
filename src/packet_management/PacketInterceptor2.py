@@ -168,8 +168,8 @@ class ClientPacketInterceptor:
         sendp(new_packet)
 
         # Debug
-        logging.debug(f"\033[33mPacket to {old_packet[IP].dst} intercepted and sent to entry node {new_packet[IP].dst}:{new_packet[TCP].dport} ({len(new_payload) - 32} bytes).\033[0m")
-        logging.debug(f"\033[33mPayload: {old_payload[:32]}...\033[0m")
+        logging.debug(f"\033[33mPacket to {old_packet[IP].dst} intercepted and sent to entry node {new_packet[IP].dst}:{new_packet[TCP].dport} ({len(old_payload)} -> {len(new_payload)} bytes).\033[0m")
+        logging.debug(f"\033[33mPacket sequence number: {old_packet[TCP].seq}.\033[0m")
 
 
 class IntermediaryNodeInterceptor:
@@ -252,8 +252,8 @@ class IntermediaryNodeInterceptor:
         sendp(new_packet)
 
         # Debug
-        logging.debug(f"\033[32mPacket from {old_packet[IP].src} intercepted and sent forwards to next node {next_address}.\033[0m")
-        logging.debug(f"\033[32mPayload: {new_payload[:32]}...\033[0m")
+        logging.debug(f"\033[32mPacket from {old_packet[IP].src} intercepted and sent forwards to next node {next_address} ({len(old_payload)} -> {len(new_payload)} bytes).\033[0m")
+        logging.debug(f"\033[32mPacket sequence number: {old_packet[TCP].seq}.\033[0m")
         
     def _forward_prev(self, old_packet: Packet, connection_token: Bytes) -> None:
         # Copy the old packet from the IP layer, and remove the payload.
@@ -281,7 +281,8 @@ class IntermediaryNodeInterceptor:
         sendp(new_packet)
 
         # Debug
-        logging.debug(f"\033[35mPacket from {old_packet[IP].src} intercepted and sent backwards to prev node {prev_address}.\033[0m")
+        logging.debug(f"\033[35mPacket from {old_packet[IP].src} intercepted and sent backwards to prev node {prev_address} ({len(old_payload)} -> {len(new_payload)} bytes).\033[0m")
+        logging.debug(f"\033[35mPacket sequence number: {old_packet[TCP].seq}.\033[0m")
 
 
 class ExitNodeInterceptor:
@@ -317,8 +318,8 @@ class ExitNodeInterceptor:
             return
         if old_packet[TCP].dport not in self._port_mapping.keys():
             # This is non-routed traffic, so let it pass through.
+            logging.debug(f"\033[33mReceived packet from the internet ({len(old_packet[TCP].payload)} bytes).\033[0m")
             logging.debug(f"\033[33mPacket sequence number: {old_packet[TCP].seq}.\033[0m")
-            logging.debug(f"\033[33mPacket size: {len(old_packet[TCP].payload)} bytes.\033[0m")
             return
 
         # Otherwise, send the packet to itself on port 12346, and let the intermediary node handle it.
@@ -342,7 +343,8 @@ class ExitNodeInterceptor:
         sendp(new_packet)
 
         # Debug
-        logging.debug(f"\033[36mPacket from {old_packet[IP].src} (internet) intercepted and sent to itself on port 12346.\033[0m")
+        logging.debug(f"\033[36mPacket from {old_packet[IP].src} (internet) intercepted and sent to itself on port 12346 ({len(old_payload)} -> {len(old_payload) + 32} bytes).\033[0m")
+        logging.debug(f"\033[36mPacket sequence number: {old_packet[TCP].seq}.\033[0m")
 
 
 __all__ = ["ClientPacketInterceptor", "IntermediaryNodeInterceptor"]
