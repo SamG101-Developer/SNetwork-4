@@ -32,6 +32,7 @@ class TestPacketInterceptor:
     def __init__(self, connection_token: Bytes):
         # Set the attribute values
         self._connection_token = connection_token
+        self._node_tunnel_keys = []
 
         # Begin intercepting
         Thread(target=self._begin_interception).start()
