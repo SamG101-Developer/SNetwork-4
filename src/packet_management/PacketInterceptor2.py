@@ -17,6 +17,7 @@ from cryptography.exceptions import InvalidTag
 
 PACKET_PORT = 12346
 HTTPS_PORT = 443
+BLACKLIST = ["57.128.141.164"]
 
 
 class TestPacketInterceptor:
@@ -62,8 +63,6 @@ class TestPacketInterceptor:
 
         for i in range(3):
             payload, next_connection_token = payload[:-32], payload[-32:]
-            L = len(payload)
-            logging.debug(f"\033[31m{i}, {L}\033[0m")
 
             if next_connection_token != self._connection_token:
                 logging.error(f"\033[31mConnection token {next_connection_token} does not match {self._connection_token}.\033[0m")
@@ -131,6 +130,10 @@ class ClientPacketInterceptor:
         if IP not in old_packet or TCP not in old_packet or old_packet[IP].src != self._my_ip_address:
             return
         if len(self._relay_node_addresses) < 3:
+            return
+
+        # Blacklist some addresses
+        if old_packet[IP].src in BLACKLIST:
             return
 
         # Copy the old packet from the IP layer, and remove the payload.
@@ -324,10 +327,10 @@ class ExitNodeInterceptor:
             return
         if old_packet[TCP].dport not in self._port_mapping.keys():
             # This is non-routed traffic, so let it pass through.
-            addr, port = old_packet[IP].src, old_packet[TCP].dport
-            payload = Bytes(old_packet[TCP].payload)
-            logging.debug(f"\033[33mPacket from {addr}:{port} ({old_packet[TCP].seq})\033[0m")
-            logging.debug(f"\033[33mPacket size: {len(payload)} bytes.\033[0m")
+            # addr, port = old_packet[IP].src, old_packet[TCP].dport
+            # payload = Bytes(old_packet[TCP].payload)
+            # logging.debug(f"\033[33mPacket from {addr}:{port} ({old_packet[TCP].seq})\033[0m")
+            # logging.debug(f"\033[33mPacket size: {len(payload)} bytes.\033[0m")
             return
 
         # Determine the connection token from the port, and let the intermediary node handle it.
