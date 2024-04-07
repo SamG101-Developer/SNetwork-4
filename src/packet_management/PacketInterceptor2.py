@@ -8,7 +8,7 @@ from scapy.packet import Packet
 from scapy.sendrecv import sniff, sendp
 from scapy.layers.inet import IP, TCP, Ether
 
-from src.MyTypes import Bytes, List, Str, Dict
+from src.MyTypes import Bytes, List, Str, Dict, Int
 from src.control_communications.ControlConnectionRoute import Address
 from src.crypto_engines.crypto.SymmetricEncryption import SymmetricEncryption
 
@@ -181,6 +181,7 @@ class IntermediaryNodeInterceptor:
     _node_tunnel_keys: Dict[Bytes, Bytes]  # {Connection Token: Tunnel Key}
     _prev_addresses: Dict[Bytes, Str]           # {Connection Token: Previous Address}
     _exit_node_interceptor: ExitNodeInterceptor
+    _seen_seq_numbers: List[Int]
     
     def __init__(self):
         # Initialize the dictionaries
@@ -209,7 +210,13 @@ class IntermediaryNodeInterceptor:
         # Prevent re-routed packets being re-captured when they are sent, unless it's the exit node doing it.
         if old_packet[IP].src == Address.me().ip and old_packet[IP].dst != Address.me().ip:
             return
-        
+
+        # Mark the sequence number as seen.
+        if TCP in old_packet:
+            if old_packet[TCP].seq in self._seen_seq_numbers:
+                return
+            self._seen_seq_numbers.append(old_packet[TCP].seq)
+
         # Depending on the sender of the packet, forward it to the next or previous node.
         if old_packet[IP].src == self._prev_addresses[connection_token]:
             self._forward_next(old_packet, connection_token)
@@ -221,7 +228,6 @@ class IntermediaryNodeInterceptor:
         new_packet = old_packet[IP].copy()
         new_packet[TCP].remove_payload()
         old_payload = Bytes(old_packet[TCP].payload)[:-32]
-        # print(f"Forwarding next ({len(old_payload)} bytes)")
 
         # Decrypt the payload with the next key.
         try:
