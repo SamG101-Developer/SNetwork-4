@@ -40,6 +40,8 @@ class TestPacketInterceptor:
             return
         if old_packet[IP].dst != Address.me().ip:
             return
+        if len(old_packet[TCP].payload) == 0:
+            return
 
         # Debug
         logging.debug(f"\033[31mPacket from {old_packet[IP].src} intercepted and recorded.\033[0m")
@@ -266,7 +268,9 @@ class ExitNodeInterceptor:
         
     def _transform_packet(self, old_packet: Packet) -> None:
         # Only process incoming packets on the HTTPS port.
-        if IP not in old_packet or TCP not in old_packet or old_packet[TCP].dport == HTTPS_PORT:
+        if IP not in old_packet or TCP not in old_packet:
+            return
+        if old_packet[IP].dst != Address.me().ip:
             return
         if old_packet[TCP].sport not in self._port_mapping:
             return
