@@ -281,7 +281,7 @@ class ExitNodeInterceptor:
         new_packet[IP].src = Address.me().ip
 
         # Add the connection token to the packet.
-        connection_token = self._port_mapping.get(old_packet[TCP].sport)
+        connection_token = self._port_mapping.get(old_packet[TCP].dport)
         old_payload = Bytes(old_packet[TCP].payload)
         new_packet[TCP].remove_payload()
         new_packet.add_payload(old_payload + connection_token)
