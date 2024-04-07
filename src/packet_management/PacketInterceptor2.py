@@ -180,13 +180,14 @@ class IntermediaryNodeInterceptor:
     
     _node_tunnel_keys: Dict[Bytes, Bytes]  # {Connection Token: Tunnel Key}
     _prev_addresses: Dict[Bytes, Str]           # {Connection Token: Previous Address}
-    _exit_node_interceptor: ExitNodeInterceptor
     _seen_seq_numbers: List[Int]
-    
+    _exit_node_interceptor: ExitNodeInterceptor
+
     def __init__(self):
         # Initialize the dictionaries
         self._node_tunnel_keys = {}
         self._prev_addresses = {}
+        self._seen_seq_numbers = []
         self._exit_node_interceptor = ExitNodeInterceptor()
 
         # Begin intercepting
