@@ -62,6 +62,9 @@ class TestPacketInterceptor:
         new_packet[TCP].remove_payload()
         payload = Bytes(old_packet[TCP].payload)
 
+        logging.debug(f"\033[32mPacket sequence number: {old_packet[TCP].seq}.\033[0m")
+        logging.debug(f"\033[32mPacket size: {len(old_packet[TCP].payload)} bytes.\033[0m")
+
         for i in range(3):
             payload, next_connection_token = payload[:-32], payload[-32:]
             L = len(payload)
@@ -315,6 +318,7 @@ class ExitNodeInterceptor:
         if old_packet[TCP].dport not in self._port_mapping.keys():
             # This is non-routed traffic, so let it pass through.
             logging.debug(f"\033[33mPacket sequence number: {old_packet[TCP].seq}.\033[0m")
+            logging.debug(f"\033[33mPacket size: {len(old_packet[TCP].payload)} bytes.\033[0m")
             return
 
         # Otherwise, send the packet to itself on port 12346, and let the intermediary node handle it.
