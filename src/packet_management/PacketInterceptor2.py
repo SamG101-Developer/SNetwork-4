@@ -212,11 +212,12 @@ class IntermediaryNodeInterceptor:
         if old_packet[IP].src == Address.me().ip and old_packet[IP].dst != Address.me().ip:
             return
 
-        # Keep the second instance of the packet (recv) not the first (sent)
-        if TCP in old_packet:
-            if old_packet[TCP].seq not in self._seen_seq_numbers:
-                self._seen_seq_numbers.append(old_packet[TCP].seq)
-                return
+        # Keep the second instance of the packet (recv) not the first (sent) for Self -> Self packets.
+        if IP in old_packet and TCP in old_packet:
+            if old_packet[IP].src == Address.me().ip and old_packet[IP].dst == Address.me().ip:
+                if old_packet[TCP].seq not in self._seen_seq_numbers:
+                    self._seen_seq_numbers.append(old_packet[TCP].seq)
+                    return
 
         # Depending on the sender of the packet, forward it to the next or previous node.
         if old_packet[IP].src == self._prev_addresses[connection_token]:
