@@ -44,7 +44,7 @@ class TestPacketInterceptor:
         # Debug
         logging.debug(f"\033[31mPacket from {old_packet[IP].src} intercepted and recorded.\033[0m")
         logging.debug(f"\033[31mPacket sequence number: {old_packet[TCP].seq}.\033[0m")
-        logging.debug(f"\033[31mPayload: {old_packet[TCP].payload[:32]}...\033[0m")
+        logging.debug(f"\033[31mPayload: {Bytes(old_packet[TCP].payload)[:32]}...\033[0m")
 
 
 class ClientPacketInterceptor:
