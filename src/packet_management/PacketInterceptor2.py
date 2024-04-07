@@ -272,7 +272,8 @@ class ExitNodeInterceptor:
             return
         if old_packet[IP].dst != Address.me().ip:
             return
-        if old_packet[TCP].sport not in self._port_mapping:
+        if old_packet[TCP].sport not in self._port_mapping.keys():
+            print("potential target", old_packet[IP].src)
             return
         
         # Otherwise, send the packet to itself on port 12346, and let the intermediary node handle it.
