@@ -8,7 +8,7 @@ from scapy.packet import Packet
 from scapy.sendrecv import sniff, sendp
 from scapy.layers.inet import IP, TCP, Ether
 
-from src.MyTypes import Bytes, List, Str, Dict, Tuple
+from src.MyTypes import Bytes, List, Str, Dict
 from src.control_communications.ControlConnectionRoute import Address
 from src.crypto_engines.crypto.SymmetricEncryption import SymmetricEncryption
 
@@ -17,6 +17,34 @@ from cryptography.exceptions import InvalidTag
 
 PACKET_PORT = 12346
 HTTPS_PORT = 443
+
+
+class TestPacketInterceptor:
+    """
+    The TestPacketInterceptor listens on port 443 (incoming), and records all traffic. This is to compare it against the
+    traffic received from the re-routing. It will be used to verify that the re-routing is working as intended. Is is
+    attached to the ClientPacketInterceptor.
+    """
+
+    def __init__(self):
+        # Begin intercepting
+        Thread(target=self._begin_interception).start()
+
+    def _begin_interception(self) -> None:
+        # Begin sniffing on the HTTPS port (incoming).
+        sniff(filter=f"tcp port {HTTPS_PORT}", prn=self._transform_packet)
+
+    def _transform_packet(self, old_packet: Packet) -> None:
+        # Only process incoming packets on the HTTPS port.
+        if IP not in old_packet or TCP not in old_packet:
+            return
+        if old_packet[IP].dst != Address.me().ip:
+            return
+
+        # Debug
+        logging.debug(f"\033[31mPacket from {old_packet[IP].src} intercepted and recorded.\033[0m")
+        logging.debug(f"\033[31mPacket sequence number: {old_packet[TCP].seq}.\033[0m")
+        logging.debug(f"\033[31mPayload: {old_packet[TCP].payload[:32]}...\033[0m")
 
 
 class ClientPacketInterceptor:
@@ -29,6 +57,7 @@ class ClientPacketInterceptor:
     _node_tunnel_keys: List[Bytes]
     _relay_node_addresses: List[Str]
     _my_ip_address: Str
+    _test_packet_interceptor: TestPacketInterceptor
 
     def __init__(self, connection_token: Bytes):
         # Set the attribute values
@@ -36,6 +65,7 @@ class ClientPacketInterceptor:
         self._node_tunnel_keys = []
         self._relay_node_addresses = []
         self._my_ip_address = Address.me().ip
+        self._test_packet_interceptor = TestPacketInterceptor()
 
         # Begin intercepting
         Thread(target=self._begin_interception).start()
@@ -54,6 +84,8 @@ class ClientPacketInterceptor:
         if IP not in old_packet or TCP not in old_packet or old_packet[IP].src != self._my_ip_address:
             return
         if len(self._relay_node_addresses) < 3:
+            return
+        if len(old_packet[TCP].payload) == 0:
             return
 
         # Copy the old packet from the IP layer, and remove the payload.
@@ -174,8 +206,8 @@ class IntermediaryNodeInterceptor:
         del new_packet[TCP].chksum
         
         # Send the packet (to the next node or the internet).
-        if next_address.is_private:  # todo: for now, testing before hitting internet
-            sendp(new_packet)
+        # if next_address.is_private:  # todo: for now, testing before hitting internet
+        sendp(new_packet)
 
         # Debug
         logging.debug(f"\033[32mPacket from {old_packet[IP].src} intercepted and sent forwards to next node {next_address}.\033[0m")
@@ -203,7 +235,7 @@ class IntermediaryNodeInterceptor:
         del new_packet[TCP].chksum
         
         # Send the packet (to the previous node).
-        # sendp(new_packet)
+        sendp(new_packet)
 
         # Debug
         logging.debug(f"\033[35mPacket from {old_packet[IP].src} intercepted and sent backwards to prev node {prev_address}.\033[0m")
