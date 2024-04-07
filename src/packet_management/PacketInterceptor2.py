@@ -278,7 +278,7 @@ class ExitNodeInterceptor:
             return
 
         # Otherwise, send the packet to itself on port 12346, and let the intermediary node handle it.
-        new_packet = old_packet.copy()
+        new_packet = old_packet[IP].copy()
         new_packet[TCP].dport = PACKET_PORT
         new_packet[IP].dst = Address.me().ip
         new_packet[IP].src = Address.me().ip
