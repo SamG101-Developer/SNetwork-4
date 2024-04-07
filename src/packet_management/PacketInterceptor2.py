@@ -61,6 +61,7 @@ class TestPacketInterceptor:
         new_packet = old_packet[IP].copy()
         new_packet[TCP].remove_payload()
         payload = Bytes(old_packet[TCP].payload)
+        L = len(payload)
 
         for i in range(3):
             payload, next_connection_token = payload[:-32], payload[-32:]
@@ -72,7 +73,14 @@ class TestPacketInterceptor:
             except InvalidTag:
                 logging.error(f"\033[31mInvalid tag for connection token {next_connection_token}.\033[0m")
                 return
+            except ValueError as e:
+                logging.error(f"\033[31m{L}\033[0m")
+                raise e
 
+        payload, next_connection_token = payload[-32:]
+        if next_connection_token != self._connection_token:
+            logging.error(f"\033[31mConnection token {next_connection_token} does not match {self._connection_token}.\033[0m")
+            return
         new_packet.add_payload(payload)
 
         # Debug
