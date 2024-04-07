@@ -55,6 +55,8 @@ class TestPacketInterceptor:
             return
         if len(self._node_tunnel_keys) < 3:
             return
+        if Bytes(old_packet[TCP].payload)[-32:] != self._connection_token:
+            return
 
         new_packet = old_packet[IP].copy()
         new_packet[TCP].remove_payload()
@@ -189,7 +191,7 @@ class IntermediaryNodeInterceptor:
         # Get the connection token from the packet, and check if it is in the dictionary.
         connection_token = Bytes(old_packet[TCP].payload)[-32:]
         if connection_token not in self._node_tunnel_keys:
-            print(f"\033[31mConnection token {connection_token} not found.\033[0m")
+            # print(f"\033[31mConnection token {connection_token} not found.\033[0m")
             return
 
         # Prevent re-routed packets being re-captured when they are sent, unless it's the exit node doing it.

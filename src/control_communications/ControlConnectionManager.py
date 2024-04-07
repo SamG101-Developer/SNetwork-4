@@ -80,7 +80,7 @@ class ControlConnectionManager:
         self._waiting_for_cert = False
 
         self._client_packet_interceptor = None
-        self._intermediary_node_interceptor = IntermediaryNodeInterceptor()
+        self._intermediary_node_interceptor = IntermediaryNodeInterceptor() if not self._is_directory_node else None
 
         # Check own information is in the cache
         if not self._is_directory_node:
