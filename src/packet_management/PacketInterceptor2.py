@@ -26,13 +26,23 @@ class TestPacketInterceptor:
     attached to the ClientPacketInterceptor.
     """
 
-    def __init__(self):
+    _connection_token: Bytes
+    _node_tunnel_keys: List[Bytes]
+
+    def __init__(self, connection_token: Bytes):
+        # Set the attribute values
+        self._connection_token = connection_token
+
         # Begin intercepting
         Thread(target=self._begin_interception).start()
 
     def _begin_interception(self) -> None:
         # Begin sniffing on the HTTPS port (incoming).
         sniff(filter=f"tcp port {HTTPS_PORT}", prn=self._transform_packet)
+
+    def register_key(self, key: Bytes) -> None:
+        # Register the key to the list.
+        self._node_tunnel_keys.append(key)
 
     def _transform_packet(self, old_packet: Packet) -> None:
         # Only process incoming packets on the HTTPS port.
@@ -42,11 +52,28 @@ class TestPacketInterceptor:
             return
         if len(old_packet[TCP].payload) == 0:
             return
+        if len(self._node_tunnel_keys) < 3:
+            return
+
+        new_packet = old_packet[IP].copy()
+        new_packet[TCP].remove_payload()
+        payload = Bytes(old_packet[TCP].payload)
+
+        for i in range(3):
+            payload, next_connection_token = payload[:-32], payload[-32:]
+            if next_connection_token != self._connection_token:
+                logging.error(f"\033[31mConnection token {next_connection_token} does not match {self._connection_token}.\033[0m")
+                return
+            try:
+                payload = SymmetricEncryption.decrypt(payload, self._node_tunnel_keys[2 - i])
+            except InvalidTag:
+                logging.error(f"\033[31mInvalid tag for connection token {next_connection_token}.\033[0m")
+                return
+
+        new_packet.add_payload(payload)
 
         # Debug
-        logging.debug(f"\033[31mPacket from {old_packet[IP].src} intercepted and recorded.\033[0m")
-        logging.debug(f"\033[31mPacket sequence number: {old_packet[TCP].seq}.\033[0m")
-        logging.debug(f"\033[31mPayload: {Bytes(old_packet[TCP].payload)[:32]}...\033[0m")
+        logging.debug(f"\033[31mPacket sequence number: {new_packet[TCP].seq}.\033[0m")
 
 
 class ClientPacketInterceptor:
@@ -67,7 +94,7 @@ class ClientPacketInterceptor:
         self._node_tunnel_keys = []
         self._relay_node_addresses = []
         self._my_ip_address = Address.me().ip
-        self._test_packet_interceptor = TestPacketInterceptor()
+        self._test_packet_interceptor = TestPacketInterceptor(connection_token)
 
         # Begin intercepting
         Thread(target=self._begin_interception).start()
@@ -76,6 +103,7 @@ class ClientPacketInterceptor:
         # Register the key to the list.
         self._relay_node_addresses.append(address)
         self._node_tunnel_keys.append(key)
+        self._test_packet_interceptor.register_key(key)
 
     def _begin_interception(self) -> None:
         # Begin sniffing on the HTTPS port (outgoing).
@@ -220,7 +248,7 @@ class IntermediaryNodeInterceptor:
         old_payload = Bytes(old_packet[TCP].payload)[:-32]
         
         # Encrypt the payload with the previous key, and add the connection token.
-        new_payload = SymmetricEncryption.encrypt(old_payload, self._node_tunnel_keys[connection_token])
+        new_payload = SymmetricEncryption.encrypt(old_payload + connection_token, self._node_tunnel_keys[connection_token])
         new_payload += connection_token
         prev_address = self._prev_addresses[connection_token]
         
@@ -274,7 +302,8 @@ class ExitNodeInterceptor:
         if len(old_packet[TCP].payload) == 0:
             return
         if old_packet[TCP].dport not in self._port_mapping.keys():
-            print(f"{self._port_mapping.keys()} | {old_packet[TCP].dport} & {old_packet[TCP].sport}")
+            # This is non-routed traffic, so let it pass through.
+            logging.debug(f"\033[33mPacket sequence number: {old_packet[TCP].seq}.\033[0m")
             return
 
         # Otherwise, send the packet to itself on port 12346, and let the intermediary node handle it.
