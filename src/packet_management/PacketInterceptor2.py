@@ -188,7 +188,7 @@ class IntermediaryNodeInterceptor:
         self._node_tunnel_keys = {}
         self._prev_addresses = {}
         self._seen_seq_numbers = []
-        self._exit_node_interceptor = ExitNodeInterceptor()
+        self._exit_node_interceptor = ExitNodeInterceptor(self)
 
         # Begin intercepting
         Thread(target=self._begin_interception).start()
@@ -215,8 +215,7 @@ class IntermediaryNodeInterceptor:
         # Keep the second instance of the packet (recv) not the first (sent) for Self -> Self packets.
         if IP in old_packet and TCP in old_packet:
             if old_packet[IP].src == Address.me().ip and old_packet[IP].dst == Address.me().ip:
-                if old_packet[TCP].seq not in self._seen_seq_numbers:
-                    self._seen_seq_numbers.append(old_packet[TCP].seq)
+                if old_packet[TCP].dport != PACKET_PORT:
                     return
 
         # Depending on the sender of the packet, forward it to the next or previous node.
@@ -300,10 +299,12 @@ class ExitNodeInterceptor:
     """
     
     _port_mapping: Dict[int, Bytes]  # {Port: Connection Token}
+    _intermediary_node_interceptor: IntermediaryNodeInterceptor
     
-    def __init__(self) -> None:
+    def __init__(self, intermediary_node_interceptor: IntermediaryNodeInterceptor):
         # Initialize the dictionary
         self._port_mapping = {}
+        self._intermediary_node_interceptor = intermediary_node_interceptor
 
         # Begin intercepting
         Thread(target=self._begin_interception).start()
@@ -331,28 +332,42 @@ class ExitNodeInterceptor:
             return
 
         # Otherwise, send the packet to itself on port 12346, and let the intermediary node handle it.
-        new_packet = old_packet[IP].copy()
-        new_packet[TCP].dport = PACKET_PORT
-        new_packet[IP].dst = Address.me().ip
-        new_packet[IP].src = Address.me().ip
+        # new_packet = old_packet[IP].copy()
+        # new_packet[TCP].dport = PACKET_PORT
+        # new_packet[IP].dst = Address.me().ip
+        # new_packet[IP].src = Address.me().ip
+        #
+        # # Add the connection token to the packet.
+        # connection_token = self._port_mapping.get(old_packet[TCP].dport)
+        # old_payload = Bytes(old_packet[TCP].payload)
+        # new_packet[TCP].remove_payload()
+        # new_packet.add_payload(old_payload + connection_token)
+        #
+        # # Add the Ethernet layer and force checksums to be recalculated.
+        # new_packet = Ether() / new_packet
+        # del new_packet[IP].chksum
+        # del new_packet[TCP].chksum
+        #
+        # # Send the packet (to itself).
+        # sendp(new_packet)
 
-        # Add the connection token to the packet.
+        # Determine the connection token from the port, and let the intermediary node handle it.
         connection_token = self._port_mapping.get(old_packet[TCP].dport)
-        old_payload = Bytes(old_packet[TCP].payload)
+
+        # Embed the connection token in the payload and send it to the intermediary node handler.
+        new_packet = old_packet[IP].copy()
         new_packet[TCP].remove_payload()
-        new_packet.add_payload(old_payload + connection_token)
+        old_payload = Bytes(old_packet[TCP].payload)
+        new_payload = old_payload + connection_token
+        new_packet.add_payload(new_payload)
 
         # Add the Ethernet layer and force checksums to be recalculated.
         new_packet = Ether() / new_packet
         del new_packet[IP].chksum
         del new_packet[TCP].chksum
 
-        # Send the packet (to itself).
-        sendp(new_packet)
-
-        # Debug
-        logging.debug(f"\033[36mPacket from {old_packet[IP].src} (internet) intercepted and sent to itself on port 12346 ({len(old_payload)} -> {len(old_payload) + 32} bytes).\033[0m")
-        logging.debug(f"\033[36mPacket sequence number: {old_packet[TCP].seq}.\033[0m")
+        # Handle the packet in the intermediary node.
+        self._intermediary_node_interceptor._forward_prev(new_packet, connection_token)
 
 
 __all__ = ["ClientPacketInterceptor", "IntermediaryNodeInterceptor"]
