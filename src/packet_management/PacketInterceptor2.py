@@ -68,7 +68,7 @@ class TestPacketInterceptor:
                 logging.error(f"\033[31mConnection token {next_connection_token} does not match {self._connection_token}.\033[0m")
                 return
             try:
-                payload = SymmetricEncryption.decrypt(payload, self._node_tunnel_keys[2 - i])
+                payload = SymmetricEncryption.decrypt(payload, self._node_tunnel_keys[i])
             except InvalidTag:
                 logging.error(f"\033[31mInvalid tag for connection token {next_connection_token}.\033[0m")
                 return
