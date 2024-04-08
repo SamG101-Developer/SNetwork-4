@@ -1204,7 +1204,7 @@ class ControlConnectionManager:
             if self._waiting_for_ack_from(addr, connection_token) and data[0] == ControlConnectionProtocol.CONN_ACC.value:
                 pass
 
-            elif self._is_connected_to(addr, connection_token):
+            else:
                 print("waiting for key to be set")
                 while not self._conversations[conversation_id].secure:
                     pass
