@@ -1171,7 +1171,7 @@ class ControlConnectionManager:
         # Encrypt the connection to the direct neighbour node, if a shared secret has been established.
         conversation_id = ConnectionToken(token=connection_token, address=addr)
 
-        if self._is_connected_to(addr, connection_token) and data[0] not in [ControlConnectionProtocol.CONN_SEC.value, ControlConnectionProtocol.CONN_ACC.value]:
+        if self._is_connected_to(addr, connection_token) and data[0] != ControlConnectionProtocol.CONN_ACC.value:
             while not self._conversations[conversation_id].secure:
                 pass
 
@@ -1197,12 +1197,11 @@ class ControlConnectionManager:
             conversation_id = ConnectionToken(token=connection_token, address=addr)
 
             if self._is_connected_to(addr, connection_token):
-                if data[0] != ControlConnectionProtocol.CONN_SEC.value:
-                    while not self._conversations[conversation_id].secure:
-                        pass
+                while not self._conversations[conversation_id].secure:
+                    pass
 
-                    shared_secret = self._conversations[conversation_id].shared_secret
-                    data = SymmetricEncryption.decrypt(data, shared_secret)
+                shared_secret = self._conversations[conversation_id].shared_secret
+                data = SymmetricEncryption.decrypt(data, shared_secret)
 
             # if shared_secret := self._conversations[conversation_id].shared_secret:
             #     print("e2e decrypting")
