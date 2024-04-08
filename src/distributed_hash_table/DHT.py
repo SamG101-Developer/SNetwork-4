@@ -4,8 +4,7 @@ import json, random
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 from cryptography.hazmat.primitives.serialization import load_pem_public_key, load_der_public_key, Encoding, PublicFormat
 
-from control_communications.ControlConnectionRoute import Address
-from distributed_hash_table import DHashing
+from src.distributed_hash_table import DHashing
 from src.crypto_engines.crypto.Hashing import Hashing
 from src.MyTypes import Str, List, Bytes, Dict, Optional
 
