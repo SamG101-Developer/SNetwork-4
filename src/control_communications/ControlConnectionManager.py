@@ -67,6 +67,9 @@ class ControlConnectionManager:
     _broker_node_files: Dict[Str, Bytes]
     _broker_node_file_requesters: Dict[Str, ConnectionToken]
 
+    _routes_next_nodes: Dict[Bytes, Address]
+    _routes_prev_nodes: Dict[Bytes, Address]
+
     _client_packet_interceptor: Optional[ClientPacketInterceptor]
     _intermediary_node_interceptor: Optional[IntermediaryNodeInterceptor]
 
@@ -86,6 +89,9 @@ class ControlConnectionManager:
         self._closer_nodes_to_files_resp = {}
         self._broker_node_files = {}
         self._broker_node_file_requesters = {}
+
+        self._routes_next_nodes = {}
+        self._routes_prev_nodes = {}
 
         self._client_packet_interceptor = None
         self._intermediary_node_interceptor = IntermediaryNodeInterceptor() if not self._is_directory_node else None
@@ -224,11 +230,11 @@ class ControlConnectionManager:
         while not os.path.exists(cache_path):  # todo: is this loop needed?
             pass
 
-    def _open_connection_to(self, addr: Address) -> ConnectionToken:
+    def _open_connection_to(self, addr: Address, token: bytes = b"") -> ConnectionToken:
         my_static_private_key = KeyPair().import_("./_keys/me", "static").secret_key
         my_ephemeral_private_key, my_ephemeral_public_key = KEM.generate_key_pair().both()
 
-        connection_token = ConnectionToken(token=os.urandom(32), address=addr)
+        connection_token = ConnectionToken(token=token or os.urandom(32), address=addr)
         self._conversations[connection_token] = ControlConnectionConversationInfo(
             state=ControlConnectionState.WAITING_FOR_ACK,
             their_static_public_key=DHT.get_static_public_key(addr.ip),
@@ -556,6 +562,7 @@ class ControlConnectionManager:
         # If this connection is for a route for another node, generate a client<->node tunnelling key.
         signed_e2e_key = None
         if for_route:
+            self._routes_prev_nodes[connection_token] = addr
             self._node_to_client_tunnel_keys[connection_token] = ControlConnectionRouteNode(
                 connection_token=conversation_id,
                 ephemeral_key_pair=KEM.generate_key_pair(),
@@ -677,6 +684,7 @@ class ControlConnectionManager:
         # public key could be obtained from the DHT from the "target_addr", but it can be sent to reduce DHT lookups.
         target_addr = pickle.loads(data)
         target_static_public_key = DHT.get_static_public_key(target_addr.ip, silent=True)
+        self._routes_next_nodes[connection_token] = target_addr
 
         # If the target node is not in the DHT, request the node information from the directory node.
         if not target_static_public_key:
@@ -1086,7 +1094,7 @@ class ControlConnectionManager:
 
         # Load the file name and broker node ip address from the data.
         file_name, broker_node_ip_address = pickle.loads(data)
-        conversation_id = self._open_connection_to(broker_node_ip_address)
+        conversation_id = self._open_connection_to(broker_node_ip_address, token=connection_token)
 
         # Send the advertisement to the broker node.
         self._send_message_onwards(
