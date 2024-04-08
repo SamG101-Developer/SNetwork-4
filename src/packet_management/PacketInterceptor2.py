@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import random
 from ipaddress import IPv4Address
 from threading import Thread
 
@@ -19,9 +18,6 @@ from cryptography.exceptions import InvalidTag
 PACKET_PORT = 12346
 HTTPS_PORT = 443
 BLACKLIST = ["57.128.141."]
-
-
-TCP_STREAM_ISN = {}
 
 
 class TestPacketInterceptor:
@@ -166,15 +162,6 @@ class ClientPacketInterceptor:
         new_packet.add_payload(new_payload)
         new_packet[TCP].dport = PACKET_PORT
         new_packet[IP].dst = self._relay_node_addresses[0]
-
-        # For SYN packets, set a new sequence number, otherwise increment the old one. Cannot repeat sent packets.
-        if old_packet[TCP].flags & 0x02:
-            TCP_STREAM_ISN[(old_packet[IP].src, old_packet[IP].dst, old_packet[TCP].sport, old_packet[TCP].dport)] = random.randint(0, 2**32)
-        elif old_packet[TCP].flags & 0x01:
-            del TCP_STREAM_ISN[(old_packet[IP].src, old_packet[IP].dst, old_packet[TCP].sport, old_packet[TCP].dport)]
-        else:
-            TCP_STREAM_ISN[(old_packet[IP].src, old_packet[IP].dst, old_packet[TCP].sport, old_packet[TCP].dport)] += 1
-            new_packet[TCP].seq = TCP_STREAM_ISN[(old_packet[IP].src, old_packet[IP].dst, old_packet[TCP].sport, old_packet[TCP].dport)]
 
         # Add the Ethernet layer and force checksums to be recalculated.
         new_packet = Ether() / new_packet
