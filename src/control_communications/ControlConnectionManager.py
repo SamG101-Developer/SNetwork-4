@@ -151,6 +151,7 @@ class ControlConnectionManager:
 
         # Extend the connection (use a while loop so failed connections don't affect the node counter for route length).
         my_ip = Address.me().ip
+
         while len(self._my_route.route) < 4:
             # Extend the connection to the next node in the route.
             current_ips_in_route = [node.connection_token.address.ip for node in self._my_route.route]
@@ -674,6 +675,9 @@ class ControlConnectionManager:
         sending_data = pickle.dumps((signed_my_ephemeral_public_key, True))
         self._send_message_onwards(target_addr, connection_token, ControlConnectionProtocol.CONN_REQ, sending_data)
 
+        while not self._conversations[conversation_id].secure:
+            pass
+
     @LogPre
     # @ReplayErrorBackToUser
     def _handle_accept_extended_connection(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
@@ -1162,10 +1166,23 @@ class ControlConnectionManager:
 
     @LogPre
     def _send_message_onwards_raw(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
+        # The only commands not encrypted are: CONN_REQ, CONN_ACC, CONN_REJ and CONN_SEC. The rest are encrypted.
+
         # Encrypt the connection to the direct neighbour node, if a shared secret has been established.
         conversation_id = ConnectionToken(token=connection_token, address=addr)
-        if shared_secret := self._conversations[conversation_id].shared_secret:
+
+        command = ControlConnectionProtocol(data[0])
+        if command not in [
+                ControlConnectionProtocol.CONN_REQ, ControlConnectionProtocol.CONN_ACC,
+                ControlConnectionProtocol.CONN_REJ, ControlConnectionProtocol.CONN_SEC]:
+            while not self._conversations[conversation_id].secure:
+                pass
+
+            shared_secret = self._conversations[conversation_id].shared_secret
             data = SymmetricEncryption.encrypt(data, shared_secret)
+
+        # if shared_secret := self._conversations[conversation_id].shared_secret:
+        #     data = SymmetricEncryption.encrypt(data, shared_secret)
 
         # Send the data to the node (prepend the connection token because encryption will hide it).
         data = connection_token + data
