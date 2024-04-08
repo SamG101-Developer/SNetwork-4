@@ -135,7 +135,7 @@ class ControlConnectionManager:
         self._conversations[connection_token] = ControlConnectionConversationInfo(
             state=ControlConnectionState.CONNECTED,
             their_static_public_key=KeyPair().import_("./_keys/me", "static").public_key,
-            shared_secret=None,
+            shared_secret=os.urandom(32),
             my_ephemeral_public_key=None,
             my_ephemeral_secret_key=None,
             secure=True)
@@ -1175,6 +1175,7 @@ class ControlConnectionManager:
         if command not in [
                 ControlConnectionProtocol.CONN_REQ, ControlConnectionProtocol.CONN_ACC,
                 ControlConnectionProtocol.CONN_REJ, ControlConnectionProtocol.CONN_SEC]:
+
             while not self._conversations[conversation_id].secure:
                 pass
 
