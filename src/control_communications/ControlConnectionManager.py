@@ -392,8 +392,8 @@ class ControlConnectionManager:
                 self._forward_message(addr, connection_token, data)
 
             # Handle a confirmation that a connection is node secure from a node. REQ -> ACC -> SEC.
-            case ControlConnectionProtocol.CONN_SEC:
-                self._register_connection_as_secure(addr, connection_token, data)
+            # case ControlConnectionProtocol.CONN_SEC:
+            #     self._register_connection_as_secure(addr, connection_token, data)
 
             # Handle a KEM key being tunnelled backwards from a relay node to the route owner.
             case ControlConnectionProtocol.CONN_PKT_KEM if connected or waiting_for_ack:
@@ -534,7 +534,7 @@ class ControlConnectionManager:
             pass
 
         self._conversations[conversation_id].shared_secret = kem_wrapped_shared_secret.decapsulated_key
-        # self._conversations[conversation_id].secure = True
+        self._conversations[conversation_id].secure = True
 
         # Send the client<->node tunnelling key back along the route.
         if for_route:
@@ -567,7 +567,7 @@ class ControlConnectionManager:
         my_ephemeral_secret_key = self._conversations[conversation_id].my_ephemeral_secret_key
 
         # Confirm to the other node that the connection is now secure, and from now on to use E2E encryption.
-        self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_SEC, b"")
+        # self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_SEC, b"")
 
         # Save the "shared secret", so E2E encryption is now available in the send/recv functions.
         self._conversations[conversation_id] = ControlConnectionConversationInfo(
@@ -1098,12 +1098,12 @@ class ControlConnectionManager:
         # Send the message to the target node. It will be automatically encrypted.
         self._send_message_onwards_raw(target_node, connection_token, data)
 
-    @LogPre
-    def _register_connection_as_secure(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
-        logging.debug(f"Marking connection to {addr.ip} as secure")
-
-        conversation_id = ConnectionToken(token=connection_token, address=addr)
-        self._conversations[conversation_id].secure = True
+    # @LogPre
+    # def _register_connection_as_secure(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
+    #     logging.debug(f"Marking connection to {addr.ip} as secure")
+    #
+    #     conversation_id = ConnectionToken(token=connection_token, address=addr)
+    #     self._conversations[conversation_id].secure = True
 
     @LogPre
     def _tunnel_message_forwards(self, addr: Address, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
