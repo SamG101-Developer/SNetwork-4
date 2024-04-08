@@ -1205,7 +1205,7 @@ class ControlConnectionManager:
                     pass
 
                 shared_secret = self._conversations[conversation_id].shared_secret
-                data = SymmetricEncryption.encrypt(data, shared_secret)
+                data = SymmetricEncryption.decrypt(data, shared_secret)
 
             # if shared_secret := self._conversations[conversation_id].shared_secret:
             #     print("e2e decrypting")
