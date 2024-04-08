@@ -1201,7 +1201,7 @@ class ControlConnectionManager:
             conversation_id = ConnectionToken(token=connection_token, address=addr)
 
             if self._is_connected_to(addr, connection_token):
-                while not self._conversations[conversation_id].secure:
+                while not self._conversations[conversation_id].secure and data[0] != ControlConnectionProtocol.CONN_SEC.value:
                     pass
 
                 shared_secret = self._conversations[conversation_id].shared_secret
