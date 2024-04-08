@@ -65,6 +65,7 @@ class ControlConnectionManager:
     _waiting_for_cert: bool
     _closer_nodes_to_files_resp: Dict[Tuple[Bytes, Bytes], Optional[Address]]
     _broker_node_files: Dict[Str, Bytes]
+    _broker_node_file_requesters: Dict[Str, ConnectionToken]
 
     _client_packet_interceptor: Optional[ClientPacketInterceptor]
     _intermediary_node_interceptor: Optional[IntermediaryNodeInterceptor]
@@ -84,6 +85,7 @@ class ControlConnectionManager:
 
         self._closer_nodes_to_files_resp = {}
         self._broker_node_files = {}
+        self._broker_node_file_requesters = {}
 
         self._client_packet_interceptor = None
         self._intermediary_node_interceptor = IntermediaryNodeInterceptor() if not self._is_directory_node else None
@@ -171,6 +173,10 @@ class ControlConnectionManager:
 
         # Log the route.
         logging.info(f"\t\tCreated route: {' -> '.join([node.connection_token.address.ip for node in self._my_route.route])}")
+        logging.info(f"\t\tHosting stored files...")
+
+        for file_name in os.listdir("./_files/stored"):
+            self.store_file("./_files/stored", file_name)
 
     def _obtain_certificate(self):
         # This is a new node, so generate a static asymmetric key pair for signing.
@@ -266,7 +272,11 @@ class ControlConnectionManager:
 
         self._send_message_onwards(target_address, connection_token.token, ControlConnectionProtocol.DHT_EXH_ADR, sending_data)
 
-    def store_file(self, file_name: Str) -> None:
+    def store_file(self, file_directory: Str, file_name: Str) -> None:
+        # Copy the file into the "_files/stored" folder (for access from other nodes)
+        if file_directory != "./_files/stored":
+            open(f"./_files/stored/{file_name}", "wb").write(open(os.path.join(file_directory, file_name), "rb").read())
+
         # Hash the file name to get the file tag, and determine the closest node.
         file_tag = Hashing.hash(file_name.encode())
         closest_node = DHT.closest_node_to(file_tag)
@@ -275,7 +285,7 @@ class ControlConnectionManager:
         logging.debug(f"\t\tFile tag: {file_tag}")
         logging.debug(f"\t\tClosest node to file tag: {closest_node}")
 
-        # If this node is the closest node, salt the file name until this node isn't the closest node.
+        # If this client node is the closest node, salt the file name until this node isn't the closest node.
         while closest_node in [node.connection_token.address.ip for node in self._my_route.route] + [Address.me().ip]:
             file_name += f"{random.randint(0, 9)}"
             file_tag = Hashing.hash(file_name.encode())
@@ -315,8 +325,17 @@ class ControlConnectionManager:
 
         logging.debug(f"\t\tSent 'send broker node' request to {closest_node}")
 
-    def retrieve_file(self, file_name: Str) -> Bytes:
-        ...
+    def retrieve_file(self, file_name: Str) -> None:
+        # Hash the file name to get the file tag, and determine the closest node.
+        file_tag = Hashing.hash(file_name.encode())
+        broker_node = DHT.closest_node_to(file_tag)
+
+        # Send a request to the broker node to get the file.
+        self._tunnel_message_forwards(
+            addr=Address(ip=broker_node),
+            connection_token=self._my_route.connection_token.token,
+            command=ControlConnectionProtocol.DHT_FILE_GET,
+            data=pickle.dumps(file_tag))
 
     # @LogPre
     @staticmethod
@@ -456,6 +475,14 @@ class ControlConnectionManager:
             # Handle an advertisement for a file (this node acting as a broke node)
             case ControlConnectionProtocol.DHT_ADV if connected:
                 self._handle_dht_advertisement(addr, connection_token, data)
+
+            # Handle a file being requested (either to a broker node or owner node)
+            case ControlConnectionProtocol.DHT_FILE_GET if connected:
+                self._handle_dht_get_file(addr, connection_token, data)
+
+            # Handle a file being sent (either to a broker node or requesting node)
+            case ControlConnectionProtocol.DHT_FILE_CONTENTS if connected:
+                self._handle_dht_file_contents(addr, connection_token, data)
 
             # Otherwise, log an error, ignore the message, and do nothing.
             case _:
@@ -1073,6 +1100,52 @@ class ControlConnectionManager:
         logging.debug(f"\t\tAware of file: {file_name}")
 
     @LogPre
+    def _handle_dht_get_file(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
+        """
+        @param addr:
+        @param connection_token:
+        @param data:
+        @return:
+        """
+
+        # If this node is a broker node for the contents.
+        file_name = data.decode()
+        if file_name in self._broker_node_files.keys():
+            conversation_id = ConnectionToken(token=connection_token, address=addr)
+            self._broker_node_file_requesters[str(random.randint(1000, 9999)) + file_name] = conversation_id
+
+            exit_node_to_source_connection_token = [c for c in self._conversations if c.token == self._broker_node_files.get(file_name)]
+            exit_node_to_source = exit_node_to_source_connection_token[0].address
+            self._tunnel_message_backward(exit_node_to_source, connection_token, ControlConnectionProtocol.DHT_FILE_GET, data)
+
+        # Otherwise, this node is receiving the file contents as a client node.
+        else:
+            file_contents = open(f"./_files/stored/{file_name}", "rb").read()
+            self._tunnel_message_backward(addr, connection_token, ControlConnectionProtocol.DHT_FILE_CONTENTS, pickle.dumps((file_name, file_contents)))
+
+    @LogPre
+    def _handle_dht_file_contents(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
+        """
+        @param addr:
+        @param connection_token:
+        @param data:
+        @return:
+        """
+
+        file_name, file_contents = pickle.loads(data)
+
+        # If this node is a broker node for the contents.
+        if file_name in self._broker_node_files.keys():
+            requesters = [r for c, r in self._broker_node_file_requesters.items() if c[4:] == file_name]
+            for requester in requesters:
+                self._tunnel_message_forwards(requester.address, requester.token, ControlConnectionProtocol.DHT_FILE_CONTENTS, data)
+
+        # Otherwise, this node is receiving the file contents as a client node.
+        else:
+            open(f"./_files/received/{file_name}", "wb").write(file_contents)
+            logging.debug(f"\t\tReceived file: {file_name}")
+
+    @LogPre
     # @ReplayErrorBackToUser
     def _forward_message(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:  # TODO: bug in here (address)
         """
@@ -1108,6 +1181,14 @@ class ControlConnectionManager:
 
     @LogPre
     def _tunnel_message_forwards(self, addr: Address, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
+        """
+
+        @param addr: The target address where the command will be sent to (from curent exit node).
+        @param connection_token:
+        @param command: The command to send to the target address.
+        @param data:
+        @return:
+        """
         # Encrypt per layer until the node in the route == the node that the data is being sent to.
         if self._my_route and self._my_route.connection_token.token == connection_token:
             route_node_addresses = [n.connection_token.address for n in self._my_route.route]
@@ -1138,6 +1219,15 @@ class ControlConnectionManager:
 
     @LogPre
     def _tunnel_message_backward(self, addr: Address, connection_token: Bytes, command: ControlConnectionProtocol, data: Bytes) -> None:
+        """
+
+        @param addr: The previous address in the chain. The next node will use the connection token to chain again.
+        @param connection_token:
+        @param command:
+        @param data:
+        @return:
+        """
+
         # Encrypt with 1 layer as this message is travelling backwards to the client node. Don't do this for sending
         # information to self.
         if not (self._my_route and self._my_route.connection_token.token == connection_token):

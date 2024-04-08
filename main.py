@@ -76,8 +76,10 @@ def main():
     if not os.path.exists("./_keys"): os.mkdir("./_keys")
     if not os.path.exists("./_certs"): os.mkdir("./_certs")
     if not os.path.exists("./_cache"): os.mkdir("./_cache")
-    if not os.path.exists("./_cache/dht_cache.json"):
-        json.dump([], open("./_cache/dht_cache.json", "w"))
+    if not os.path.exists("./_cache/dht_cache.json"): json.dump([], open("./_cache/dht_cache.json", "w"))
+    if not os.path.exists("./_files"): os.mkdir("./_files")
+    if not os.path.exists("./_files/stored"): os.mkdir("./_files/stored")
+    if not os.path.exists("./_files/retrieved"): os.mkdir("./_files/retrieved")
 
     if len(sys.argv) > 1:
         logging.debug(f"Don't use program arguments here - use the interactive shell.")

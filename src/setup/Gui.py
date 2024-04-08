@@ -1,3 +1,4 @@
+import os
 from argparse import Namespace
 
 from PyQt6.QtWidgets import *
@@ -76,11 +77,15 @@ class MainWindow(QWidget):
         file_name, _ = open_file_dialog.getOpenFileName(self, "Open File", "", "All Files (*)")
 
         if file_name:
-            self._cmd_handler._handle("store", Namespace(file_name=file_name))
+            file_directory, file_name = os.path.split(file_name)
+            self._cmd_handler._handle("store", Namespace(file_directory=file_directory ,file_name=file_name))
 
     def retrieve(self) -> None:
         # Map to "python src/main.py retrieve" (disable after clicking)
-        ...
+        file_name, _ = QInputDialog.getText(self, "Retrieve File", "Enter the name of the file to retrieve:")
+
+        if file_name:
+            self._cmd_handler._handle("retrieve", Namespace(file_name=file_name))
 
     def keygen(self) -> None:
         ...

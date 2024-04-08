@@ -96,6 +96,15 @@ class CmdHandler:
             CmdHandler.CONTROLLER = ControlConnectionManager()
             CmdHandler.CONTROLLER.create_route(arguments)
 
+        file_directory = arguments.file_directory
         file_name = arguments.file_name
-        file_contents = file_contents = open(file_name, "rb").read()
-        CmdHandler.CONTROLLER.store_file(file_name)
+        CmdHandler.CONTROLLER.store_file(file_directory, file_name)
+
+    @staticmethod
+    def _handle_retrieve(arguments: Namespace) -> None:
+        if not CmdHandler.CONTROLLER:
+            CmdHandler.CONTROLLER = ControlConnectionManager()
+            CmdHandler.CONTROLLER.create_route(arguments)
+
+        file_name = arguments.file_name
+        CmdHandler.CONTROLLER.retrieve_file(file_name)

@@ -31,6 +31,8 @@ class ControlConnectionProtocol(Enum):
     DHT_CLOSER_NODES_RES = 0b11001  # Response to closer nodes request
     DHT_ADV = 0b11010  # Advertise a file to a node on the network
     DHT_SEND_BROKER_REQ = 0b10111  # Request a broker node for a file
+    DHT_FILE_GET = 0b11011  # Request a file from a broker node
+    DHT_FILE_CONTENTS = 0b11100  # Send the contents of a file
 
 
 __all__ = ["ControlConnectionProtocol"]
