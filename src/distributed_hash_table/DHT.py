@@ -123,5 +123,5 @@ class DHT:
 
         # Excluding the current node, get the closest node to the tag.
         cache = [node for node in cache if node["ip"] not in block_list]
-        closest_node = min(cache, key=lambda node: DHashing.hamming_distance(bytes.fromhex(node["id"]), tag))
+        closest_node = min(cache, key=lambda node: DHashing.hash_distance(bytes.fromhex(node["id"]), tag))
         return closest_node["ip"]

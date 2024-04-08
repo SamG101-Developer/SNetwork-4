@@ -1,16 +1,14 @@
 from src.MyTypes import Bytes, Int
 
 
-def hamming_distance(a: Bytes, b: Bytes) -> Int:
+def hash_distance(a: Bytes, b: Bytes) -> Int:
     """
-    Calculate the Hamming distance between two hashes.
-    @param a: The first hash.
-    @param b: The second hash.
-    @return: The Hamming distance.
+    Determine the distance between two hashes, by taking the absolute difference between them.
+    @param a:
+    @param b:
+    @return:
     """
 
-    # Ensure the hashes are the same length
-    assert len(a) == len(b), "Hashes must be the same length"
-
-    # Calculate the Hamming distance
-    return sum([a_ != b_ for a_, b_ in zip(a, b)])
+    a_int = int.from_bytes(a, "big")
+    b_int = int.from_bytes(b, "big")
+    return abs(a_int - b_int)
