@@ -1142,7 +1142,7 @@ class ControlConnectionManager:
 
         # This is the exit node of the client route, so send the command to the broker node.
         else:
-            connection_token = self._open_connection_to(broker_node_ip)
+            connection_token = self._open_connection_to(broker_node_ip, token=connection_token)
             self._send_message_onwards(broker_node_ip, connection_token.token, ControlConnectionProtocol.DHT_FILE_GET_FROM_BROKER, data)
 
     @LogPre
