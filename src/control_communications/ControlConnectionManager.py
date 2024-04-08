@@ -1155,7 +1155,7 @@ class ControlConnectionManager:
         """
 
         file_name, broker_node_ip = pickle.loads(data)
-        stripped_file_name = file_name.rsplit(".")[0]
+        stripped_file_name = file_name.rsplit(".", 1)[0]
         logging.debug(f"\t\tGetting file: {file_name}")
 
         # This node is storing the file contents.
