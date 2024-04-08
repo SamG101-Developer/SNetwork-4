@@ -309,7 +309,7 @@ class ControlConnectionManager:
         # Send a broker node request to the final node who will connect to and advertise to the broker node.
         self._tunnel_message_forwards(
             addr=Address(ip=closest_node),
-            connection_token=connection_token.token,
+            connection_token=self._my_route.connection_token.token,
             command=ControlConnectionProtocol.DHT_SEND_BROKER_REQ,
             data=pickle.dumps((file_name, Address(ip=closest_node))))
 
@@ -1192,24 +1192,24 @@ class ControlConnectionManager:
 
         addr = Address(ip=raw_addr[0], port=raw_addr[1])
         connection_token, data = data[:32], data[32:]
-        logging.debug(f"\t\tConnection token: {connection_token}")
-        logging.debug(f"\t\tConnection tokens: {[c.token for c in self._conversations.keys()]}")
-        logging.debug(f"\t\tCheck: {connection_token in [c.token for c in self._conversations.keys()]}")
+        # logging.debug(f"\t\tConnection token: {connection_token}")
+        # logging.debug(f"\t\tConnection tokens: {[c.token for c in self._conversations.keys()]}")
+        # logging.debug(f"\t\tCheck: {connection_token in [c.token for c in self._conversations.keys()]}")
 
         # Decrypt the e2e connection if its encrypted (not encrypted when initiating a connection).
         if connection_token in [c.token for c in self._conversations.keys()]:
-            print("possibly decrypting e2e")
+            # print("possibly decrypting e2e")
             conversation_id = ConnectionToken(token=connection_token, address=addr)
 
             if self._waiting_for_ack_from(addr, connection_token) and data[0] == ControlConnectionProtocol.CONN_ACC.value:
                 pass
 
             else:
-                print("waiting for key to be set")
+                # print("waiting for key to be set")
                 while not self._conversations[conversation_id].secure:
                     pass
 
-                print("decrypting e2e")
+                # print("decrypting e2e")
                 shared_secret = self._conversations[conversation_id].shared_secret
                 data = SymmetricEncryption.decrypt(data, shared_secret)
 
@@ -1224,7 +1224,7 @@ class ControlConnectionManager:
         # todo : just call "self._handle_message directly(...)", and remove the "addr != Address.me()"?
         if not self._is_directory_node and self._my_route and self._my_route.connection_token.token == connection_token:
             if addr != Address.me():
-                print("decrypting all layers")
+                # print("decrypting all layers")
                 relay_nodes = iter(self._my_route.route[1:])
                 next_node = next(relay_nodes, None)
 
@@ -1250,13 +1250,13 @@ class ControlConnectionManager:
 
             # Relay node receiving a message from the previous node in the route => decrypt a layer
             if from_previous_node:
-                print("unwrapping 1 layer")
+                # print("unwrapping 1 layer")
                 client_key = self._node_to_client_tunnel_keys[connection_token].shared_secret.decapsulated_key
                 data = SymmetricEncryption.decrypt(data, client_key)
 
             # Relay node receiving a message from the next node in the route => add a layer of encryption
             elif self._parse_message(data)[0] == ControlConnectionProtocol.CONN_FWD:
-                print("wrapping 1 layer")
+                # print("wrapping 1 layer")
                 client_key = self._node_to_client_tunnel_keys[connection_token].shared_secret.decapsulated_key
                 data = SymmetricEncryption.encrypt(data, client_key)
                 data = ControlConnectionProtocol.CONN_FWD.value.to_bytes(1, "big") + connection_token + data
