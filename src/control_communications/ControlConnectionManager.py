@@ -335,7 +335,7 @@ class ControlConnectionManager:
             addr=Address(ip=broker_node),
             connection_token=self._my_route.connection_token.token,
             command=ControlConnectionProtocol.DHT_FILE_GET,
-            data=pickle.dumps(file_tag))
+            data=file_name.encode())
 
     # @LogPre
     @staticmethod
