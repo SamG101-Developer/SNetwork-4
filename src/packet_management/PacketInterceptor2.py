@@ -167,7 +167,7 @@ class ClientPacketInterceptor:
         del new_packet[IP].chksum
 
         # Check that new packet is not too large
-        if len(new_packet) > 1500:
+        if len(new_packet) > 1500 and PACKET_DEBUG:
             logging.error(f"\033[31mPacket too large ({len(new_packet)} bytes).\033[0m")
             return
 
