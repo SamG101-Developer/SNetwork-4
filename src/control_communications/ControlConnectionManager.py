@@ -338,7 +338,7 @@ class ControlConnectionManager:
         self._tunnel_message_forwards(
             addr=self._my_route.route[-1].connection_token.address,
             connection_token=self._my_route.connection_token.token,
-            command=ControlConnectionProtocol.DHT_FILE_GET,
+            command=ControlConnectionProtocol.DHT_FILE_GET_FROM_BROKER,
             data=pickle.dumps((file_name, broker_node)))
 
     # @LogPre
@@ -480,13 +480,21 @@ class ControlConnectionManager:
             case ControlConnectionProtocol.DHT_ADV if connected:
                 self._handle_dht_advertisement(addr, connection_token, data)
 
-            # Handle a file being requested (either to a broker node or owner node)
-            case ControlConnectionProtocol.DHT_FILE_GET if connected:
-                self._handle_dht_get_file(addr, connection_token, data)
+            # Handle a file being requested from a broker node.
+            case ControlConnectionProtocol.DHT_FILE_GET_FROM_BROKER if connected:
+                self._handle_dht_get_file_from_broker(addr, connection_token, data)
 
-            # Handle a file being sent (either to a broker node or requesting node)
-            case ControlConnectionProtocol.DHT_FILE_CONTENTS if connected:
-                self._handle_dht_file_contents(addr, connection_token, data)
+            # Handle a file being requested from a source node.
+            case ControlConnectionProtocol.DHT_FILE_GET_FROM_SOURCE if connected:
+                self._handle_dht_get_file_from_source(addr, connection_token, data)
+
+            # Handle a file being sent to a broker node.
+            case ControlConnectionProtocol.DHT_FILE_CONTENTS_TO_BROKER if connected:
+                self._handle_dht_file_contents_to_broker(addr, connection_token, data)
+
+            # Handle a file being sent to a client node.
+            case ControlConnectionProtocol.DHT_FILE_CONTENTS_TO_CLIENT if connected:
+                self._handle_dht_file_contents_to_client(addr, connection_token, data)
 
             # Otherwise, log an error, ignore the message, and do nothing.
             case _:
@@ -1104,7 +1112,7 @@ class ControlConnectionManager:
         logging.debug(f"\t\tAware of file: {file_name}")
 
     @LogPre
-    def _handle_dht_get_file(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
+    def _handle_dht_get_file_from_broker(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
         """
         @param addr:
         @param connection_token:
@@ -1112,30 +1120,48 @@ class ControlConnectionManager:
         @return:
         """
 
-        # If this node is a broker node for the contents.
         file_name, broker_node_ip = pickle.loads(data)
         stripped_file_name = file_name.rsplit(".")[0]
 
+        # If this node is a broker node for the contents.
         if file_name in self._broker_node_files.keys():
             conversation_id = ConnectionToken(token=connection_token, address=addr)
             self._broker_node_file_requesters[str(random.randint(1000, 9999)) + file_name] = conversation_id
 
             exit_node_to_source_connection_token = [c for c in self._conversations if c.token == self._broker_node_files.get(file_name)]
             exit_node_to_source = exit_node_to_source_connection_token[0].address
-            self._tunnel_message_backward(exit_node_to_source, exit_node_to_source_connection_token[0].token, ControlConnectionProtocol.DHT_FILE_GET, data)
+            self._send_message_onwards(exit_node_to_source, self._broker_node_files.get(file_name), ControlConnectionProtocol.DHT_FILE_GET_FROM_SOURCE, data)
 
-        # Otherwise, this node is storing the file contents.
-        elif os.path.exists(f"./_files/stored/{stripped_file_name}"):
-            file_contents = open(f"./_files/stored/{stripped_file_name}", "rb").read()
-            self._tunnel_message_forwards(addr, connection_token, ControlConnectionProtocol.DHT_FILE_CONTENTS, pickle.dumps((file_name, file_contents)))
-
-        # Otherwise, this is the exit node, so send the command to the source node.
+        # This is the exit node of the client route, so send the command to the broker node.
         else:
             connection_token = self._open_connection_to(broker_node_ip)
-            self._send_message_onwards(broker_node_ip, connection_token.token, ControlConnectionProtocol.DHT_FILE_GET, data)
+            self._send_message_onwards(broker_node_ip, connection_token.token, ControlConnectionProtocol.DHT_FILE_GET_FROM_BROKER, data)
 
     @LogPre
-    def _handle_dht_file_contents(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
+    def _handle_dht_get_file_from_source(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
+        """
+        @param addr:
+        @param connection_token:
+        @param data:
+        @return:
+        """
+
+        file_name, broker_node_ip = pickle.loads(data)
+        stripped_file_name = file_name.rsplit(".")[0]
+
+        # This node is storing the file contents.
+        if os.path.exists(f"./_files/stored/{stripped_file_name}"):
+            file_contents = open(f"./_files/stored/{stripped_file_name}", "rb").read()
+            self._tunnel_message_forwards(addr, connection_token, ControlConnectionProtocol.DHT_FILE_CONTENTS_TO_BROKER, pickle.dumps((file_name, file_contents)))
+
+        # This is the exit node of the host route, so send the command to the host through the route.
+        else:
+            candidates = [c.address for c in self._conversations.keys() if c.token == connection_token and c.address != addr]
+            addr = candidates[0]
+            self._tunnel_message_backward(addr, connection_token, ControlConnectionProtocol.DHT_FILE_GET_FROM_SOURCE, data)
+
+    @LogPre
+    def _handle_dht_file_contents_to_broker(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
         """
         @param addr:
         @param connection_token:
@@ -1149,12 +1175,32 @@ class ControlConnectionManager:
         if file_name in self._broker_node_files.keys():
             requesters = [r for c, r in self._broker_node_file_requesters.items() if c[4:] == file_name]
             for requester in requesters:
-                self._tunnel_message_forwards(requester.address, requester.token, ControlConnectionProtocol.DHT_FILE_CONTENTS, data)
+                self._send_message_onwards(requester.address, requester.token, ControlConnectionProtocol.DHT_FILE_CONTENTS_TO_CLIENT, pickle.dumps((file_name, file_contents)))
 
         # Otherwise, this node is receiving the file contents as a client node.
         else:
             open(f"./_files/received/{file_name}", "wb").write(file_contents)
             logging.debug(f"\t\tReceived file: {file_name}")
+
+    @LogPre
+    def _handle_dht_file_contents_to_client(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
+        """
+        @param addr:
+        @param connection_token:
+        @param data:
+        @return:
+        """
+
+        # If this node is a client node requesting the contents.
+        if self._my_route and self._my_route.connection_token.token == connection_token:
+            file_name, file_contents = pickle.loads(data)
+            open(f"./_files/retrieved/{file_name}", "wb").write(file_contents)
+
+        # If this node is the exit node in the client's route, tunnel the message to the client node.
+        else:
+            candidates = [c for c in self._conversations.keys() if c.token == connection_token and c.address != addr]
+            addr, connection_token = candidates[0]
+            self._tunnel_message_backward(addr, connection_token, ControlConnectionProtocol.DHT_FILE_CONTENTS_TO_CLIENT, data)
 
     @LogPre
     # @ReplayErrorBackToUser
