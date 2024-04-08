@@ -675,8 +675,8 @@ class ControlConnectionManager:
         sending_data = pickle.dumps((signed_my_ephemeral_public_key, True))
         self._send_message_onwards(target_addr, connection_token, ControlConnectionProtocol.CONN_REQ, sending_data)
 
-        while not self._conversations[conversation_id].secure:
-            pass
+        # while not self._conversations[conversation_id].secure:
+        #     pass
 
     @LogPre
     # @ReplayErrorBackToUser
