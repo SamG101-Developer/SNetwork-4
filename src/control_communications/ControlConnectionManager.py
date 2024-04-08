@@ -277,7 +277,7 @@ class ControlConnectionManager:
 
         # If this node is the closest node, salt the file name until this node isn't the closest node.
         while closest_node in [node.connection_token.address.ip for node in self._my_route.route] + [Address.me().ip]:
-            file_name += f"_{random.randint(0, 9)}"
+            file_name += f"{random.randint(0, 9)}"
             file_tag = Hashing.hash(file_name.encode())
             closest_node = DHT.closest_node_to(file_tag)
 
@@ -1045,14 +1045,14 @@ class ControlConnectionManager:
         @return:
         """
 
-        # Load the file name and broker node ip address from the data
+        # Load the file name and broker node ip address from the data.
         file_name, broker_node_ip_address = pickle.loads(data)
-        self._open_connection_to(broker_node_ip_address)
+        conversation_id = self._open_connection_to(broker_node_ip_address)
 
         # Send the advertisement to the broker node.
         self._send_message_onwards(
             addr=broker_node_ip_address,
-            connection_token=connection_token,
+            connection_token=conversation_id.token,
             command=ControlConnectionProtocol.DHT_ADV,
             data=file_name.encode())
 
