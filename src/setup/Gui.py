@@ -1,3 +1,5 @@
+from argparse import Namespace
+
 from PyQt6.QtWidgets import *
 from PyQt6.QtCore import *
 from PyQt6.QtGui import *
@@ -70,8 +72,11 @@ class MainWindow(QWidget):
 
     def store(self) -> None:
         # Map to "python src/main.py store" (disable after clicking)
-        open_file_dialog = QFileDialog()
+        open_file_dialog = QFileDialog(self)
         file_name, _ = open_file_dialog.getOpenFileName(self, "Open File", "", "All Files (*)")
+
+        if file_name:
+            self._cmd_handler._handle("store", Namespace(file_name=file_name))
 
     def retrieve(self) -> None:
         # Map to "python src/main.py retrieve" (disable after clicking)

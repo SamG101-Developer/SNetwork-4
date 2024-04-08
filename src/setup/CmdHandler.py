@@ -89,3 +89,13 @@ class CmdHandler:
             CmdHandler.CONTROLLER = ControlConnectionManager(is_directory_node=True)
         else:
             logging.error(f"Already joined the network as a directory.")
+
+    @staticmethod
+    def handle_store(arguments: Namespace) -> None:
+        if not CmdHandler.CONTROLLER:
+            CmdHandler.CONTROLLER = ControlConnectionManager()
+            CmdHandler.CONTROLLER.create_route(arguments)
+
+        file_name = arguments.file_name
+        file_contents = file_contents = open(file_name, "rb").read()
+        CmdHandler.CONTROLLER.store_file(file_name)

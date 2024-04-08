@@ -264,7 +264,7 @@ class ControlConnectionManager:
 
         self._send_message_onwards(target_address, connection_token.token, ControlConnectionProtocol.DHT_EXH_ADR, sending_data)
 
-    def store_file(self, file_name: Str, file_contents: Bytes) -> None:
+    def store_file(self, file_name: Str) -> None:
         # Hash the file name to get the file tag, and determine the closest node.
         file_tag = Hashing.hash(file_name.encode())
         closest_node = DHT.closest_node_to(file_tag, block_list=[Address.me().ip])
