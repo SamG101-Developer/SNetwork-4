@@ -11,7 +11,6 @@ class ControlConnectionProtocol(Enum):
     CONN_FWD     = 0b00110  # Forward a connection command
     CONN_EXT     = 0b00111  # Extend a connection
     CONN_SEC     = 0b01000  # E2E connection is secured
-    CONN_SEC_ACK = 0b10111  #
     CONN_EXT_ACC = 0b01001  # Acknowledge an extended connection
     CONN_EXT_REJ = 0b01010  # Reject an extended connection
     CONN_PKT_KEM = 0b01011  # Packet key: send pub key for KEM
@@ -28,6 +27,10 @@ class ControlConnectionProtocol(Enum):
     DHT_EXH_RES = 0b10100  # Response to a certificate request
     DHT_EXH_ADR = 0b10101  # Exchange IP addresses with a node
     DHT_EXH_ACK = 0b10110  # Acknowledge an address exchange
+    DHT_CLOSER_NODES_REQ = 0b11000  # Request closer nodes to a key
+    DHT_CLOSER_NODES_RES = 0b11001  # Response to closer nodes request
+    DHT_ADV = 0b11010  # Advertise a file to a node on the network
+    DHT_SEND_BROKER_REQ = 0b10111  # Request a broker node for a file
 
 
 __all__ = ["ControlConnectionProtocol"]

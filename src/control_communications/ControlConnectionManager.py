@@ -62,6 +62,8 @@ class ControlConnectionManager:
     _pending_node_to_add_to_route: Optional[Address]
     _is_directory_node: bool
     _waiting_for_cert: bool
+    _closer_nodes_to_files_resp: Dict[Tuple[Bytes, Bytes], Optional[Address]]
+    _broker_node_files: Dict[Str, Bytes]
 
     _client_packet_interceptor: Optional[ClientPacketInterceptor]
     _intermediary_node_interceptor: Optional[IntermediaryNodeInterceptor]
@@ -79,6 +81,9 @@ class ControlConnectionManager:
         self._is_directory_node = is_directory_node
         self._waiting_for_cert = False
 
+        self._closer_nodes_to_files_resp = {}
+        self._broker_node_files = {}
+
         self._client_packet_interceptor = None
         self._intermediary_node_interceptor = IntermediaryNodeInterceptor() if not self._is_directory_node else None
 
@@ -94,10 +99,10 @@ class ControlConnectionManager:
 
         # Setup functions that are optionally run depending on the state of this node.
         if not self._is_directory_node and not os.path.exists("./_certs/certificate.ctf"):
-            self.obtain_certificate()
+            self._obtain_certificate()
 
         if not self._is_directory_node and len(json.loads(open("./_cache/dht_cache.json").read())) == 0:
-            self.obtain_first_nodes()
+            self._obtain_first_nodes()
 
         # if not self._is_directory_node:
         #     self.refresh_cache()
@@ -138,7 +143,7 @@ class ControlConnectionManager:
         if DHT.total_nodes_known([Address.me().ip]) < 3:
             logging.error("Not enough nodes in the network to create a route.")
             logging.debug("Refreshing cache...")
-            self.refresh_cache()
+            self._refresh_cache()
 
             while DHT.total_nodes_known([Address.me().ip]) < 3:
                 time.sleep(1)  # use "sleep" because file locks
@@ -165,7 +170,7 @@ class ControlConnectionManager:
         # Log the route.
         logging.info(f"\t\tCreated route: {' -> '.join([node.connection_token.address.ip for node in self._my_route.route])}")
 
-    def obtain_certificate(self):
+    def _obtain_certificate(self):
         # This is a new node, so generate a static asymmetric key pair for signing.
         static_asymmetric_key_pair = KeyPair().import_("./_keys/me", "static")
 
@@ -196,7 +201,7 @@ class ControlConnectionManager:
         # Remove the conversation from the list of conversations.
         del self._conversations[connection_token]
 
-    def obtain_first_nodes(self, need_to_know: List[Str] = None):
+    def _obtain_first_nodes(self, need_to_know: List[Str] = None):
         # Connect to the directory node to get the first nodes to bootstrap from.
         target_address = Address(ip=DHT.get_random_directory_node())
         connection_token = self._open_connection_to(target_address)
@@ -237,13 +242,13 @@ class ControlConnectionManager:
 
         return connection_token
 
-    def refresh_cache(self):
+    def _refresh_cache(self):
         node_to_contact = DHT.get_random_node(block_list=[Address.me().ip])
 
         if not node_to_contact:
             logging.error("No nodes online at the moment")
             logging.debug("Using directory node")
-            self.obtain_first_nodes()
+            self._obtain_first_nodes()
             return
 
         logging.debug(f"Refreshing cache from {node_to_contact['ip']}")
@@ -258,6 +263,39 @@ class ControlConnectionManager:
         sending_data = pickle.dumps(nodes)
 
         self._send_message_onwards(target_address, connection_token.token, ControlConnectionProtocol.DHT_EXH_ADR, sending_data)
+
+    def store_file(self, file_name: Str, file_contents: Bytes) -> None:
+        # Hash the file name to get the file tag, and determine the closest node.
+        file_tag = Hashing.hash(file_name.encode())
+        closest_node = DHT.closest_node_to(file_tag, block_list=[Address.me().ip])
+
+        # Continuously ask the "closest_node" for a closer node, if they know one.
+        while True:
+            # Open a connection to the current closest node, and send a request for a closer node to a hash.
+            connection_token = self._open_connection_to(Address(ip=closest_node))
+            self._closer_nodes_to_files_resp[(connection_token.token, file_tag)] = None
+            self._send_message_onwards(Address(ip=closest_node), connection_token.token, ControlConnectionProtocol.DHT_CLOSER_NODES_REQ, file_tag)
+
+            # Wait until an IP address has been set to the dictionary based on the connection token and file tag.
+            while not self._closer_nodes_to_files_resp[(connection_token.token, file_tag)]:
+                pass
+
+            # If the new closest node is the same as the current one, this is the true closest node.
+            if self._closer_nodes_to_files_resp[(connection_token.token, file_tag)].ip == closest_node:
+                break
+
+            # Otherwise, send the request to the new closest node.
+            closest_node = self._closer_nodes_to_files_resp[(connection_token.token, file_tag)].ip
+
+        # Send a broker node request to the final node who will connect to and advertise to the broker node.
+        self._tunnel_message_forwards(
+            addr=Address(ip=closest_node),
+            connection_token=connection_token.token,
+            command=ControlConnectionProtocol.DHT_SEND_BROKER_REQ,
+            data=pickle.dumps((file_name, Address(ip=closest_node))))
+
+    def retrieve_file(self, file_name: Str) -> Bytes:
+        ...
 
     # @LogPre
     @staticmethod
@@ -381,6 +419,22 @@ class ControlConnectionManager:
             # Handle an ACK of IP addresses received from the exchange.
             case ControlConnectionProtocol.DHT_EXH_ACK if connected:
                 self._handle_exchange_ack_ip_addresses(addr, connection_token, data)
+
+            # Handle a request for closer nodes to a key.
+            case ControlConnectionProtocol.DHT_CLOSER_NODES_REQ if connected:
+                self._handle_request_for_closer_nodes(addr, connection_token, data)
+
+            # Handle a response to a request for closer nodes to a key.
+            case ControlConnectionProtocol.DHT_CLOSER_NODES_RES if connected:
+                self._handle_response_for_closer_nodes(addr, connection_token, data)
+
+            # Handle a command to send an advertisement to a broker node.
+            case ControlConnectionProtocol.DHT_SEND_BROKER_REQ if connected:
+                self._handle_send_dht_broker_request(addr, connection_token, data)
+
+            # Handle an advertisement for a file (this node acting as a broke node)
+            case ControlConnectionProtocol.DHT_ADV if connected:
+                self._handle_dht_advertisement(addr, connection_token, data)
 
             # Otherwise, log an error, ignore the message, and do nothing.
             case _:
@@ -569,7 +623,7 @@ class ControlConnectionManager:
             logging.error(f"\t\tTarget node for extension not in DHT: {target_addr.ip}")
             logging.debug(f"\t\tRequesting node information from directory node...")
 
-            self.obtain_first_nodes(need_to_know=[target_addr.ip])
+            self._obtain_first_nodes(need_to_know=[target_addr.ip])
             while not (target_static_public_key := DHT.get_static_public_key(target_addr.ip, silent=True)):
                 pass
 
@@ -920,6 +974,77 @@ class ControlConnectionManager:
         nodes = pickle.loads(data)
         for node in nodes:
             DHT.cache_node_information(node["id"], node["key"], node["ip"])
+
+    @LogPre
+    def _handle_request_for_closer_nodes(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
+        """
+        Handle a request for closer nodes to a key. The data will be the key to find the closest nodes to.
+        @param addr:
+        @param connection_token:
+        @param data:
+        @return:
+        """
+
+        # Determine the key from the data, and get the closest nodes to the key.
+        key = data
+        closest_node = Address(ip=DHT.closest_node_to(key))
+
+        # Send the closest node (could be this node) to the requesting node.
+        self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.DHT_CLOSER_NODES_RES, pickle.dumps((key, closest_node)))
+
+    @LogPre
+    def _handle_response_for_closer_nodes(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
+        """
+
+        @param addr:
+        @param connection_token:
+        @param data:
+        @return:
+        """
+
+        # Extract the key and IP from the data and save it to the dictionary.
+        key, closest_node = pickle.loads(data)
+        self._closer_nodes_to_files_resp[(connection_token, key)] = closest_node
+
+    @LogPre
+    def _handle_send_dht_broker_request(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
+        """
+        Send a DHT broker advertisement to a node of the client node's choosing. This broker node will be aware of a
+        file existing on the network, and can talk to this node, to route requests back to the client node for the file
+        information. The file information is encrypted differently per-node retrieving the file, so the broker node
+        cannot store file contents.
+        @param addr:
+        @param connection_token:
+        @param data:
+        @return:
+        """
+
+        # Load the file name and broker node ip address from the data
+        file_name, broker_node_ip_address = pickle.loads(data)
+        self._open_connection_to(broker_node_ip_address)
+
+        # Send the advertisement to the broker node.
+        self._send_message_onwards(
+            addr=broker_node_ip_address,
+            connection_token=connection_token,
+            command=ControlConnectionProtocol.DHT_ADV,
+            data=file_name.encode())
+
+    @LogPre
+    def _handle_dht_advertisement(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
+        """
+        Handle a DHT advertisement from a broker node. This advertisement will be for a file that the broker node is
+        aware of, and can route requests for the file to the client node.
+        @param addr:
+        @param connection_token:
+        @param data:
+        @return:
+        """
+
+        # Load the file name from the data, and save it to the dictionary.
+        file_name = data.decode()
+        self._broker_node_files[file_name] = connection_token
+        logging.debug(f"\t\tAware of file: {file_name}")
 
     @LogPre
     # @ReplayErrorBackToUser

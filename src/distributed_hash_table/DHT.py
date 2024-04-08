@@ -4,6 +4,8 @@ import json, random
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 from cryptography.hazmat.primitives.serialization import load_pem_public_key, load_der_public_key, Encoding, PublicFormat
 
+from control_communications.ControlConnectionRoute import Address
+from distributed_hash_table import DHashing
 from src.crypto_engines.crypto.Hashing import Hashing
 from src.MyTypes import Str, List, Bytes, Dict, Optional
 
@@ -113,3 +115,14 @@ class DHT:
             cache = json.load(open("./_cache/dht_cache.json"))
             cache.append({"id": node_id.hex(), "key": node_public_key.hex(), "ip": ip_address})
             json.dump(cache, open("./_cache/dht_cache.json", "w"))
+
+    @staticmethod
+    def closest_node_to(tag: Bytes, block_list: List[Str] = None) -> Str:
+        block_list = block_list or []
+        with DHT.LOCK:
+            cache = json.load(open("./_cache/dht_cache.json"))
+
+        # Excluding the current node, get the closest node to the tag.
+        cache = [node for node in cache if node["ip"] not in block_list]
+        closest_node = min(cache, key=lambda node: DHashing.hamming_distance(bytes.fromhex(node["id"]), tag))
+        return closest_node["ip"]
