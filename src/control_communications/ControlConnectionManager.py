@@ -530,8 +530,8 @@ class ControlConnectionManager:
 
         # Send the signed KEM wrapped shared secret to the requesting node.
         self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.CONN_ACC, pickle.dumps(signed_kem_wrapped_shared_secret))
-        while not self._conversations[conversation_id].secure:
-            pass
+        # while not self._conversations[conversation_id].secure:
+        #     pass
 
         self._conversations[conversation_id].shared_secret = kem_wrapped_shared_secret.decapsulated_key
         self._conversations[conversation_id].secure = True
