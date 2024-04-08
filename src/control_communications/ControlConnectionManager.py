@@ -1124,7 +1124,7 @@ class ControlConnectionManager:
         stripped_file_name = file_name.rsplit(".")[0]
 
         # If this node is a broker node for the contents.
-        if file_name in self._broker_node_files.keys():
+        if file_name in self._broker_node_files.keys() and connection_token not in [c.token for c in self._conversations.keys()]:
             conversation_id = ConnectionToken(token=connection_token, address=addr)
             self._broker_node_file_requesters[str(random.randint(1000, 9999)) + file_name] = conversation_id
 
