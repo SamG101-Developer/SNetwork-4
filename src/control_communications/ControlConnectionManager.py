@@ -278,6 +278,7 @@ class ControlConnectionManager:
             open(f"./_files/stored/{file_name}", "wb").write(open(os.path.join(file_directory, file_name), "rb").read())
 
         # Hash the file name to get the file tag, and determine the closest node.
+        file_name += ".0"
         file_tag = Hashing.hash(file_name.encode())
         closest_node = DHT.closest_node_to(file_tag)
 
@@ -1113,17 +1114,19 @@ class ControlConnectionManager:
 
         # If this node is a broker node for the contents.
         file_name, broker_node_ip = pickle.loads(data)
+        stripped_file_name = file_name.rsplit(".")[0]
+
         if file_name in self._broker_node_files.keys():
             conversation_id = ConnectionToken(token=connection_token, address=addr)
             self._broker_node_file_requesters[str(random.randint(1000, 9999)) + file_name] = conversation_id
 
             exit_node_to_source_connection_token = [c for c in self._conversations if c.token == self._broker_node_files.get(file_name)]
             exit_node_to_source = exit_node_to_source_connection_token[0].address
-            self._tunnel_message_backward(exit_node_to_source, connection_token, ControlConnectionProtocol.DHT_FILE_GET, data)
+            self._tunnel_message_backward(exit_node_to_source, exit_node_to_source_connection_token[0].token, ControlConnectionProtocol.DHT_FILE_GET, data)
 
         # Otherwise, this node is storing the file contents.
-        elif os.path.exists(f"./_files/stored/{file_name}"):
-            file_contents = open(f"./_files/stored/{file_name}", "rb").read()
+        elif os.path.exists(f"./_files/stored/{stripped_file_name}"):
+            file_contents = open(f"./_files/stored/{stripped_file_name}", "rb").read()
             self._tunnel_message_forwards(addr, connection_token, ControlConnectionProtocol.DHT_FILE_CONTENTS, pickle.dumps((file_name, file_contents)))
 
         # Otherwise, this is the exit node, so send the command to the source node.
