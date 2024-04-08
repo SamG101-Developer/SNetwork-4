@@ -171,6 +171,9 @@ class ClientPacketInterceptor:
             logging.error(f"\033[31mPacket too large ({len(new_packet)} bytes).\033[0m")
             return
 
+        # Increase TTL for the entire route.
+        new_packet[IP].ttl += 5
+
         # Send the packet (to the entry node).
         sendp(new_packet)
 
@@ -361,6 +364,9 @@ class ExitNodeInterceptor:
         # If this packet is the final one, remove the port from the mapping.
         if old_packet[TCP].flags & 0x01:
             self._port_mapping.pop(old_packet[TCP].dport)
+
+        # Increase TTL for the entire route.
+        new_packet[IP].ttl += 5
 
         # Handle the packet in the intermediary node.
         self._intermediary_node_interceptor._forward_prev(new_packet, connection_token)
