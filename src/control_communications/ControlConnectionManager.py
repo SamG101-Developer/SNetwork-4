@@ -1200,9 +1200,16 @@ class ControlConnectionManager:
         if connection_token in [c.token for c in self._conversations.keys()]:
             conversation_id = ConnectionToken(token=connection_token, address=addr)
 
-            if shared_secret := self._conversations[conversation_id].shared_secret:
-                print("e2e decrypting")
-                data = SymmetricEncryption.decrypt(data, shared_secret)
+            if self._is_connected_to(addr, connection_token):
+                while not self._conversations[conversation_id].secure:
+                    pass
+
+                shared_secret = self._conversations[conversation_id].shared_secret
+                data = SymmetricEncryption.encrypt(data, shared_secret)
+
+            # if shared_secret := self._conversations[conversation_id].shared_secret:
+            #     print("e2e decrypting")
+            #     data = SymmetricEncryption.decrypt(data, shared_secret)
 
         # Decrypt any layered encryption (if the command is CONN_FWD).
 
