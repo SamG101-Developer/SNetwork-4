@@ -18,6 +18,7 @@ from cryptography.exceptions import InvalidTag
 PACKET_PORT = 12346
 HTTPS_PORT = 443
 BLACKLIST = ["57.128.141."]
+PACKET_DEBUG = False
 
 
 class TestPacketInterceptor:
@@ -65,30 +66,27 @@ class TestPacketInterceptor:
             payload, next_connection_token = payload[:-32], payload[-32:]
 
             if next_connection_token != self._connection_token:
-                logging.error(f"\033[31mConnection token {next_connection_token} does not match {self._connection_token}.\033[0m")
                 return
             try:
                 payload = SymmetricEncryption.decrypt(payload, self._node_tunnel_keys[i])
             except InvalidTag:
-                logging.error(f"\033[31mInvalid tag for connection token {next_connection_token}.\033[0m")
                 return
             except ValueError as e:
-                logging.error(f"\033[31mPacket error (maybe fragmented)\033[0m")
                 return
 
         payload, addr, port, next_connection_token = payload[:-41], payload[-41:-37], payload[-37:-32], payload[-32:]
         addr = IPv4Address(addr)
         port = int(port.decode())
-
         if next_connection_token != self._connection_token:
-            logging.error(f"\033[31mConnection token {next_connection_token} does not match {self._connection_token}.\033[0m")
             return
+
         new_packet.add_payload(payload)
 
         # Debug
-        logging.debug(f"\033[32mPacket from {addr}:{port} ({old_packet[TCP].seq}).\033[0m")
-        logging.debug(f"\033[32mPacket size: {len(payload)} bytes.\033[0m")
-        logging.debug(f"\033[32mPacket payload: {payload}.\033[0m")
+        if PACKET_DEBUG:
+            logging.debug(f"\033[32mPacket from {addr}:{port} ({old_packet[TCP].seq}).\033[0m")
+            logging.debug(f"\033[32mPacket size: {len(payload)} bytes.\033[0m")
+            logging.debug(f"\033[32mPacket payload: {payload}.\033[0m")
 
 
 class ClientPacketInterceptor:
@@ -177,7 +175,8 @@ class ClientPacketInterceptor:
         sendp(new_packet, verbose=False)
 
         # Debug
-        logging.debug(f"\033[33mPacket to {old_packet[IP].dst} intercepted and sent to entry node {new_packet[IP].dst}:{new_packet[TCP].dport} ({len(old_payload)} -> {len(new_payload)} bytes).\033[0m")
+        if PACKET_DEBUG:
+            logging.debug(f"\033[33mPacket to {old_packet[IP].dst} intercepted and sent to entry node {new_packet[IP].dst}:{new_packet[TCP].dport} ({len(old_payload)} -> {len(new_payload)} bytes).\033[0m")
 
 
 class IntermediaryNodeInterceptor:
@@ -242,7 +241,6 @@ class IntermediaryNodeInterceptor:
         try:
             new_payload = SymmetricEncryption.decrypt(old_payload, self._node_tunnel_keys[connection_token])
         except InvalidTag:
-            logging.error(f"\033[31mInvalid tag for connection token {connection_token}.\033[0m")
             return
 
         next_address, new_payload = new_payload[:4], new_payload[4:]
@@ -267,7 +265,8 @@ class IntermediaryNodeInterceptor:
         sendp(new_packet, verbose=False)
 
         # Debug
-        logging.debug(f"\033[32mPacket from {old_packet[IP].src} intercepted and sent forwards to next node {next_address} ({len(old_payload)} -> {len(new_payload)} bytes).\033[0m")
+        if PACKET_DEBUG:
+            logging.debug(f"\033[32mPacket from {old_packet[IP].src} intercepted and sent forwards to next node {next_address} ({len(old_payload)} -> {len(new_payload)} bytes).\033[0m")
 
     def _forward_prev(self, old_packet: Packet, connection_token: Bytes) -> None:
         # Copy the old packet from the IP layer, and remove the payload.
@@ -295,7 +294,8 @@ class IntermediaryNodeInterceptor:
         sendp(new_packet, verbose=False)
 
         # Debug
-        logging.debug(f"\033[35mPacket from {old_packet[IP].src} intercepted and sent backwards to prev node {prev_address} ({len(old_payload)} -> {len(new_payload)} bytes).\033[0m")
+        if PACKET_DEBUG:
+            logging.debug(f"\033[35mPacket from {old_packet[IP].src} intercepted and sent backwards to prev node {prev_address} ({len(old_payload)} -> {len(new_payload)} bytes).\033[0m")
 
 
 class ExitNodeInterceptor:
