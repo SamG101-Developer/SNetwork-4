@@ -74,19 +74,22 @@ class TestPacketInterceptor:
             except ValueError as e:
                 return
 
-        payload, addr, port, next_connection_token = payload[:-41], payload[-41:-37], payload[-37:-32], payload[-32:]
-        addr = IPv4Address(addr)
-        port = int(port.decode())
-        if next_connection_token != self._connection_token:
-            return
+        try:
+            payload, addr, port, next_connection_token = payload[:-41], payload[-41:-37], payload[-37:-32], payload[-32:]
+            addr = IPv4Address(addr)
+            port = int(port.decode())
+            if next_connection_token != self._connection_token:
+                return
 
-        new_packet.add_payload(payload)
+            new_packet.add_payload(payload)
 
-        # Debug
-        if PACKET_DEBUG:
-            logging.debug(f"\033[32mPacket from {addr}:{port} ({old_packet[TCP].seq}).\033[0m")
-            logging.debug(f"\033[32mPacket size: {len(payload)} bytes.\033[0m")
-            logging.debug(f"\033[32mPacket payload: {payload}.\033[0m")
+            # Debug
+            if PACKET_DEBUG:
+                logging.debug(f"\033[32mPacket from {addr}:{port} ({old_packet[TCP].seq}).\033[0m")
+                logging.debug(f"\033[32mPacket size: {len(payload)} bytes.\033[0m")
+                logging.debug(f"\033[32mPacket payload: {payload}.\033[0m")
+        except UnicodeDecodeError:
+            ...
 
 
 class ClientPacketInterceptor:
@@ -168,7 +171,7 @@ class ClientPacketInterceptor:
 
         # Check that new packet is not too large
         if len(new_packet) > 1500:
-            if  PACKET_DEBUG:
+            if PACKET_DEBUG:
                 logging.error(f"\033[31mPacket too large ({len(new_packet)} bytes).\033[0m")
             return
 
