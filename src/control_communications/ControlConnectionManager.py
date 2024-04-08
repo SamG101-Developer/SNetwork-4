@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os.path
+import random
 import socket
 import logging, pickle
 import time
@@ -267,7 +268,22 @@ class ControlConnectionManager:
     def store_file(self, file_name: Str) -> None:
         # Hash the file name to get the file tag, and determine the closest node.
         file_tag = Hashing.hash(file_name.encode())
-        closest_node = DHT.closest_node_to(file_tag, block_list=[Address.me().ip])
+        closest_node = DHT.closest_node_to(file_tag)
+
+        logging.debug(f"\t\tFile name: {file_name}")
+        logging.debug(f"\t\tFile tag: {file_tag}")
+        logging.debug(f"\t\tClosest node to file tag: {closest_node}")
+
+        # If this node is the closest node, salt the file name until this node isn't the closest node.
+        while closest_node == Address.me().ip:
+            file_name += f"_{random.randint(0, 9)}"
+            file_tag = Hashing.hash(file_name.encode())
+            closest_node = DHT.closest_node_to(file_tag)
+
+            logging.debug(f"\t\tSalting to rotate closest node")
+            logging.debug(f"\t\tNew File name: {file_name}")
+            logging.debug(f"\t\tNew File tag: {file_tag}")
+            logging.debug(f"\t\tClosest node to file tag: {closest_node}")
 
         # Continuously ask the "closest_node" for a closer node, if they know one.
         while True:
@@ -275,6 +291,7 @@ class ControlConnectionManager:
             connection_token = self._open_connection_to(Address(ip=closest_node))
             self._closer_nodes_to_files_resp[(connection_token.token, file_tag)] = None
             self._send_message_onwards(Address(ip=closest_node), connection_token.token, ControlConnectionProtocol.DHT_CLOSER_NODES_REQ, file_tag)
+            logging.debug("\t\tLooking for closer nodes to file tag...")
 
             # Wait until an IP address has been set to the dictionary based on the connection token and file tag.
             while not self._closer_nodes_to_files_resp[(connection_token.token, file_tag)]:
@@ -282,6 +299,7 @@ class ControlConnectionManager:
 
             # If the new closest node is the same as the current one, this is the true closest node.
             if self._closer_nodes_to_files_resp[(connection_token.token, file_tag)].ip == closest_node:
+                logging.debug(f"\t\t{closest_node} is the closest node to the file tag.")
                 break
 
             # Otherwise, send the request to the new closest node.
@@ -293,6 +311,8 @@ class ControlConnectionManager:
             connection_token=connection_token.token,
             command=ControlConnectionProtocol.DHT_SEND_BROKER_REQ,
             data=pickle.dumps((file_name, Address(ip=closest_node))))
+
+        logging.debug(f"\t\tSent 'send broker node' request to {closest_node}")
 
     def retrieve_file(self, file_name: Str) -> Bytes:
         ...
@@ -988,6 +1008,7 @@ class ControlConnectionManager:
         # Determine the key from the data, and get the closest nodes to the key.
         key = data
         closest_node = Address(ip=DHT.closest_node_to(key))
+        logging.debug(f"\t\tClosest node to {key}: {closest_node.ip}")
 
         # Send the closest node (could be this node) to the requesting node.
         self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.DHT_CLOSER_NODES_RES, pickle.dumps((key, closest_node)))
