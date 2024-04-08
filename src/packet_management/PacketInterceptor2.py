@@ -17,7 +17,7 @@ from cryptography.exceptions import InvalidTag
 
 PACKET_PORT = 12346
 HTTPS_PORT = 443
-BLACKLIST = ["57.128.141.164"]
+BLACKLIST = ["57.128.141."]
 
 
 class TestPacketInterceptor:
@@ -133,7 +133,7 @@ class ClientPacketInterceptor:
             return
 
         # Blacklist some addresses
-        if old_packet[IP].dst in BLACKLIST:
+        if any(old_packet[IP].dst.startswith(addr) for addr in BLACKLIST):
             return
 
         # Copy the old packet from the IP layer, and remove the payload.
