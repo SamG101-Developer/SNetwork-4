@@ -1171,11 +1171,7 @@ class ControlConnectionManager:
         # Encrypt the connection to the direct neighbour node, if a shared secret has been established.
         conversation_id = ConnectionToken(token=connection_token, address=addr)
 
-        command = ControlConnectionProtocol(data[0])
-        if command not in [
-                ControlConnectionProtocol.CONN_REQ, ControlConnectionProtocol.CONN_ACC,
-                ControlConnectionProtocol.CONN_REJ, ControlConnectionProtocol.CONN_SEC]:
-
+        if self._is_connected_to(addr, connection_token) and data[0] != ControlConnectionProtocol.CONN_SEC.value:
             while not self._conversations[conversation_id].secure:
                 pass
 
