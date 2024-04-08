@@ -174,11 +174,10 @@ class ClientPacketInterceptor:
         new_packet[IP].ttl += 5
 
         # Send the packet (to the entry node).
-        sendp(new_packet)
+        sendp(new_packet, verbose=False)
 
         # Debug
         logging.debug(f"\033[33mPacket to {old_packet[IP].dst} intercepted and sent to entry node {new_packet[IP].dst}:{new_packet[TCP].dport} ({len(old_payload)} -> {len(new_payload)} bytes).\033[0m")
-        logging.debug(f"\033[33mPacket sequence number: {old_packet[TCP].seq}.\033[0m")
 
 
 class IntermediaryNodeInterceptor:
@@ -265,12 +264,10 @@ class IntermediaryNodeInterceptor:
         del new_packet[TCP].chksum
 
         # Send the packet (to the next node or the internet).
-        sendp(new_packet)
+        sendp(new_packet, verbose=False)
 
         # Debug
         logging.debug(f"\033[32mPacket from {old_packet[IP].src} intercepted and sent forwards to next node {next_address} ({len(old_payload)} -> {len(new_payload)} bytes).\033[0m")
-        logging.debug(f"\033[32mPacket sequence number: {old_packet[TCP].seq}.\033[0m")
-        logging.debug(f"{new_packet.display()}")
 
     def _forward_prev(self, old_packet: Packet, connection_token: Bytes) -> None:
         # Copy the old packet from the IP layer, and remove the payload.
@@ -295,11 +292,10 @@ class IntermediaryNodeInterceptor:
         del new_packet[TCP].chksum
 
         # Send the packet (to the previous node).
-        sendp(new_packet)
+        sendp(new_packet, verbose=False)
 
         # Debug
         logging.debug(f"\033[35mPacket from {old_packet[IP].src} intercepted and sent backwards to prev node {prev_address} ({len(old_payload)} -> {len(new_payload)} bytes).\033[0m")
-        logging.debug(f"\033[35mPacket sequence number: {old_packet[TCP].seq}.\033[0m")
 
 
 class ExitNodeInterceptor:
