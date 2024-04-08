@@ -328,7 +328,7 @@ class ControlConnectionManager:
     def retrieve_file(self, file_name: Str) -> None:
         # Hash the file name to get the file tag, and determine the closest node.
         file_tag = Hashing.hash(file_name.encode())
-        broker_node = DHT.closest_node_to(file_tag)
+        broker_node = Address(ip=DHT.closest_node_to(file_tag))
 
         logging.debug(f"\t\tRetrieving file name: {file_name}")
         logging.debug(f"\t\tRetrieving from {broker_node}")
