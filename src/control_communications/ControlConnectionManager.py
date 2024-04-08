@@ -1186,10 +1186,10 @@ class ControlConnectionManager:
             for requester in requesters:
                 self._send_message_onwards(requester.address, requester.token, ControlConnectionProtocol.DHT_FILE_CONTENTS_TO_CLIENT, pickle.dumps((file_name, file_contents, broker_node_ip)))
 
-        # Otherwise, this node is the exit node in the host route, so tunnel the message to the broker node.
+        # Otherwise, this node is the exit node in the host route, so send the message to the broker node.
         else:
             connection_token = self._open_connection_to(broker_node_ip)
-            self._send_message_onwards(broker_node_ip, connection_token.token, ControlConnectionProtocol.DHT_FILE_CONTENTS_TO_CLIENT, data)
+            self._send_message_onwards(broker_node_ip, connection_token.token, ControlConnectionProtocol.DHT_FILE_CONTENTS_TO_BROKER, data)
 
     @LogPre
     def _handle_dht_file_contents_to_client(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
