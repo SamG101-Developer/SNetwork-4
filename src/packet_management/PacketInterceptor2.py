@@ -40,7 +40,7 @@ class TestPacketInterceptor:
 
     def _begin_interception(self) -> None:
         # Begin sniffing on the HTTPS port (incoming).
-        sniff(filter=f"tcp port {HTTPS_PORT}", prn=self._transform_packet)
+        sniff(filter=f"tcp port {HTTPS_PORT}", prn=self._transform_packet, count=50)
 
     def register_key(self, key: Bytes) -> None:
         # Register the key to the list.
@@ -299,6 +299,7 @@ class IntermediaryNodeInterceptor:
         # Debug
         logging.debug(f"\033[35mPacket from {old_packet[IP].src} intercepted and sent backwards to prev node {prev_address} ({len(old_payload)} -> {len(new_payload)} bytes).\033[0m")
         logging.debug(f"\033[35mPacket sequence number: {old_packet[TCP].seq}.\033[0m")
+        logging.debug(f"{new_packet.display()}")
 
 
 class ExitNodeInterceptor:
