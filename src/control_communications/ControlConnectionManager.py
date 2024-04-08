@@ -276,7 +276,7 @@ class ControlConnectionManager:
         logging.debug(f"\t\tClosest node to file tag: {closest_node}")
 
         # If this node is the closest node, salt the file name until this node isn't the closest node.
-        while closest_node not in [node.connection_token.address.ip for node in self._my_route.route] + [Address.me().ip]:
+        while closest_node in [node.connection_token.address.ip for node in self._my_route.route] + [Address.me().ip]:
             file_name += f"_{random.randint(0, 9)}"
             file_tag = Hashing.hash(file_name.encode())
             closest_node = DHT.closest_node_to(file_tag)
