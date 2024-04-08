@@ -88,7 +88,7 @@ class TestPacketInterceptor:
                 logging.debug(f"\033[32mPacket from {addr}:{port} ({old_packet[TCP].seq}).\033[0m")
                 logging.debug(f"\033[32mPacket size: {len(payload)} bytes.\033[0m")
                 logging.debug(f"\033[32mPacket payload: {payload}.\033[0m")
-        except UnicodeDecodeError:
+        except (UnicodeDecodeError, ValueError):
             ...
 
 
@@ -169,7 +169,7 @@ class ClientPacketInterceptor:
         del new_packet[TCP].chksum
         del new_packet[IP].chksum
 
-        # Check that new packet is not too large
+        # Check the new packet is not too large
         if len(new_packet) > 1500:
             if PACKET_DEBUG:
                 logging.error(f"\033[31mPacket too large ({len(new_packet)} bytes).\033[0m")
@@ -265,6 +265,12 @@ class IntermediaryNodeInterceptor:
         del new_packet[IP].chksum
         del new_packet[TCP].chksum
 
+        # Check the new packet is not too large
+        if len(new_packet) > 1500:
+            if PACKET_DEBUG:
+                logging.error(f"\033[31mPacket too large ({len(new_packet)} bytes).\033[0m")
+            return
+
         # Send the packet (to the next node or the internet).
         sendp(new_packet, verbose=False)
 
@@ -293,6 +299,12 @@ class IntermediaryNodeInterceptor:
         new_packet = Ether() / new_packet
         del new_packet[IP].chksum
         del new_packet[TCP].chksum
+
+        # Check the new packet is not too large
+        if len(new_packet) > 1500:
+            if PACKET_DEBUG:
+                logging.error(f"\033[31mPacket too large ({len(new_packet)} bytes).\033[0m")
+            return
 
         # Send the packet (to the previous node).
         sendp(new_packet, verbose=False)
