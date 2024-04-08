@@ -1194,12 +1194,15 @@ class ControlConnectionManager:
 
         # Decrypt the e2e connection if its encrypted (not encrypted when initiating a connection).
         if connection_token in [c.token for c in self._conversations.keys()]:
+            print("possibly decrypting e2e")
             conversation_id = ConnectionToken(token=connection_token, address=addr)
 
             if self._is_connected_to(addr, connection_token):
+                print("waiting for key to be set")
                 while not self._conversations[conversation_id].secure:
                     pass
 
+                print("decrypting e2e")
                 shared_secret = self._conversations[conversation_id].shared_secret
                 data = SymmetricEncryption.decrypt(data, shared_secret)
 
