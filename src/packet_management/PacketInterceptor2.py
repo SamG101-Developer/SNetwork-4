@@ -85,11 +85,10 @@ class TestPacketInterceptor:
             return
         new_packet.add_payload(payload)
 
+        # Debug
         logging.debug(f"\033[32mPacket from {addr}:{port} ({old_packet[TCP].seq}).\033[0m")
         logging.debug(f"\033[32mPacket size: {len(payload)} bytes.\033[0m")
-
-        # Debug
-        # logging.debug(f"\033[31mPacket sequence number: {new_packet[TCP].seq}.\033[0m")
+        logging.debug(f"\033[32mPacket payload: {payload}.\033[0m")
 
 
 class ClientPacketInterceptor:
@@ -187,7 +186,7 @@ class IntermediaryNodeInterceptor:
     Listens on port 12346, captures traffic. Removes a layer of encryption by corresponding the connection ID to a key.
     Re-routes the packet to the next or previous node in the route, depending on the sender of the packet.
     """
-    
+
     _node_tunnel_keys: Dict[Bytes, Bytes]  # {Connection Token: Tunnel Key}
     _prev_addresses: Dict[Bytes, Str]           # {Connection Token: Previous Address}
     _seen_seq_numbers: List[Int]
@@ -202,16 +201,16 @@ class IntermediaryNodeInterceptor:
 
         # Begin intercepting
         Thread(target=self._begin_interception).start()
-        
+
     def register_prev_node(self, connection_token: Bytes, key: Bytes, previous_address: Str) -> None:
         # Register the connection token, previous key, and previous address.
         self._node_tunnel_keys[connection_token] = key
         self._prev_addresses[connection_token] = previous_address
-        
+
     def _begin_interception(self) -> None:
         # Begin sniffing on the packet port.
         sniff(filter=f"tcp port {PACKET_PORT}", prn=self._transform_packet)
-        
+
     def _transform_packet(self, old_packet: Packet) -> None:
         # Get the connection token from the packet, and check if it is in the dictionary.
         connection_token = Bytes(old_packet[TCP].payload)[-32:]
@@ -233,7 +232,7 @@ class IntermediaryNodeInterceptor:
             self._forward_next(old_packet, connection_token)
         else:
             self._forward_prev(old_packet, connection_token)
-            
+
     def _forward_next(self, old_packet: Packet, connection_token: Bytes) -> None:
         # Copy the old packet from the IP layer, and remove the payload.
         new_packet = old_packet[IP].copy()
@@ -249,51 +248,51 @@ class IntermediaryNodeInterceptor:
 
         next_address, new_payload = new_payload[:4], new_payload[4:]
         next_address = IPv4Address(next_address)
-        
+
         # Add the payload to the packet and route it to the next node (could be the internet).
         new_packet.add_payload(new_payload)
         new_packet[TCP].dport = PACKET_PORT if next_address.is_private else HTTPS_PORT
         new_packet[IP].dst = next_address.exploded
         new_packet[IP].src = Address.me().ip
-        
+
         # Register information to the exit node interceptor if the packet is going to the internet.
         if not next_address.is_private:
             self._exit_node_interceptor.register_information(port=old_packet[TCP].sport, connection_token=connection_token)
-        
+
         # Add the Ethernet layer and force checksums to be recalculated.
         new_packet = Ether() / new_packet
         del new_packet[IP].chksum
         del new_packet[TCP].chksum
-        
+
         # Send the packet (to the next node or the internet).
         sendp(new_packet)
 
         # Debug
         logging.debug(f"\033[32mPacket from {old_packet[IP].src} intercepted and sent forwards to next node {next_address} ({len(old_payload)} -> {len(new_payload)} bytes).\033[0m")
         logging.debug(f"\033[32mPacket sequence number: {old_packet[TCP].seq}.\033[0m")
-        
+
     def _forward_prev(self, old_packet: Packet, connection_token: Bytes) -> None:
         # Copy the old packet from the IP layer, and remove the payload.
         new_packet = old_packet[IP].copy()
         new_packet[TCP].remove_payload()
         old_payload = Bytes(old_packet[TCP].payload)
-        
+
         # Encrypt the payload with the previous key, and add the connection token.
         new_payload = SymmetricEncryption.encrypt(old_payload, self._node_tunnel_keys[connection_token])
         new_payload += connection_token
         prev_address = self._prev_addresses[connection_token]
-        
+
         # Add the payload to the packet and route it to the previous node.
         new_packet.add_payload(new_payload)
         new_packet[TCP].dport = PACKET_PORT
         new_packet[IP].dst = prev_address
         new_packet[IP].src = Address.me().ip
-        
+
         # Add the Ethernet layer and force checksums to be recalculated.
         new_packet = Ether() / new_packet
         del new_packet[IP].chksum
         del new_packet[TCP].chksum
-        
+
         # Send the packet (to the previous node).
         sendp(new_packet)
 
@@ -307,10 +306,10 @@ class ExitNodeInterceptor:
     Listens on port 443, and captures traffic not from the internet, on port 443. It differentiates between normal
     traffic and routing traffic by maintaining a list of external src ports being used to send data from port 443.
     """
-    
+
     _port_mapping: Dict[int, Bytes]  # {Port: Connection Token}
     _intermediary_node_interceptor: IntermediaryNodeInterceptor
-    
+
     def __init__(self, intermediary_node_interceptor: IntermediaryNodeInterceptor):
         # Initialize the dictionary
         self._port_mapping = {}
@@ -318,15 +317,15 @@ class ExitNodeInterceptor:
 
         # Begin intercepting
         Thread(target=self._begin_interception).start()
-        
+
     def register_information(self, port: int, connection_token: Bytes) -> None:
         # Register the connection token to the port.
         self._port_mapping[port] = connection_token
-        
+
     def _begin_interception(self) -> None:
         # Begin sniffing on the HTTPS port (incoming).
         sniff(filter=f"tcp port {HTTPS_PORT}", prn=self._transform_packet)
-        
+
     def _transform_packet(self, old_packet: Packet) -> None:
         # Only process incoming packets on the HTTPS port.
         if IP not in old_packet or TCP not in old_packet:
