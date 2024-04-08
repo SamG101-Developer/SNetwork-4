@@ -91,7 +91,7 @@ class CmdHandler:
             logging.error(f"Already joined the network as a directory.")
 
     @staticmethod
-    def handle_store(arguments: Namespace) -> None:
+    def _handle_store(arguments: Namespace) -> None:
         if not CmdHandler.CONTROLLER:
             CmdHandler.CONTROLLER = ControlConnectionManager()
             CmdHandler.CONTROLLER.create_route(arguments)
