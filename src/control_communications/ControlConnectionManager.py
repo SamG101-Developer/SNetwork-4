@@ -1112,7 +1112,7 @@ class ControlConnectionManager:
         """
 
         # If this node is a broker node for the contents.
-        file_name, broker_node_ip = pickle.dumps(data)
+        file_name, broker_node_ip = pickle.loads(data)
         if file_name in self._broker_node_files.keys():
             conversation_id = ConnectionToken(token=connection_token, address=addr)
             self._broker_node_file_requesters[str(random.randint(1000, 9999)) + file_name] = conversation_id
