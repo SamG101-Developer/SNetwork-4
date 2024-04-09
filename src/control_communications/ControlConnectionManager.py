@@ -93,6 +93,7 @@ class ControlConnectionManager:
 
         self._routes_next_nodes = {}
         self._routes_prev_nodes = {}
+        self._exit_node_broker_node_mapper = {}
 
         self._client_packet_interceptor = None
         self._intermediary_node_interceptor = IntermediaryNodeInterceptor() if not self._is_directory_node else None
