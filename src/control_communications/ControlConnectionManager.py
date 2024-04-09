@@ -1168,9 +1168,12 @@ class ControlConnectionManager:
 
         # This is the exit node of the host route, so send the command to the host through the route. todo: exit node map instead?
         else:
-            candidates = [c.address for c in self._conversations.keys() if c.token == connection_token and c.address != addr]
-            addr = candidates[0]
+            # candidates = [c.address for c in self._conversations.keys() if c.token == connection_token and c.address != addr]
+            # addr = candidates[0]
+            old_connection_token = self._exit_node_broker_node_mapper[connection_token]
+            addr, connection_token = old_connection_token.address, old_connection_token.token
             self._tunnel_message_backward(addr, connection_token, ControlConnectionProtocol.DHT_FILE_GET_FROM_SOURCE, data)
+            del self._exit_node_broker_node_mapper[connection_token]
 
     @LogPre
     def _handle_dht_file_contents_to_broker(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
@@ -1191,8 +1194,9 @@ class ControlConnectionManager:
 
         # Otherwise, this node is the exit node in the host route, so send the message to the broker node.
         else:
-            self._open_connection_to(broker_node_ip, token=connection_token)
-            self._send_message_onwards(broker_node_ip, connection_token, ControlConnectionProtocol.DHT_FILE_CONTENTS_TO_BROKER, data)
+            new_connection_token = self._open_connection_to(broker_node_ip)
+            self._exit_node_broker_node_mapper[new_connection_token.token] = ConnectionToken(token=connection_token, address=addr)
+            self._send_message_onwards(broker_node_ip, new_connection_token.token, ControlConnectionProtocol.DHT_FILE_CONTENTS_TO_BROKER, data)
 
     @LogPre
     def _handle_dht_file_contents_to_client(self, addr: Address, connection_token: Bytes, data: Bytes) -> None:
