@@ -1209,7 +1209,7 @@ class ControlConnectionManager:
         # If this node is the exit node in the client's route, tunnel the message to the client node.
         else:
             candidates = [c for c in self._conversations.keys() if c.token == connection_token and c.address != addr]
-            addr, connection_token = candidates[0]
+            addr, connection_token = candidates[0].address, candidates[0].token
             self._tunnel_message_backward(addr, connection_token, ControlConnectionProtocol.DHT_FILE_CONTENTS_TO_CLIENT, data)
 
     @LogPre
