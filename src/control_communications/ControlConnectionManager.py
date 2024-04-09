@@ -1354,7 +1354,8 @@ class ControlConnectionManager:
         # logging.debug(f"\t\tCheck: {connection_token in [c.token for c in self._conversations.keys()]}")
 
         # Decrypt the e2e connection if its encrypted (not encrypted when initiating a connection).
-        if connection_token in [c.token for c in self._conversations.keys()]:
+        # if connection_token in [c.token for c in self._conversations.keys()]:
+        if ConnectionToken(token=connection_token, address=addr) in self._conversations.keys():
             # print("possibly decrypting e2e")
             conversation_id = ConnectionToken(token=connection_token, address=addr)
 
