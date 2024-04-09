@@ -1190,7 +1190,7 @@ class ControlConnectionManager:
         # Otherwise, this node is the exit node in the host route, so send the message to the broker node.
         else:
             new_connection_token = self._open_connection_to(broker_node_ip)
-            self._exit_node_broker_node_mapper[new_connection_token.token] = ConnectionToken(connection_token=connection_token, address=addr)
+            self._exit_node_broker_node_mapper[new_connection_token.token] = ConnectionToken(token=connection_token, address=addr)
             self._send_message_onwards(broker_node_ip, new_connection_token.token, ControlConnectionProtocol.DHT_FILE_CONTENTS_TO_BROKER, data)
 
     @LogPre
