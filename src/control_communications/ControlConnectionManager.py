@@ -1219,8 +1219,8 @@ class ControlConnectionManager:
             # candidates = [c for c in self._conversations.keys() if c.token == connection_token and c.address != addr]
             # addr, connection_token = candidates[0].address, candidates[0].token
             old_connection_token = self._exit_node_broker_node_mapper[connection_token]
-            addr, connection_token = old_connection_token.address, old_connection_token.token
-            self._tunnel_message_backward(addr, connection_token, ControlConnectionProtocol.DHT_FILE_CONTENTS_TO_CLIENT, data)
+            addr, new_connection_token = old_connection_token.address, old_connection_token.token
+            self._tunnel_message_backward(addr, new_connection_token, ControlConnectionProtocol.DHT_FILE_CONTENTS_TO_CLIENT, data)
             del self._exit_node_broker_node_mapper[connection_token]
 
     @LogPre
