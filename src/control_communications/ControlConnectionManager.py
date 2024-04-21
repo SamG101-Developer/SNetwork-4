@@ -1372,6 +1372,8 @@ class ControlConnectionManager:
 
             if self._waiting_for_ack_from(addr, connection_token) and data[0] == ControlConnectionProtocol.CONN_ACC.value:
                 pass
+            elif addr.ip in DHT.DIRECTORY_NODES.keys() and data[0] == ControlConnectionProtocol.DIR_CER:
+                pass
 
             else:
                 # print("waiting for key to be set")
