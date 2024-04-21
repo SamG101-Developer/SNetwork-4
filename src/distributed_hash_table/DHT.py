@@ -30,7 +30,7 @@ class DHT:
     LOCK = Lock()
 
     DIRECTORY_NODES = {
-        "192.168.0.90": load_pem_public_key(DIR_PUB_KEY),
+        "192.168.1.49": load_pem_public_key(DIR_PUB_KEY),
     }
 
     @staticmethod
