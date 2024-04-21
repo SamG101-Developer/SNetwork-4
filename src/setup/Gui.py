@@ -36,7 +36,7 @@ class MainWindow(QWidget):
         self._directory_button = AppItem(
             parent=self, text="Directory Node", icon="./icons/directory_node.svg", clicked=self.directory, large=True)
         self._reset_button = AppItem(
-            parent=self, text="Reset Node", icon="./icons/reset_node.svg", clicked=self.reset, disabled=True)
+            parent=self, text="Reset Node", icon="./icons/reset_node.svg", clicked=self.reset, disabled=False)
 
         # Add the buttons to the layout
         layout.addWidget(self._join_button, 1, 0)
@@ -57,6 +57,8 @@ class MainWindow(QWidget):
         self._join_button._activated = True
         self._join_button.setDisabled(True)
         self._route_button.setDisabled(False)
+        self._reset_button.setDisabled(True)
+        self._keygen_button.setDisabled(True)
 
         # Map command
         self._cmd_handler._handle("join", None)
@@ -88,7 +90,9 @@ class MainWindow(QWidget):
             self._cmd_handler._handle("retrieve", Namespace(file_name=file_name))
 
     def keygen(self) -> None:
-        ...
+        self._keygen_button._activated = True
+        self._keygen_button.setDisabled(True)
+        self._cmd_handler._handle("keygen", None)
 
     def directory(self) -> None:
         # Button states
@@ -100,7 +104,9 @@ class MainWindow(QWidget):
         self._cmd_handler._handle("directory", None)
 
     def reset(self) -> None:
-        ...
+        self._reset_button.setDisabled(True)
+        self._keygen_button.setDisabled(False)
+        self._cmd_handler._handle("reset", None)
 
 
 class BannerWidget(QWidget):
