@@ -1344,7 +1344,8 @@ class ControlConnectionManager:
                 ControlConnectionProtocol.CONN_REQ.value,
                 ControlConnectionProtocol.CONN_ACC.value,
                 ControlConnectionProtocol.DIR_CER.value,
-                ControlConnectionProtocol.DHT_EXH_REQ]:
+                ControlConnectionProtocol.DHT_EXH_REQ.value,
+                ControlConnectionProtocol.DHT_EXH_RES.value]:
             while not self._conversations[conversation_id].secure:
                 pass
 
@@ -1381,9 +1382,11 @@ class ControlConnectionManager:
             print(ControlConnectionProtocol.DIR_CER.value)
 
             if data[0] in [
+                    ControlConnectionProtocol.CONN_REQ.value,
                     ControlConnectionProtocol.CONN_ACC.value,
                     ControlConnectionProtocol.DIR_CER.value,
-                    ControlConnectionProtocol.DHT_EXH_REQ.value]:
+                    ControlConnectionProtocol.DHT_EXH_REQ.value,
+                    ControlConnectionProtocol.DHT_EXH_RES.value]:
                 pass
 
             else:
