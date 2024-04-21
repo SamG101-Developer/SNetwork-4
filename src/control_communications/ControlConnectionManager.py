@@ -1346,6 +1346,8 @@ class ControlConnectionManager:
                 ControlConnectionProtocol.DIR_CER.value,
                 ControlConnectionProtocol.DHT_EXH_REQ.value,
                 ControlConnectionProtocol.DHT_EXH_RES.value]:
+
+            logging.warning("\t\tWaiting for connection to be secured")
             while not self._conversations[conversation_id].secure:
                 pass
 
