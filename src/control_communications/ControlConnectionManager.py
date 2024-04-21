@@ -1341,6 +1341,7 @@ class ControlConnectionManager:
         conversation_id = ConnectionToken(token=connection_token, address=addr)
 
         if data[0] not in [
+                ControlConnectionProtocol.CONN_REQ.value,
                 ControlConnectionProtocol.CONN_ACC.value,
                 ControlConnectionProtocol.DIR_CER.value,
                 ControlConnectionProtocol.DHT_EXH_REQ]:
