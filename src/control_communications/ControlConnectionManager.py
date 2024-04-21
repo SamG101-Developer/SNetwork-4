@@ -112,8 +112,8 @@ class ControlConnectionManager:
         if not self._is_directory_node and not os.path.exists("./_certs/certificate.ctf"):
             self._obtain_certificate()
 
-        if not self._is_directory_node and len(json.loads(open("./_cache/dht_cache.json").read())) == 0:
-            self._obtain_first_nodes()
+        # if not self._is_directory_node and len(json.loads(open("./_cache/dht_cache.json").read())) == 0:
+        self._obtain_first_nodes()
 
         # if not self._is_directory_node:
         #     self.refresh_cache()
@@ -1375,18 +1375,13 @@ class ControlConnectionManager:
             # print("possibly decrypting e2e")
             conversation_id = ConnectionToken(token=connection_token, address=addr)
 
-            print("-" * 100)
-            print(addr.ip)
-            print(DHT.DIRECTORY_NODES.keys())
-            print(data[0])
-            print(ControlConnectionProtocol.DIR_CER.value)
-
-            if data[0] in [
-                    ControlConnectionProtocol.CONN_REQ.value,
+            if self._waiting_for_ack_from(addr, connection_token) and data[0] in [
                     ControlConnectionProtocol.CONN_ACC.value,
                     ControlConnectionProtocol.DIR_CER.value,
                     ControlConnectionProtocol.DHT_EXH_REQ.value,
                     ControlConnectionProtocol.DHT_EXH_RES.value]:
+                pass
+            elif data[0] == ControlConnectionProtocol.CONN_REQ.value and not self._is_connected_to(addr, connection_token):
                 pass
 
             else:
