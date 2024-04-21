@@ -539,7 +539,7 @@ class ControlConnectionManager:
 
         # Wait for the certificate to be received from the directory node.
         except NodeNotInNetworkException:
-            self._send_message_onwards(Address(ip=DHT.get_random_directory_node()), connection_token, ControlConnectionProtocol.DHT_EXH_REQ, os.urandom(32))
+            self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.DHT_EXH_REQ, os.urandom(32))
             while (their_static_public_key := DHT.get_static_public_key(addr.ip, silent=True)) is None:
                 pass
 
@@ -1340,7 +1340,10 @@ class ControlConnectionManager:
         # Encrypt the connection to the direct neighbour node, if a shared secret has been established.
         conversation_id = ConnectionToken(token=connection_token, address=addr)
 
-        if self._is_connected_to(addr, connection_token) and data[0] not in [ControlConnectionProtocol.CONN_ACC.value, ControlConnectionProtocol.DIR_CER.value]:
+        if self._is_connected_to(addr, connection_token) and data[0] not in [
+                ControlConnectionProtocol.CONN_ACC.value,
+                ControlConnectionProtocol.DIR_CER.value,
+                ControlConnectionProtocol.DHT_EXH_REQ]:
             while not self._conversations[conversation_id].secure:
                 pass
 
@@ -1370,9 +1373,16 @@ class ControlConnectionManager:
             # print("possibly decrypting e2e")
             conversation_id = ConnectionToken(token=connection_token, address=addr)
 
-            if self._waiting_for_ack_from(addr, connection_token) and data[0] == ControlConnectionProtocol.CONN_ACC.value:
-                pass
-            elif addr.ip in DHT.DIRECTORY_NODES.keys() and data[0] == ControlConnectionProtocol.DIR_CER.value:
+            print("-" * 100)
+            print(addr.ip)
+            print(DHT.DIRECTORY_NODES.keys())
+            print(data[0])
+            print(ControlConnectionProtocol.DIR_CER.value)
+
+            if data[0] in [
+                    ControlConnectionProtocol.CONN_ACC.value,
+                    ControlConnectionProtocol.DIR_CER,
+                    ControlConnectionProtocol.DHT_EXH_REQ.value]:
                 pass
 
             else:
