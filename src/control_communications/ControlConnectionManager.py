@@ -1370,12 +1370,6 @@ class ControlConnectionManager:
             # print("possibly decrypting e2e")
             conversation_id = ConnectionToken(token=connection_token, address=addr)
 
-            print("-" * 100)
-            print(addr.ip)
-            print(DHT.DIRECTORY_NODES.keys())
-            print(data[0])
-            print(ControlConnectionProtocol.DIR_CER.value)
-
             if self._waiting_for_ack_from(addr, connection_token) and data[0] == ControlConnectionProtocol.CONN_ACC.value:
                 pass
             elif addr.ip in DHT.DIRECTORY_NODES.keys() and data[0] == ControlConnectionProtocol.DIR_CER.value:
