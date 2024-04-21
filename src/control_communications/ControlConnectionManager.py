@@ -1347,9 +1347,10 @@ class ControlConnectionManager:
                 ControlConnectionProtocol.DHT_EXH_REQ.value,
                 ControlConnectionProtocol.DHT_EXH_RES.value]:
 
-            logging.warning("\t\tWaiting for connection to be secured")
             while not self._conversations[conversation_id].secure:
+                logging.debug("\t\tWaiting for connection to be secured")
                 pass
+            logging.debug("\t\tConnection is secure")
 
             shared_secret = self._conversations[conversation_id].shared_secret
             data = SymmetricEncryption.encrypt(data, shared_secret)
