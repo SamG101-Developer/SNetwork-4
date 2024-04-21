@@ -539,7 +539,7 @@ class ControlConnectionManager:
 
         # Wait for the certificate to be received from the directory node.
         except NodeNotInNetworkException:
-            self._send_message_onwards(addr, connection_token, ControlConnectionProtocol.DHT_EXH_REQ, os.urandom(32))
+            self._send_message_onwards(Address(ip=DHT.get_random_directory_node()), connection_token, ControlConnectionProtocol.DHT_EXH_REQ, os.urandom(32))
             while (their_static_public_key := DHT.get_static_public_key(addr.ip, silent=True)) is None:
                 pass
 
