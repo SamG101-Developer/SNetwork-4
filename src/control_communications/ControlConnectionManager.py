@@ -113,7 +113,8 @@ class ControlConnectionManager:
             self._obtain_certificate()
 
         # if not self._is_directory_node and len(json.loads(open("./_cache/dht_cache.json").read())) == 0:
-        self._obtain_first_nodes()
+        if not self._is_directory_node:
+            self._obtain_first_nodes()
 
         # if not self._is_directory_node:
         #     self.refresh_cache()
@@ -341,6 +342,13 @@ class ControlConnectionManager:
 
         logging.debug(f"\t\tRetrieving file name: {file_name}")
         logging.debug(f"\t\tRetrieving from {broker_node}")
+
+        # If the address is this node's address (ie this node is the broker), pull it from the store.
+        if broker_node.ip == Address.me().ip:
+            from_path = f"./_files/retrieved/{file_name}"
+            to_path = f"./_files/stored/{file_name}"
+            open(from_path, "wb").write(open(to_path, "rb").read())
+            return
 
         # Send a request to the broker node to get the file.
         self._tunnel_message_forwards(
