@@ -18,7 +18,7 @@ from cryptography.exceptions import InvalidTag
 PACKET_PORT = 12346
 HTTPS_PORT = 443
 BLACKLIST = ["57.128.141."]
-PACKET_DEBUG = False
+PACKET_DEBUG = True
 
 
 class TestPacketInterceptor:
